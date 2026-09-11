@@ -6,9 +6,12 @@
   "scripts": {
     "build": "pnpm --filter ./packages/ha-card build",
     "dev": "pnpm --filter ./packages/ha-card dev",
-    "ha:dev": "bash scripts/start-ha-dev.sh"
+    "ha:dev": "bash scripts/start-ha-dev.sh",
+    "changeset": "changeset",
+    "version-packages": "changeset version && node scripts/sync-python-versions.mjs"
   },
   "devDependencies": {
+    "@changesets/cli": "^3.0.2",
     "vite": "^5.4.0"
   },
   "devEngines": {
