@@ -1,0 +1,261 @@
+"""Tests for the share_space integration setup, services, and the frontend/backend boundary."""
+from homeassistant.components.frontend import DATA_PANELS
+from homeassistant.components.lovelace import LOVELACE_DATA
+from pytest_homeassistant_custom_component.common import MockConfigEntry
+
+from custom_components.share_space.const import (
+    DATA_PERSON_AREA_STORE,
+    DATA_PERSON_CALENDAR_STORE,
+    DOMAIN,
+    EVENT_HEATING_SHARED,
+    FRONTEND_SCRIPT_URL,
+    PANEL_URL_PATH,
+)
+
+
+async def _setup_entry(hass):
+    entry = MockConfigEntry(domain=DOMAIN)
+    entry.add_to_hass(hass)
+    assert await hass.config_entries.async_setup(entry.entry_id)
+    await hass.async_block_till_done()
+    return entry
+
+
+async def test_trigger_heating_shared_fires_event(hass):
+    await _setup_entry(hass)
+
+    events = []
+    hass.bus.async_listen(EVENT_HEATING_SHARED, events.append)
+
+    await hass.services.async_call(
+        DOMAIN, "trigger_heating_shared", {"area": "living_room"}, blocking=True
+    )
+    await hass.async_block_till_done()
+
+    assert len(events) == 1
+    assert events[0].data["area"] == "living_room"
+
+
+async def test_frontend_set_calendar_via_websocket(hass, hass_ws_client):
+    """Send the exact WebSocket message the share-space-card/panel wrapper sends on save."""
+    entry = await _setup_entry(hass)
+
+    client = await hass_ws_client(hass)
+    calendar = {"monday": [{"start": "09:00", "end": "17:00"}]}
+
+    await client.send_json(
+        {
+            "id": 1,
+            "type": "call_service",
+            "domain": DOMAIN,
+            "service": "set_calendar",
+            "service_data": {"person": "person.alice", "calendar": calendar},
+        }
+    )
+    response = await client.receive_json()
+    assert response["success"], response
+
+    store = hass.data[DOMAIN][entry.entry_id][DATA_PERSON_CALENDAR_STORE]
+    assert store.get("person.alice") == calendar
+
+
+async def test_set_calendar_rejects_bad_time_format(hass, hass_ws_client):
+    await _setup_entry(hass)
+    client = await hass_ws_client(hass)
+
+    await client.send_json(
+        {
+            "id": 1,
+            "type": "call_service",
+            "domain": DOMAIN,
+            "service": "set_calendar",
+            "service_data": {"person": "person.alice", "calendar": {"monday": [{"start": "9am", "end": "17:00"}]}},
+        }
+    )
+    response = await client.receive_json()
+    assert not response["success"]
+
+
+async def test_set_calendar_rejects_non_person_entity(hass, hass_ws_client):
+    await _setup_entry(hass)
+    client = await hass_ws_client(hass)
+
+    await client.send_json(
+        {
+            "id": 1,
+            "type": "call_service",
+            "domain": DOMAIN,
+            "service": "set_calendar",
+            "service_data": {"person": "sensor.not_a_person", "calendar": {}},
+        }
+    )
+    response = await client.receive_json()
+    assert not response["success"]
+
+
+async def test_get_calendar_websocket_roundtrip(hass, hass_ws_client):
+    """One person's own calendar read path: set via service, read back via WS command."""
+    await _setup_entry(hass)
+    client = await hass_ws_client(hass)
+    calendar = {"monday": [{"start": "09:00", "end": "17:00"}]}
+
+    await hass.services.async_call(
+        DOMAIN, "set_calendar", {"person": "person.alice", "calendar": calendar}, blocking=True
+    )
+
+    await client.send_json({"id": 1, "type": "share_space/get_calendar", "person": "person.alice"})
+    response = await client.receive_json()
+    assert response["success"]
+    assert response["result"]["calendar"] == calendar
+
+    await client.send_json({"id": 2, "type": "share_space/get_calendar", "person": "person.unknown"})
+    response = await client.receive_json()
+    assert response["success"]
+    assert response["result"]["calendar"] == {}
+
+
+async def test_assign_person_area_then_get_person_area_websocket(hass, hass_ws_client):
+    """The panel's person->area resolution path: assign via service, read back via WS command."""
+    entry = await _setup_entry(hass)
+
+    events = []
+    hass.bus.async_listen("share_space_person_area_assigned", events.append)
+
+    await hass.services.async_call(
+        DOMAIN, "assign_person_area", {"person": "person.alex", "area": "living_room"}, blocking=True
+    )
+    await hass.async_block_till_done()
+
+    assert len(events) == 1
+    assert events[0].data == {"person": "person.alex", "area": "living_room"}
+
+    person_area_store = hass.data[DOMAIN][entry.entry_id][DATA_PERSON_AREA_STORE]
+    assert person_area_store.get("person.alex") == "living_room"
+
+    client = await hass_ws_client(hass)
+    await client.send_json({"id": 1, "type": "share_space/get_person_area", "person": "person.alex"})
+    response = await client.receive_json()
+    assert response["success"]
+    assert response["result"]["area"] == "living_room"
+
+    await client.send_json({"id": 2, "type": "share_space/get_person_area", "person": "person.unknown"})
+    response = await client.receive_json()
+    assert response["success"]
+    assert response["result"]["area"] is None
+
+
+async def test_assign_person_area_rejects_non_person_entity(hass, hass_ws_client):
+    await _setup_entry(hass)
+    client = await hass_ws_client(hass)
+
+    await client.send_json(
+        {
+            "id": 1,
+            "type": "call_service",
+            "domain": DOMAIN,
+            "service": "assign_person_area",
+            "service_data": {"person": "sensor.not_a_person", "area": "living_room"},
+        }
+    )
+    response = await client.receive_json()
+    assert not response["success"]
+
+
+async def test_area_schedule_merges_every_assigned_person(hass, hass_ws_client):
+    """The actual point of the person-keyed model: two people sharing an area, each with their
+    own calendar, get merged into one effective schedule -- not clobbering each other."""
+    await _setup_entry(hass)
+    client = await hass_ws_client(hass)
+
+    await hass.services.async_call(
+        DOMAIN,
+        "assign_person_area",
+        {"person": "person.alice", "area": "bureau"},
+        blocking=True,
+    )
+    await hass.services.async_call(
+        DOMAIN,
+        "assign_person_area",
+        {"person": "person.bob", "area": "bureau"},
+        blocking=True,
+    )
+    await hass.services.async_call(
+        DOMAIN,
+        "set_calendar",
+        {"person": "person.alice", "calendar": {"monday": [{"start": "09:00", "end": "10:00"}]}},
+        blocking=True,
+    )
+    await hass.services.async_call(
+        DOMAIN,
+        "set_calendar",
+        {"person": "person.bob", "calendar": {"monday": [{"start": "09:30", "end": "11:00"}]}},
+        blocking=True,
+    )
+
+    await client.send_json({"id": 1, "type": "share_space/get_area_schedule", "area": "bureau"})
+    response = await client.receive_json()
+    assert response["success"], response
+
+    schedule = response["result"]["schedule"]
+    assert schedule["monday"] == ["09:00", "09:30", "10:00", "10:30"]
+    assert schedule["tuesday"] == []
+
+    # Each person's own calendar is still independently readable, unclobbered by the other.
+    await client.send_json({"id": 2, "type": "share_space/get_calendar", "person": "person.alice"})
+    alice = await client.receive_json()
+    assert alice["result"]["calendar"] == {"monday": [{"start": "09:00", "end": "10:00"}]}
+
+    await client.send_json({"id": 3, "type": "share_space/get_calendar", "person": "person.bob"})
+    bob = await client.receive_json()
+    assert bob["result"]["calendar"] == {"monday": [{"start": "09:30", "end": "11:00"}]}
+
+
+async def test_get_area_calendars_returns_each_persons_own_calendar(hass, hass_ws_client):
+    """Unlike get_area_schedule (flattened on/off), get_area_calendars keeps attribution --
+    the raw per-person calendars a read-only per-person view needs to render."""
+    await _setup_entry(hass)
+    client = await hass_ws_client(hass)
+
+    await hass.services.async_call(
+        DOMAIN, "assign_person_area", {"person": "person.alice", "area": "bureau"}, blocking=True
+    )
+    await hass.services.async_call(
+        DOMAIN, "assign_person_area", {"person": "person.bob", "area": "bureau"}, blocking=True
+    )
+    await hass.services.async_call(
+        DOMAIN,
+        "set_calendar",
+        {"person": "person.alice", "calendar": {"monday": [{"start": "09:00", "end": "10:00"}]}},
+        blocking=True,
+    )
+    await hass.services.async_call(
+        DOMAIN,
+        "set_calendar",
+        {"person": "person.bob", "calendar": {"monday": [{"start": "09:30", "end": "11:00"}]}},
+        blocking=True,
+    )
+
+    await client.send_json({"id": 1, "type": "share_space/get_area_calendars", "area": "bureau"})
+    response = await client.receive_json()
+    assert response["success"], response
+
+    persons = response["result"]["persons"]
+    assert persons["person.alice"] == {"monday": [{"start": "09:00", "end": "10:00"}]}
+    assert persons["person.bob"] == {"monday": [{"start": "09:30", "end": "11:00"}]}
+
+
+async def test_panel_registered(hass):
+    await _setup_entry(hass)
+    assert PANEL_URL_PATH in hass.data[DATA_PANELS]
+
+
+async def test_frontend_bundle_registered_as_lovelace_resource(hass):
+    """share-space-card/share-space-my-schedule-card must be loadable on ANY dashboard, not
+    just our own panel: panel_custom's module_url only loads the bundle for that one panel, so
+    the frontend also needs it registered as a Lovelace resource."""
+    await _setup_entry(hass)
+
+    resources = hass.data[LOVELACE_DATA].resources
+    await resources.async_get_info()
+    urls = [item["url"] for item in resources.async_items()]
+    assert FRONTEND_SCRIPT_URL in urls

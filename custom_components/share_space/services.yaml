@@ -1,0 +1,83 @@
+trigger_heating_shared:
+  name: Trigger heating shared
+  description: Fire the share_space_heating_shared event.
+  fields:
+    area:
+      name: Area
+      description: The area sharing heat.
+      required: true
+      selector:
+        area:
+    temperature:
+      name: Temperature
+      description: Optional temperature reading to attach to the event.
+      required: false
+      example: 21.5
+      selector:
+        number:
+          min: -50
+          max: 100
+          step: 0.1
+          unit_of_measurement: "°C"
+
+set_calendar:
+  name: Set calendar
+  description: Store a person's own weekly presence calendar.
+  fields:
+    person:
+      name: Person
+      description: The person entity this calendar belongs to.
+      required: true
+      selector:
+        entity:
+          domain: person
+    calendar:
+      name: Calendar
+      description: Map of weekday to a list of {start, end} "HH:MM" presence ranges.
+      required: true
+      example: '{"monday": [{"start": "09:00", "end": "17:00"}]}'
+      selector:
+        object:
+
+assign_person_area:
+  name: Assign person area
+  description: Associate a person with an area.
+  fields:
+    person:
+      name: Person
+      description: The person entity to assign.
+      required: true
+      selector:
+        entity:
+          domain: person
+    area:
+      name: Area
+      description: The area to assign this person to.
+      required: true
+      selector:
+        area:
+
+set_area_action:
+  name: Set area action
+  description: >-
+    Configure the actions to run when an area's merged calendar turns on/off. Drives
+    scheduler-component (if installed) rather than running its own executor.
+  fields:
+    area:
+      name: Area
+      description: The area.
+      required: true
+      selector:
+        area:
+    on_action:
+      name: On action
+      description: Action(s) to run when the area becomes occupied.
+      required: false
+      selector:
+        action:
+    off_action:
+      name: Off action
+      description: Action(s) to run when the area becomes vacant. Optional.
+      required: false
+      selector:
+        action:

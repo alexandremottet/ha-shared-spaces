@@ -1,0 +1,7 @@
+node_modules/
+custom_components/share_space/frontend/*.js
+packages/components/demo/dist/
+*.pyc
+__pycache__/
+.pytest_cache/
+.ha-dev/
