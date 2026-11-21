@@ -2,7 +2,8 @@ import { fromWall, wallTime } from "./tz";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
-import { evaluate, nextOn, occupiedAt, previousOff, strategyTimeline } from "./strategy-sim";
+import { evaluate, nextOn, occupiedAt, previousOff } from "./strategy-sim";
+import { strategyTimeline } from "./strategy-timeline";
 
 const cases = JSON.parse(readFileSync(resolve(__dirname, "../../../../fixtures/heating/strategy_cases.json"), "utf8"));
 
