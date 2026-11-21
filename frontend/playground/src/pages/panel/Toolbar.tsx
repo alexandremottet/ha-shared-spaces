@@ -2,6 +2,7 @@ import { useState } from "react";
 import { THEMES, applyTheme, initialTheme } from "../../stubs";
 import type { ThemeName } from "../../stubs";
 import type { MockHassController } from "../../mock/mock-hass";
+import { RoleSwitch } from "../RoleSwitch";
 
 export type Viewport = "full" | "phone" | "tablet";
 
@@ -28,6 +29,7 @@ export function Toolbar({ controller, edit, setEdit, narrow, setNarrow, viewport
   return (
     <div className="panel-toolbar">
       <a href="#/logic">Back to playground</a>
+      {controller && <RoleSwitch controller={controller} />}
       {controller && (
         <label>
           User

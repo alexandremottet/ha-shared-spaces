@@ -83,7 +83,7 @@ const heatingProps = (extra: Partial<Record<string, unknown>> = {}): PropDef[] =
     { name: "mode", kind: "select", value: v.mode, options: ["schedule", "override", "manual_only", "unmanaged"] },
     { name: "overrideUntil", kind: "number", value: v.overrideHours, parse: hoursFromNow },
     { name: "presence", kind: "boolean", value: v.presence },
-    { name: "durations", kind: "json", value: [1, 3, 6] },
+    { name: "durations", kind: "json", value: [1, 2, 3, 6] },
     { name: "compact", kind: "boolean", value: v.compact },
   ];
 };

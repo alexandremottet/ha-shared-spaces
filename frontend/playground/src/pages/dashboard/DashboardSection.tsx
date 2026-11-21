@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import type { HomeAssistant } from "ha-share-space-ui/ha";
 import { createCardElement } from "../../stubs";
+import "./dashboard.css";
 
 type Json = Record<string, unknown>;
 type Generator = { generate(config: Json, hass: HomeAssistant): Promise<Json> };
@@ -26,10 +27,14 @@ async function resolveView(view: Json, hass: HomeAssistant): Promise<Json> {
 
 function Cards({ view, hass }: { view: Json; hass: HomeAssistant }) {
   const box = useRef<HTMLDivElement>(null);
+  const cards = useRef<Array<HTMLElement & { hass?: HomeAssistant }>>([]);
+  const hassRef = useRef(hass);
+  hassRef.current = hass;
   useEffect(() => {
     const root = box.current;
     if (!root) return;
     root.replaceChildren();
+    cards.current = [];
     for (const cfg of collectCards(view)) {
       if (cfg.type === "heading") {
         const h = document.createElement("h4");
@@ -46,10 +51,15 @@ function Cards({ view, hass }: { view: Json; hass: HomeAssistant }) {
         continue;
       }
       const el = createCardElement(cfg as { type: string }) as HTMLElement & { hass?: HomeAssistant };
-      el.hass = hass;
+      el.hass = hassRef.current;
       root.appendChild(el);
+      cards.current.push(el);
     }
-  }, [view, hass]);
+  }, [view]);
+  // Like HA: push new hass into existing cards instead of recreating them.
+  useEffect(() => {
+    for (const el of cards.current) el.hass = hass;
+  }, [hass]);
   return <div ref={box} className="dash-grid" />;
 }
 
@@ -85,7 +95,7 @@ export function DashboardSection({ hass, refreshKey }: { hass: HomeAssistant; re
   const view = views[Math.min(active, views.length - 1)];
   return (
     <section className="panel stack">
-      <h3>Dashboard strategy</h3>
+      <h3>Generated dashboard</h3>
       <div className="muted">
         <code>ll-strategy-dashboard-share-space.generate({"{}"}, hass)</code> (regenerates on user, backend toggles or reset)
       </div>

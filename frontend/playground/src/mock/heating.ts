@@ -195,7 +195,7 @@ export class HeatingZoneSim {
     this.previousTemp = previous;
   }
 
-  setBase(base: BaseTarget): void {
+  setBase(base: BaseTarget | null): void {
     this.baseTarget = base;
     this.apply(true);
   }

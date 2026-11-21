@@ -90,7 +90,7 @@ export class MockHassController {
   private _lastClockTick = 0;
   private _unsubClock: () => void;
   private _ws = new Map<string, { backend: keyof InstalledBackends | null; admin?: boolean; fn: WsHandler }>();
-  private _services = new Map<string, { backend: keyof InstalledBackends | null; fn: ServiceHandler }>();
+  private _services = new Map<string, { backend: keyof InstalledBackends | null; fn: ServiceHandler; admin: boolean }>();
   private _responseServices = new Map<string, { backend: keyof InstalledBackends | null; fn: (data: Record<string, unknown>) => unknown }>();
 
   constructor(options: MockOptions = {}) {
@@ -421,6 +421,8 @@ export class MockHassController {
         device_class: "temperature",
         mode: zone.mode,
         active_rule: zone.activeRule,
+        comfort_temp: zone.config.comfort_temp,
+        eco_temp: zone.config.eco_temp,
         frost_temp: zone.frostTemp,
         off_mode: zone.config.off_mode ?? "frost",
         override_until: zone.overrideActive ? new Date(zone.overrideUntil as number).toISOString() : null,
@@ -609,6 +611,7 @@ export class MockHassController {
 
   private async _callServiceAsync(domain: string, service: string, data: Record<string, unknown>): Promise<void> {
     await this._latency();
+    if (this._services.get(`${domain}.${service}`)?.admin && !this._currentUser()?.isAdmin) throw HA_ERROR("unauthorized", "Unauthorized");
     this._callService(domain, service, data);
     this._settle(false);
   }
@@ -655,8 +658,8 @@ export class MockHassController {
   private _registerHandlers(): void {
     const ws = (type: string, backend: keyof InstalledBackends | null, fn: WsHandler, admin = false) =>
       this._ws.set(type, { backend, fn, admin });
-    const svc = (name: string, backend: keyof InstalledBackends | null, fn: ServiceHandler) =>
-      this._services.set(name, { backend, fn });
+    const svc = (name: string, backend: keyof InstalledBackends | null, fn: ServiceHandler, admin = false) =>
+      this._services.set(name, { backend, fn, admin });
     const st = () => this._state;
 
     ws("config/area_registry/list", null, () =>
@@ -802,11 +805,11 @@ export class MockHassController {
       if ("off_actions" in d) changes.off_actions = clone(d.off_actions) as AreaActions["off_actions"];
       if ("enabled" in d) changes.enabled = Boolean(d.enabled);
       st().areaActions = { ...st().areaActions, [area]: { ...this._actionsOf(area), ...changes } };
-    });
+    }, true);
     svc("share_space.run_area_actions", "planning", (d) => {
       const state = d.state === "off" ? "off" : "on";
       this._runActions(String(d.area), state, "manual");
-    });
+    }, true);
 
     svc("share_space_heating.set_override", "heating", (d) => {
       const zone = this._zoneByEntity(d.entity_id);
@@ -827,9 +830,10 @@ export class MockHassController {
     svc("share_space_heating.set_base_target", "heating", (d) => {
       const zone = this._zoneByEntity(d.entity_id);
       const given = ["temperature", "preset", "off"].filter((k) => d[k] !== undefined && d[k] !== null);
-      if (given.length !== 1) throw HA_ERROR("service_validation_error", "exactly one of temperature, preset, off is required");
+      if (given.length > 1) throw HA_ERROR("service_validation_error", "at most one of temperature, preset, off");
       const reason = d.reason === undefined ? null : String(d.reason);
-      if (d.temperature !== undefined) zone.setBase({ kind: "temperature", value: Number(d.temperature), reason });
+      if (given.length === 0) zone.setBase(null);
+      else if (d.temperature !== undefined) zone.setBase({ kind: "temperature", value: Number(d.temperature), reason });
       else if (d.preset !== undefined) {
         if (d.preset !== "comfort" && d.preset !== "eco") throw HA_ERROR("service_validation_error", "invalid preset");
         zone.setBase({ kind: "preset", value: d.preset, reason });

@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import type { MockHassController } from "../../mock/mock-hass";
 import { parseDatetimeLocal, toDatetimeLocal } from "../../mock/planning";
 import { fmtTime } from "./hooks";
+import { RoleSwitch } from "../RoleSwitch";
 
 const SPEEDS = [1, 60, 600];
 
@@ -49,6 +50,7 @@ export function MockBar({ controller }: { controller: MockHassController }) {
   return (
     <div className="panel row">
       <strong>Mock</strong>
+      <RoleSwitch controller={controller} />
       <label className="row">
         User
         <select value={state.currentUserId} onChange={(e) => controller.setUser(e.target.value)}>

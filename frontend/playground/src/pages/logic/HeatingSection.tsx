@@ -1,66 +1,30 @@
 import { useEffect, useRef, useState } from "react";
-import { clearOverride, extendOverride, setOverride } from "ha-share-space-ui/ha";
+import "ha-share-space-heating-card";
 import type { HomeAssistant } from "ha-share-space-ui/ha";
 import { zoneViewModel } from "ha-share-space-heating-card/view-model";
 import type { MockHassController } from "../../mock/mock-hass";
+import { createCardElement } from "../../stubs";
 import { describeError, fmtTime } from "./hooks";
 
-type Handlers = {
-  onOverride(d: { temperature: number; hours: number }): void;
-  onExtend(d: { hours: number }): void;
-  onClear(): void;
-  onTarget(d: { temperature: number }): void;
-};
+type CardEl = HTMLElement & { hass?: HomeAssistant };
 
-function Control({ props, handlers }: { props: Record<string, unknown>; handlers: Handlers }) {
-  const el = useRef<HTMLElement>(null);
-  const ref = useRef(handlers);
-  ref.current = handlers;
+// The real heating card users get, so the bench never drifts from it.
+function HeatingCard({ hass, entityId }: { hass: HomeAssistant; entityId: string }) {
+  const box = useRef<HTMLDivElement>(null);
+  const card = useRef<CardEl | null>(null);
+  const hassRef = useRef(hass);
+  hassRef.current = hass;
   useEffect(() => {
-    if (el.current) Object.assign(el.current, props);
-  });
+    const el = createCardElement({ type: "custom:share-space-heating-card", entity: entityId } as { type: string }) as CardEl;
+    el.hass = hassRef.current;
+    box.current?.replaceChildren(el);
+    card.current = el;
+    return () => el.remove();
+  }, [entityId]);
   useEffect(() => {
-    const node = el.current;
-    if (!node) return;
-    const on = (name: string, fn: (d: any) => void) => {
-      const listener = (e: Event) => fn((e as CustomEvent).detail);
-      node.addEventListener(name, listener);
-      return () => node.removeEventListener(name, listener);
-    };
-    const offs = [
-      on("override-requested", (d) => ref.current.onOverride(d)),
-      on("override-extended", (d) => ref.current.onExtend(d)),
-      on("override-cleared", () => ref.current.onClear()),
-      on("target-set", (d) => ref.current.onTarget(d)),
-    ];
-    return () => offs.forEach((o) => o());
-  }, []);
-  return <share-space-heating-control ref={el}></share-space-heating-control>;
-}
-
-function StrategyPanel({ hass, zone }: { hass: HomeAssistant; zone: string }) {
-  const el = useRef<HTMLElement>(null);
-  const [nav, setNav] = useState("");
-  useEffect(() => {
-    if (el.current) Object.assign(el.current, { hass, zone });
-  });
-  useEffect(() => {
-    const node = el.current;
-    if (!node) return;
-    const listener = (e: Event) => {
-      e.preventDefault();
-      setNav(String((e as CustomEvent<{ path: string }>).detail.path));
-    };
-    node.addEventListener("navigate-requested", listener);
-    return () => node.removeEventListener("navigate-requested", listener);
-  }, []);
-  return (
-    <details className="strategy" open>
-      <summary>Strategy</summary>
-      <share-space-strategy-editor ref={el}></share-space-strategy-editor>
-      {nav && <div className="muted">HA would navigate to {nav}</div>}
-    </details>
-  );
+    if (card.current) card.current.hass = hass;
+  }, [hass]);
+  return <div ref={box} />;
 }
 
 function Zone({ hass, entityId, controller }: { hass: HomeAssistant; entityId: string; controller: MockHassController | null }) {
@@ -70,37 +34,16 @@ function Zone({ hass, entityId, controller }: { hass: HomeAssistant; entityId: s
   const run = (p: Promise<unknown>) => p.then(() => setError(""), (err) => setError(describeError(err)));
   const climate = vm.climateEntity;
   const setpoint = Number(hass.states[climate ?? ""]?.attributes.temperature ?? vm.target);
-  const presenceEntity = String(hass.states[entityId].attributes.presence_entity ?? "");
   const sim = controller?.zones.find((z) => z.config.climate_entity === climate);
   const linked = sim?.config.presence_entity ?? null;
   const area = linked?.startsWith("binary_sensor.share_space_") ? linked.slice("binary_sensor.share_space_".length) : null;
   const forced = area ? controller?.state.forcedPresence[area] : undefined;
   const firstSensor = Object.keys(hass.states).find((id) => id.startsWith("binary_sensor.share_space_"));
-  void presenceEntity;
   return (
     <div className="panel zone stack">
-      <Control
-        handlers={{
-          onOverride: (d) => run(setOverride(hass, entityId, d.temperature, d.hours)),
-          onExtend: (d) => run(extendOverride(hass, entityId, d.hours)),
-          onClear: () => run(clearOverride(hass, entityId)),
-          onTarget: (d) => climate && run(hass.callService("climate", "set_temperature", { entity_id: climate, temperature: d.temperature })),
-        }}
-        props={{
-          name: vm.name,
-          currentTemperature: vm.currentTemperature,
-          target: vm.target,
-          min: vm.min,
-          max: vm.max,
-          step: vm.step,
-          unit: vm.unit,
-          mode: vm.mode,
-          overrideUntil: vm.overrideUntil,
-          presence: vm.presence,
-          reason: vm.activeRule,
-        }}
-      />
+      <HeatingCard hass={hass} entityId={entityId} />
       {error && <div className="notice error">{error}</div>}
+      <div className="muted">Simulate outside the UI:</div>
       <div className="row">
         <button onClick={() => climate && run(hass.callService("climate", "set_temperature", { entity_id: climate, temperature: setpoint + 1 }))}>
           Thermostat +1
@@ -112,7 +55,6 @@ function Zone({ hass, entityId, controller }: { hass: HomeAssistant; entityId: s
           mode {vm.mode} · setpoint {setpoint}
         </span>
       </div>
-      <StrategyPanel hass={hass} zone={entityId} />
       {controller && sim && (
         <div className="row">
           {area && (
@@ -139,7 +81,11 @@ export function HeatingSection({ hass, controller }: { hass: HomeAssistant; cont
   const log = controller?.state.heatingLog ?? [];
   return (
     <div className="stack">
-      <h2>Heating simulation</h2>
+      <h2>Heating zones</h2>
+      <div className="muted">
+        The heating card for each zone, plus buttons to simulate what happens outside the UI (someone turning the thermostat,
+        occupancy forced on/off). Watch the card and the event log react.
+      </div>
       {ids.length === 0 && <div className="notice">No heating zones (Share Space Heating not installed or no zone).</div>}
       <div className="zones">
         {ids.map((id) => (

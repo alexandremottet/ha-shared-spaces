@@ -1,13 +1,11 @@
 import { useEffect, useMemo, useState } from "react";
 import "ha-share-space-planning-cards";
 import "ha-share-space-heating-card";
-import "ha-share-space-dashboard";
 import { LiveGate, useHassContext } from "../hass-context";
 import { MockBar } from "./logic/ClockBar";
 import { CardHost } from "./cards/CardHost";
 import type { CardEl } from "./cards/CardHost";
 import { CARDS, staticOf } from "./cards/catalog";
-import { DashboardSection } from "./cards/DashboardSection";
 import "./cards/cards.css";
 
 const WIDTHS = [
@@ -17,7 +15,7 @@ const WIDTHS = [
 ];
 
 function CardGallery() {
-  const { hass, controller } = useHassContext();
+  const { hass } = useHassContext();
   const [tag, setTag] = useState(CARDS[0].tag);
   const [width, setWidth] = useState("500px");
   const [texts, setTexts] = useState<Record<string, string>>({});
@@ -48,7 +46,6 @@ function CardGallery() {
 
   const form = useMemo(() => staticOf(tag)?.getConfigForm?.() ?? null, [tag]);
   const config = applied[tag];
-  const dashKey = controller ? `${controller.state.currentUserId}|${JSON.stringify(controller.installed)}|${controller.state.persons.length}` : "live";
 
   if (!hass) return null;
   return (
@@ -93,7 +90,6 @@ function CardGallery() {
           <pre className="json">{JSON.stringify(grid, null, 2)}</pre>
         </div>
       </div>
-      <DashboardSection hass={hass} refreshKey={dashKey} />
     </div>
   );
 }

@@ -4,6 +4,7 @@ import { HassProvider, useHassContext } from "./hass-context";
 import { LogicPage } from "./pages/LogicPage";
 import { ComponentsPage } from "./pages/ComponentsPage";
 import { CardsPage } from "./pages/CardsPage";
+import { DashboardPage } from "./pages/DashboardPage";
 import { PanelPage } from "./pages/PanelPage";
 import { THEMES, applyTheme, initialTheme } from "./stubs";
 import type { ThemeName } from "./stubs";
@@ -18,6 +19,7 @@ export const routes: Route[] = [
   { path: "logic", label: "Logic", Page: LogicPage },
   { path: "components", label: "Components", Page: ComponentsPage },
   { path: "cards", label: "Cards", Page: CardsPage },
+  { path: "dashboard", label: "Dashboard", Page: DashboardPage },
   { path: "panel", label: "Panel", Page: PanelPage },
 ];
 
@@ -74,11 +76,36 @@ function Nav({ path }: { path: string }) {
   );
 }
 
+// Components ask HA to navigate (e.g. automation editor); show where instead of changing the URL.
+function NavigateToast() {
+  const [target, setTarget] = useState("");
+  useEffect(() => {
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const onNavigate = (e: Event) => {
+      e.preventDefault();
+      setTarget(String((e as CustomEvent<{ path: string }>).detail.path));
+      clearTimeout(timer);
+      timer = setTimeout(() => setTarget(""), 5000);
+    };
+    window.addEventListener("navigate-requested", onNavigate);
+    return () => {
+      clearTimeout(timer);
+      window.removeEventListener("navigate-requested", onNavigate);
+    };
+  }, []);
+  return target ? (
+    <div className="toast" role="status" onClick={() => setTarget("")}>
+      In Home Assistant this would open <code>{target}</code>
+    </div>
+  ) : null;
+}
+
 function Shell() {
   const path = useHashRoute();
   const route = routes.find((r) => r.path === path) ?? routes[0];
   return (
     <>
+      <NavigateToast />
       <Nav path={route.path} />
       <main className="main">
         <route.Page />
