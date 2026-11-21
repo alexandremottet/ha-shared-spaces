@@ -137,8 +137,7 @@ function meView(hass: HomeAssistant): Card {
   if (hasPerson) {
     cards.push(
       { type: "custom:share-space-my-planning-card", show_area_picker: false },
-      { type: "custom:share-space-work-area-card" },
-      { type: "custom:share-space-compare-card" }
+      { type: "custom:share-space-work-area-card" }
     );
   } else {
     cards.push({
