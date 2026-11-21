@@ -7,6 +7,7 @@ export interface SeedPerson {
   name: string;
   userId: string;
   isAdmin: boolean;
+  userData?: Record<string, unknown>;
 }
 
 export interface SeedClimate {

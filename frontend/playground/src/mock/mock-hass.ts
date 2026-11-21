@@ -34,7 +34,7 @@ export interface StrategyAutomationRec {
 
 export interface MockState {
   installed: InstalledBackends;
-  persons: Array<{ entity_id: string; name: string; userId: string; isAdmin: boolean }>;
+  persons: Array<{ entity_id: string; name: string; userId: string; isAdmin: boolean; userData?: Record<string, unknown> }>;
   areas: Array<{ area_id: string; name: string }>;
   calendars: Record<string, Partial<Calendar>>;
   personAreas: Record<string, string>;
@@ -226,6 +226,7 @@ export class MockHassController {
       name: p.name,
       userId: p.userId,
       isAdmin: p.isAdmin,
+      userData: p.userData,
     }));
     return {
       installed: this.installed,
@@ -666,6 +667,15 @@ export class MockHassController {
       st().areas.map((a) => ({ area_id: a.area_id, name: a.name, picture: null, aliases: [], labels: [] }))
     );
     ws("share_space/get_calendar", "planning", (m) => ({ calendar: st().calendars[String(m.person)] ?? {} }));
+    ws("frontend/get_user_data", null, (m) => {
+      const data = this._currentUser()?.userData ?? {};
+      return { value: m.key === undefined ? data : (data[String(m.key)] ?? null) };
+    });
+    ws("frontend/set_user_data", null, (m) => {
+      const me = this._currentUser();
+      if (me) me.userData = { ...me.userData, [String(m.key)]: m.value };
+      return null;
+    });
     ws("share_space/get_person_area", "planning", (m) => ({ area: st().personAreas[String(m.person)] ?? null }));
     ws("share_space/get_area_schedule", "planning", (m) => ({ schedule: this._schedule(String(m.area)) }));
     ws("share_space/get_area_calendars", "planning", (m) => ({ persons: this.areaCalendars(String(m.area)) }));

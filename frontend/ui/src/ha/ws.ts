@@ -1,5 +1,6 @@
 import type { Calendar, WeekDay } from "../types";
 import type { HomeAssistant } from "./hass";
+import type { SharePrefs } from "./roles";
 import type { ScheduleRanges, StrategyInputs, StrategyPreset } from "../heating/strategy-sim";
 
 export type PlanningAction = Record<string, unknown>;
@@ -281,3 +282,10 @@ export function planningSchedule(hass: HomeAssistant, area: string): ScheduleRan
   const s = hass.states[`binary_sensor.share_space_${area}`]?.attributes.schedule;
   return s && typeof s === "object" ? (s as ScheduleRanges) : null;
 }
+
+// Per-user prefs in HA frontend user data under key "share_space".
+export const getSharePrefs = async (hass: HomeAssistant): Promise<SharePrefs | null> =>
+  (await hass.callWS<{ value: SharePrefs | null }>({ type: "frontend/get_user_data", key: "share_space" })).value;
+
+export const setSharePrefs = (hass: HomeAssistant, prefs: SharePrefs): Promise<void> =>
+  hass.callWS<void>({ type: "frontend/set_user_data", key: "share_space", value: prefs as Record<string, unknown> });

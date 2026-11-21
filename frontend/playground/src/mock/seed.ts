@@ -49,7 +49,7 @@ export function demoSeed(): SeedData {
       { slug: "alice", name: "Alice", userId: "u1", isAdmin: true },
       { slug: "bob", name: "Bob", userId: "u2", isAdmin: false },
       { slug: "chloe", name: "Chloé", userId: "u3", isAdmin: false },
-      { slug: "dana", name: "Dana", userId: "u4", isAdmin: false },
+      { slug: "dana", name: "Dana", userId: "u4", isAdmin: true, userData: { share_space: { technical: true } } },
     ],
     areas: [
       { area_id: "open_space", name: "Open space" },
