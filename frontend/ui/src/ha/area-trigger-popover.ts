@@ -3,28 +3,30 @@ import type { PropertyValues } from "lit";
 import { property, state } from "lit/decorators.js";
 import { safeCustomElement } from "../define";
 import type { HomeAssistant } from "./hass";
-import { getAreaActions, isBackendMissing, listZones, setAreaActions, updateZone } from "./ws";
-import type { AreaActions, HeatingZone, PlanningAction } from "./ws";
+import { getAreaActions, isBackendMissing, listZones, findZoneStrategies, listStrategyAutomations, loadZoneStrategy, setAreaActions, setBaseTarget, setAutomationEnabled, updateZone } from "./ws";
+import type { AreaActions, HeatingZone, PlanningAction, ZoneStrategy } from "./ws";
+import { STRATEGY_LABELS } from "../heating/strategy-sim";
 import { haTheme } from "./theme";
 import "../heating/strategy-editor";
 
 type Side = "on" | "off";
 type Preset = "heating" | "light" | "scene" | "script";
+type HeatMode = "simple" | "strategy";
+interface ZoneLink {
+  area: string;
+  mode: HeatMode;
+  label: string;
+}
 
-export interface LinkChip {
+export interface LinkItem {
   key: string;
   icon: string;
   label: string;
+  detail: string;
   kind: "zone" | "action";
-  side?: Side;
-  index?: number;
-  entryId?: string;
   domain?: string;
-}
-
-export interface AreaLinks {
-  on: LinkChip[];
-  off: LinkChip[];
+  entryId?: string;
+  refs: Array<{ side: Side; index: number }>;
 }
 
 const ICONS: Record<string, string> = {
@@ -52,34 +54,60 @@ const nameOf = (hass: HomeAssistant | undefined, id: string): string => {
   return typeof n === "string" ? n : id;
 };
 
+const verbOf = (a: PlanningAction): string => {
+  const service = String(a.action ?? a.service ?? "");
+  const [domain, name] = service.split(".");
+  const data = a.data as { temperature?: number } | undefined;
+  if (domain === "climate" && data?.temperature !== undefined) return `${data.temperature}°`;
+  if (domain === "scene" || domain === "script") return "run";
+  if (name === "turn_on") return "on";
+  if (name === "turn_off") return "off";
+  return service || "action";
+};
+
+/** One item per linked thing: on/off actions on the same entities are grouped, zones are a single link. */
 export function summarizeAreaLinks(
   actions: AreaActions | null,
   zones: HeatingZone[],
   hass: HomeAssistant | undefined,
   area?: string,
-): AreaLinks {
-  const zoneChips: LinkChip[] = area
+): LinkItem[] {
+  const items: LinkItem[] = area
     ? zones
         .filter((z) => z.presence_entity === sensorOf(area))
-        .map((z) => ({ key: `zone:${z.entry_id}`, icon: "🔥", label: z.name, kind: "zone", entryId: z.entry_id, domain: "climate" }))
+        .map((z) => ({ key: `zone:${z.entry_id}`, icon: "🔥", label: z.name, detail: "comfort occupied · eco empty", kind: "zone", entryId: z.entry_id, domain: "climate", refs: [] }))
     : [];
-  const fromActions = (side: Side): LinkChip[] =>
-    ((side === "on" ? actions?.on_actions : actions?.off_actions) ?? []).map((a, index) => {
+  const groups = new Map<string, { item: LinkItem; verbs: Partial<Record<Side, string>> }>();
+  for (const side of ["on", "off"] as const) {
+    ((side === "on" ? actions?.on_actions : actions?.off_actions) ?? []).forEach((a, index) => {
       const service = String(a.action ?? a.service ?? "");
       const domain = service.split(".")[0] ?? "";
       const ids = entityIds(a);
-      const first = ids[0] ? nameOf(hass, ids[0]) : service || "action";
-      const label = ids.length > 1 ? `${first} +${ids.length - 1}` : first;
-      return { key: `${side}:${index}`, icon: ICONS[domain] ?? "⚙️", label, kind: "action", side, index, domain };
+      const key = ids.length ? `entities:${[...ids].sort().join(",")}` : `${side}:${index}`;
+      let g = groups.get(key);
+      if (!g) {
+        const first = ids[0] ? nameOf(hass, ids[0]) : service || "action";
+        const label = ids.length > 1 ? `${first} +${ids.length - 1}` : first;
+        g = { item: { key, icon: ICONS[domain] ?? "⚙️", label, detail: "", kind: "action", domain, refs: [] }, verbs: {} };
+        groups.set(key, g);
+      }
+      g.item.refs.push({ side, index });
+      g.verbs[side] = g.verbs[side] ? `${g.verbs[side]}, ${verbOf(a)}` : verbOf(a);
     });
-  return { on: [...zoneChips, ...fromActions("on")], off: [...zoneChips, ...fromActions("off")] };
+  }
+  for (const { item, verbs } of groups.values()) {
+    item.detail =
+      verbs.on && verbs.off ? `${verbs.on} occupied · ${verbs.off} empty` : verbs.on ? `${verbs.on} when occupied` : `${verbs.off} when empty`;
+    items.push(item);
+  }
+  return items;
 }
 
 const NOUNS: Record<string, string> = { light: "lights", switch: "switches", fan: "fans", scene: "scenes", script: "scripts", climate: "zones" };
 
-export function formatLinkChips(chips: LinkChip[]): string {
-  const groups = new Map<string, LinkChip[]>();
-  for (const c of chips) {
+export function formatLinkChips(items: LinkItem[]): string {
+  const groups = new Map<string, LinkItem[]>();
+  for (const c of items) {
     const k = `${c.icon}|${c.domain ?? ""}`;
     groups.set(k, [...(groups.get(k) ?? []), c]);
   }
@@ -100,30 +128,11 @@ export class ShareSpaceAreaTriggerPopover extends LitElement {
         display: contents;
       }
       .pop {
-        position: fixed;
-        z-index: 1000;
-        box-sizing: border-box;
-        width: min(380px, calc(100vw - 32px));
-        max-height: calc(100vh - 32px);
-        overflow: auto;
-        padding: 12px;
         display: flex;
         flex-direction: column;
         gap: 12px;
-        border-radius: var(--ha-card-border-radius, 12px);
-        background: var(--card-background-color, #fff);
+        padding: 12px 16px 16px;
         color: var(--primary-text-color);
-        border: 1px solid var(--divider-color);
-        box-shadow: var(--ha-card-box-shadow, 0 6px 24px rgba(0, 0, 0, 0.25));
-      }
-      .pop.sheet {
-        left: 0 !important;
-        right: 0;
-        bottom: 0;
-        top: auto !important;
-        width: auto;
-        max-height: 85vh;
-        border-radius: 16px 16px 0 0;
       }
       .head {
         display: flex;
@@ -200,6 +209,24 @@ export class ShareSpaceAreaTriggerPopover extends LitElement {
         border-radius: 8px;
         border: 1px solid var(--divider-color);
       }
+      .items {
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+      }
+      .item {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 8px;
+        padding: 6px 10px;
+        border-radius: 8px;
+        border: 1px solid var(--divider-color);
+      }
+      .use {
+        text-align: left;
+        min-height: 44px;
+      }
       .zone {
         display: flex;
         flex-wrap: wrap;
@@ -231,26 +258,25 @@ export class ShareSpaceAreaTriggerPopover extends LitElement {
   @property({ attribute: false }) hass?: HomeAssistant;
   @property() area = "";
   @property({ type: Boolean, reflect: true }) open = false;
-  @property({ attribute: false }) anchor: DOMRect | null = null;
 
-  @state() private _side: Side = "on";
   @state() private _preset: Preset | null = null;
   @state() private _actions: AreaActions | null = null;
   @state() private _zones: HeatingZone[] | null = null;
   @state() private _busy = false;
   @state() private _error = "";
   @state() private _entity = "";
-  @state() private _alsoOff = true;
+  @state() private _whenOn = true;
+  @state() private _whenOff = true;
   @state() private _climate = "";
   @state() private _tempOn = "";
   @state() private _tempOff = "";
-  @state() private _strategyZone = "";
+  @state() private _editZone = "";
+  @state() private _heatMode: HeatMode = "simple";
+  @state() private _zoneStrategies: Record<string, ZoneStrategy | null> = {};
+  private _strategySig = "";
+  /** Zone whose strategy was just saved: once hass shows it enabled, its Simple link is dropped. */
+  private _exclusiveZone = "";
 
-  private _onDocPointer = (e: Event): void => {
-    if (!e.composedPath().includes(this.shadowRoot!.querySelector(".pop") as EventTarget)) {
-      this._close();
-    }
-  };
   private _onKey = (e: KeyboardEvent): void => {
     if (e.key === "Escape") {
       this._close();
@@ -262,12 +288,13 @@ export class ShareSpaceAreaTriggerPopover extends LitElement {
   }
 
   protected updated(changed: PropertyValues): void {
+    // Strategy links live in automation entities, which reach hass after the save resolves.
+    if (this.open && changed.has("hass") && this.hass && this._strategySignature() !== this._strategySig) void this._load();
     if (changed.has("open")) {
       if (this.open) {
-        document.addEventListener("pointerdown", this._onDocPointer, true);
         document.addEventListener("keydown", this._onKey);
         this._preset = null;
-        this._strategyZone = "";
+        this._editZone = "";
         this._error = "";
         void this._load();
       } else {
@@ -282,7 +309,6 @@ export class ShareSpaceAreaTriggerPopover extends LitElement {
   }
 
   private _detach(): void {
-    document.removeEventListener("pointerdown", this._onDocPointer, true);
     document.removeEventListener("keydown", this._onKey);
   }
 
@@ -298,9 +324,26 @@ export class ShareSpaceAreaTriggerPopover extends LitElement {
     const [actions, zones] = await Promise.allSettled([getAreaActions(this.hass, this.area), listZones(this.hass)]);
     this._actions = actions.status === "fulfilled" ? actions.value : { on_actions: [], off_actions: [], enabled: true };
     this._zones = zones.status === "fulfilled" ? zones.value : isBackendMissing(zones.reason) ? null : [];
+    const hass = this.hass;
+    this._strategySig = this._strategySignature();
+    const entries = await Promise.all(
+      (this._zones ?? []).map(async (z) => [z.entity_id, await loadZoneStrategy(hass, z.entity_id).catch(() => null)] as const),
+    );
+    this._zoneStrategies = Object.fromEntries(entries);
+    const zone = this._zones?.find((z) => z.entity_id === this._exclusiveZone);
+    if (zone && this._zoneStrategies[zone.entity_id] && zone.presence_entity) {
+      this._exclusiveZone = "";
+      await updateZone(hass, zone.entry_id, { presence_entity: null });
+      this._zones = await listZones(hass);
+      this._changed();
+    }
     if (actions.status === "rejected" && !isBackendMissing(actions.reason)) {
       this._error = (actions.reason as Error)?.message ?? String(actions.reason);
     }
+  }
+
+  private _strategySignature(): string {
+    return this.hass ? listStrategyAutomations(this.hass).map((a) => `${a.id}:${a.enabled}`).join(",") : "";
   }
 
   private _changed(): void {
@@ -341,15 +384,20 @@ export class ShareSpaceAreaTriggerPopover extends LitElement {
     });
   }
 
-  private async _removeChip(chip: LinkChip): Promise<void> {
-    if (chip.kind === "zone") {
-      await this._run(() => updateZone(this.hass!, chip.entryId!, { presence_entity: null }));
+  private async _removeItem(item: LinkItem): Promise<void> {
+    if (item.kind === "zone") {
+      await this._run(() => updateZone(this.hass!, item.entryId!, { presence_entity: null }));
       return;
     }
     await this._run(async () => {
       const current = await getAreaActions(this.hass!, this.area);
-      const key = chip.side === "on" ? "on_actions" : "off_actions";
-      await setAreaActions(this.hass!, this.area, { [key]: current[key].filter((_, i) => i !== chip.index) });
+      const drop = (side: Side) => new Set(item.refs.filter((r) => r.side === side).map((r) => r.index));
+      const on = drop("on");
+      const off = drop("off");
+      await setAreaActions(this.hass!, this.area, {
+        on_actions: current.on_actions.filter((_, i) => !on.has(i)),
+        off_actions: current.off_actions.filter((_, i) => !off.has(i)),
+      });
     });
   }
 
@@ -357,7 +405,19 @@ export class ShareSpaceAreaTriggerPopover extends LitElement {
     const patch: Parameters<typeof updateZone>[2] = { presence_entity: on ? sensorOf(this.area) : null };
     if (on && this._tempOn !== "") patch.comfort_temp = Number(this._tempOn);
     if (on && this._tempOff !== "") patch.eco_temp = Number(this._tempOff);
-    return this._run(() => updateZone(this.hass!, zone.entry_id, patch));
+    return this._run(async () => {
+      // Simple and Strategy are exclusive: choosing Simple stops any strategy driving this zone.
+      if (on) await this._stopStrategies(zone);
+      await updateZone(this.hass!, zone.entry_id, patch);
+    });
+  }
+
+  // Disable the zone's strategy automations and drop the base target they left behind.
+  private async _stopStrategies(zone: HeatingZone): Promise<void> {
+    const active = findZoneStrategies(this.hass!, zone.entity_id).filter((a) => a.enabled);
+    if (active.length === 0) return;
+    for (const a of active) await setAutomationEnabled(this.hass!, a.entityId, false);
+    await setBaseTarget(this.hass!, zone.entity_id, {});
   }
 
   private _optionIds(domains: string[]): string[] {
@@ -385,28 +445,105 @@ export class ShareSpaceAreaTriggerPopover extends LitElement {
     </select>`;
   }
 
+  private _areaName(id: string): string {
+    return this.hass?.areas?.[id]?.name ?? id;
+  }
+
+  private _thermostatName(z: HeatingZone): string {
+    const name = this.hass?.states[z.climate_entity]?.attributes.friendly_name;
+    return typeof name === "string" ? name : `${z.name} thermostat`;
+  }
+
+  private _zoneLink(z: HeatingZone): ZoneLink | null {
+    const strategy = this._zoneStrategies[z.entity_id];
+    if (strategy) return { area: strategy.area, mode: "strategy", label: STRATEGY_LABELS[strategy.automation.preset] };
+    const area = z.presence_entity?.startsWith("binary_sensor.share_space_") ? z.presence_entity.slice("binary_sensor.share_space_".length) : null;
+    return area ? { area, mode: "simple", label: "occupied / empty °C" } : null;
+  }
+
+  private _toggleEdit(z: HeatingZone, mode: HeatMode): void {
+    const same = this._editZone === z.entity_id;
+    this._editZone = same ? "" : z.entity_id;
+    this._heatMode = mode;
+  }
+
+  private _unlink(z: HeatingZone, link: ZoneLink): Promise<void> {
+    const strategy = this._zoneStrategies[z.entity_id];
+    return link.mode === "strategy" && strategy
+      ? this._run(() => this._stopStrategies(z))
+      : this._link(z, false);
+  }
+
+  private _renderZoneEditor(z: HeatingZone, link: ZoneLink | null) {
+    const here = link?.area === this.area;
+    return html`<div class="form">
+      <div class="tabs">
+        <button class=${this._heatMode === "simple" ? "active" : ""} @click=${() => (this._heatMode = "simple")}>Simple</button>
+        <button class=${this._heatMode === "strategy" ? "active" : ""} @click=${() => (this._heatMode = "strategy")}>Strategy</button>
+      </div>
+      ${this._heatMode === "simple"
+        ? html`<span class="muted">Comfort while the area is occupied, eco while empty.</span>
+            <div class="row">
+              <span class="muted">Occupied °C</span><input type="number" step="0.5" .value=${this._tempOn} @input=${(e: Event) => (this._tempOn = (e.target as HTMLInputElement).value)} />
+              <span class="muted">Empty °C</span><input type="number" step="0.5" .value=${this._tempOff} @input=${(e: Event) => (this._tempOff = (e.target as HTMLInputElement).value)} />
+            </div>
+            <button class="primary" ?disabled=${this._busy} @click=${() => this._link(z, true).then(() => this._doneEditing())}>${here && link?.mode === "simple" ? "Save" : "Link"}</button>`
+        : html`<share-space-strategy-editor
+            .hass=${this.hass}
+            .zone=${z.entity_id}
+            .area=${this.area}
+            @strategy-changed=${() => {
+              this._exclusiveZone = z.entity_id;
+              void this._run(async () => undefined).then(() => this._doneEditing());
+            }}
+          ></share-space-strategy-editor>`}
+    </div>`;
+  }
+
+  private _doneEditing(): void {
+    if (!this._error) this._editZone = "";
+  }
+
+  // One thermostat at a time while configuring; the list comes back on save/cancel.
+  private _renderFocused(z: HeatingZone) {
+    const link = this._zoneLink(z);
+    const elsewhere = link && link.area !== this.area;
+    return html`<div class="zone">
+        <strong>🔥 ${this._thermostatName(z)}</strong>
+        <button aria-label="Close" @click=${() => (this._editZone = "")}>✕</button>
+      </div>
+      ${elsewhere ? html`<span class="muted">Now follows ${this._areaName(link.area)}; saving moves it here.</span>` : nothing}
+      ${this._renderZoneEditor(z, link)}
+      <button @click=${() => (this._editZone = "")}>Cancel</button>`;
+  }
+
   private _renderHeating() {
     const zones = this._zones;
+    const focused = zones?.find((z) => z.entity_id === this._editZone);
     if (zones && zones.length > 0) {
       return html`<div class="form">
-        <div class="row">
-          <span class="muted">Occupied °C</span><input type="number" step="0.5" .value=${this._tempOn} @input=${(e: Event) => (this._tempOn = (e.target as HTMLInputElement).value)} />
-          <span class="muted">Empty °C</span><input type="number" step="0.5" .value=${this._tempOff} @input=${(e: Event) => (this._tempOff = (e.target as HTMLInputElement).value)} />
-        </div>
-        ${zones.map((z) => {
-          const mine = z.presence_entity === sensorOf(this.area);
-          const other = z.presence_entity && !mine ? z.presence_entity.replace("binary_sensor.share_space_", "") : "";
-          return html`<div class="zone">
-            <span>${z.name}${other ? html`<br /><span class="muted">follows ${other}</span>` : nothing}</span>
-            ${mine
-              ? html`<button ?disabled=${this._busy} @click=${() => this._link(z, false)}>Unlink</button>`
-              : html`<button class="primary" ?disabled=${this._busy} @click=${() => this._link(z, true)}>${other ? "Switch here" : "Follow"}</button>`}
-            <button class=${this._strategyZone === z.entity_id ? "active" : ""} @click=${() => (this._strategyZone = this._strategyZone === z.entity_id ? "" : z.entity_id)}>Follow with strategy…</button>
-          </div>`;
-        })}
-        ${this._strategyZone
-          ? html`<share-space-strategy-editor .hass=${this.hass} .zone=${this._strategyZone} .area=${this.area} @strategy-changed=${() => this._changed()}></share-space-strategy-editor>`
-          : nothing}
+        <span class="muted">Thermostats</span>
+        ${focused
+          ? this._renderFocused(focused)
+          : zones.map((z) => {
+          const link = this._zoneLink(z);
+          const here = link?.area === this.area;
+          const editing = this._editZone === z.entity_id;
+          const device = this._thermostatName(z);
+          const row = here
+            ? html`<div class="zone">
+                <span>✓ ${device}<br /><span class="muted">${link!.label}</span></span>
+                <span class="row">
+                  <button class=${editing ? "active" : ""} @click=${() => this._toggleEdit(z, link!.mode)}>Edit</button>
+                  <button ?disabled=${this._busy} @click=${() => this._unlink(z, link!)}>Unlink</button>
+                </span>
+              </div>`
+            : html`<button class="use ${editing ? "active" : ""}" @click=${() => this._toggleEdit(z, link?.mode ?? "simple")}>
+                🔥 Use ${device}${link ? html`<br /><span class="muted">now follows ${this._areaName(link.area)}</span>` : nothing}
+              </button>`;
+          return html`${row}
+`;
+            })}
       </div>`;
     }
     const noTemp = this._tempOn === "" || this._tempOff === "" || !this._climate;
@@ -432,44 +569,37 @@ export class ShareSpaceAreaTriggerPopover extends LitElement {
 
   private _renderEntityForm(preset: Preset) {
     const domains = preset === "light" ? PICKER_DOMAINS : [preset];
+    const light = preset === "light";
     const submit = () => {
       const domain = this._entity.split(".")[0];
       const act = (verb: string): PlanningAction => ({ action: `${domain}.${verb}`, target: { entity_id: this._entity } });
-      if (preset === "light") {
-        void this._addActions({ on: [act("turn_on")], off: this._alsoOff ? [act("turn_off")] : [] });
-      } else {
-        void this._addActions({ [this._side]: [act("turn_on")] });
-      }
+      void this._addActions({
+        on: this._whenOn ? [act("turn_on")] : [],
+        off: this._whenOff ? [act(light ? "turn_off" : "turn_on")] : [],
+      });
     };
+    const check = (label: string, value: boolean, set: (v: boolean) => void) =>
+      html`<label><input type="checkbox" .checked=${value} @change=${(e: Event) => set((e.target as HTMLInputElement).checked)} />${label}</label>`;
     return html`<div class="form">
       ${this._picker(domains, this._entity, (v) => (this._entity = v))}
-      ${preset === "light"
-        ? html`<label><input type="checkbox" .checked=${this._alsoOff} @change=${(e: Event) => (this._alsoOff = (e.target as HTMLInputElement).checked)} />Also turn off when empty</label>`
-        : html`<span class="muted">Runs ${this._side === "on" ? "when occupied" : "when empty"}</span>`}
-      <button class="primary" ?disabled=${this._busy || !this._entity} @click=${submit}>Add</button>
+      ${check(light ? "Turn on when occupied" : "Run when occupied", this._whenOn, (v) => (this._whenOn = v))}
+      ${check(light ? "Turn off when empty" : "Run when empty", this._whenOff, (v) => (this._whenOff = v))}
+      <button class="primary" ?disabled=${this._busy || !this._entity || (!this._whenOn && !this._whenOff)} @click=${submit}>Add</button>
     </div>`;
   }
 
-  private _renderChips(chips: LinkChip[]) {
-    if (chips.length === 0) {
+  private _renderItems(items: LinkItem[]) {
+    if (items.length === 0) {
       return html`<div class="muted">Nothing linked yet.</div>`;
     }
-    return html`<div class="chips">
-      ${chips.map(
-        (c) => html`<span class="chip">${c.icon} ${c.label}<button title="Remove" aria-label="Remove ${c.label}" ?disabled=${this._busy} @click=${() => this._removeChip(c)}>✕</button></span>`,
+    return html`<div class="items">
+      ${items.map(
+        (c) => html`<div class="item">
+          <span>${c.icon} ${c.label}<br /><span class="muted">${c.detail}</span></span>
+          <button title="Remove" aria-label="Remove ${c.label}" ?disabled=${this._busy} @click=${() => this._removeItem(c)}>✕</button>
+        </div>`,
       )}
     </div>`;
-  }
-
-  private _position(): string {
-    const a = this.anchor;
-    if (!a || window.innerWidth < 560) {
-      return "";
-    }
-    const width = Math.min(380, window.innerWidth - 32);
-    const left = Math.max(16, Math.min(a.left, window.innerWidth - width - 16));
-    const top = Math.max(16, Math.min(a.bottom + 8, window.innerHeight - 240));
-    return `left:${left}px;top:${top}px;max-height:${window.innerHeight - top - 16}px`;
   }
 
   protected render() {
@@ -483,16 +613,13 @@ export class ShareSpaceAreaTriggerPopover extends LitElement {
       ["scene", "🎬 Scene"],
       ["script", "📜 Script"],
     ];
-    return html`<div class="pop ${window.innerWidth < 560 ? "sheet" : ""}" style=${this._position()} role="dialog" aria-label="What runs for this area">
-      <div class="head">⚡ What runs<button aria-label="Close" @click=${() => this._close()}>✕</button></div>
-      <div class="tabs">
-        <button class=${this._side === "on" ? "active" : ""} @click=${() => (this._side = "on")}>When occupied (ON)</button>
-        <button class=${this._side === "off" ? "active" : ""} @click=${() => (this._side = "off")}>When empty (OFF)</button>
-      </div>
-      ${this._renderChips(this._side === "on" ? links.on : links.off)}
+    return html`<div class="pop" role="region" aria-label="What runs for this area">
+      <div class="head">⚡ What runs<button aria-label="Back to planning" @click=${() => this._close()}>✕</button></div>
+      <span class="muted">Linked to this area's planning</span>
+      ${this._renderItems(links)}
       <div class="presets">
         ${presets.map(
-          ([p, label]) => html`<button class=${this._preset === p ? "active" : ""} @click=${() => { this._preset = this._preset === p ? null : p; this._entity = ""; }}>${label}</button>`,
+          ([p, label]) => html`<button class=${this._preset === p ? "active" : ""} @click=${() => { this._preset = this._preset === p ? null : p; this._entity = ""; this._whenOn = true; this._whenOff = p === "light"; }}>${label}</button>`,
         )}
         <button @click=${() => this.dispatchEvent(new CustomEvent("open-actions-editor", { bubbles: true, composed: true }))}>Custom…</button>
       </div>

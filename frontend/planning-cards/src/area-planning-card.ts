@@ -101,9 +101,7 @@ export class ShareSpaceAreaPlanningCard extends LitElement {
   @state() private _actions: AreaActions | null = null;
   @state() private _zones: HeatingZone[] = [];
   @state() private _popOpen = false;
-  @state() private _anchor: DOMRect | null = null;
   @state() private _editor: HTMLElement | null = null;
-  private _closedAt = 0;
   private _linksArea = "";
   private _resolving = false;
   private _loadedKey = "";
@@ -173,21 +171,12 @@ export class ShareSpaceAreaPlanningCard extends LitElement {
     return !!this.hass?.user?.is_admin;
   }
 
-  private _openPopover(anchor: DOMRect): void {
-    if (!this._isAdmin || Date.now() - this._closedAt < 300) {
-      return;
-    }
-    this._anchor = anchor;
-    this._popOpen = true;
-  }
-
-  private _onRosterClick(e: MouseEvent): void {
-    this._openPopover(new DOMRect(e.clientX, e.clientY, 0, 0));
+  private _openPopover(): void {
+    if (this._isAdmin) this._popOpen = true;
   }
 
   private _onPopoverClose(): void {
     this._popOpen = false;
-    this._closedAt = Date.now();
   }
 
   private _makeEditor(): HTMLElement {
@@ -216,7 +205,7 @@ export class ShareSpaceAreaPlanningCard extends LitElement {
 
   private _renderLinks() {
     const links = summarizeAreaLinks(this._actions, this._zones, this.hass, this._area ?? undefined);
-    const empty = links.on.length + links.off.length === 0;
+    const empty = links.length === 0;
     if (empty && !this._isAdmin) {
       return null;
     }
@@ -224,13 +213,12 @@ export class ShareSpaceAreaPlanningCard extends LitElement {
       <div class="links">
         ${empty
           ? html`<span class="muted">Nothing linked to this planning yet.</span>`
-          : html`<span><span class="muted">ON:</span> ${formatLinkChips(links.on) || "–"}</span>
-              <span><span class="muted">OFF:</span> ${formatLinkChips(links.off) || "–"}</span>`}
+          : html`<span><span class="muted">Linked:</span> ${formatLinkChips(links)}</span>`}
         ${this._isAdmin
           ? html`<button
               class=${this._popOpen ? "active" : ""}
               aria-haspopup="dialog"
-              @click=${(e: Event) => this._openPopover((e.currentTarget as HTMLElement).getBoundingClientRect())}
+              @click=${() => this._openPopover()}
             >
               ⚡ What runs
             </button>`
@@ -279,26 +267,27 @@ export class ShareSpaceAreaPlanningCard extends LitElement {
     }
     return html`
       <ha-card>
-        ${this._renderBadge()} ${this._renderLinks()}
-        ${this._people === null
-          ? html`<p class="placeholder">Loading…</p>`
-          : html`<div
-              class="roster ${this._isAdmin ? "admin" : ""}"
-              title=${this._isAdmin ? "Click to choose what this planning drives" : ""}
-              @click=${this._isAdmin ? (e: MouseEvent) => this._onRosterClick(e) : null}
-            >
-              <area-roster-view .people=${this._people} .viewMode=${this._config.view_mode ?? "lanes"}></area-roster-view>
-            </div>`}
-        ${this._editor ? html`<div class="editor" @actions-saved=${() => void this._loadLinks()}>${this._editor}</div>` : null}
-        <share-space-area-trigger-popover
-          .hass=${this.hass}
-          .area=${this._area}
-          .open=${this._popOpen}
-          .anchor=${this._anchor}
-          @popover-close=${this._onPopoverClose}
-          @links-changed=${this._onLinksChanged}
-          @open-actions-editor=${this._toggleEditor}
-        ></share-space-area-trigger-popover>
+        ${this._renderBadge()}
+        ${this._popOpen
+          ? html`<share-space-area-trigger-popover
+              .hass=${this.hass}
+              .area=${this._area}
+              .open=${true}
+              @popover-close=${this._onPopoverClose}
+              @links-changed=${this._onLinksChanged}
+              @open-actions-editor=${this._toggleEditor}
+            ></share-space-area-trigger-popover>`
+          : html`${this._renderLinks()}
+              ${this._people === null
+                ? html`<p class="placeholder">Loading…</p>`
+                : html`<div
+                    class="roster ${this._isAdmin ? "admin" : ""}"
+                    title=${this._isAdmin ? "Click to choose what this planning drives" : ""}
+                    @click=${this._isAdmin ? () => this._openPopover() : null}
+                  >
+                    <area-roster-view .people=${this._people} .viewMode=${this._config.view_mode ?? "lanes"}></area-roster-view>
+                  </div>`}
+              ${this._editor ? html`<div class="editor" @actions-saved=${() => void this._loadLinks()}>${this._editor}</div>` : null}`}
       </ha-card>
     `;
   }
