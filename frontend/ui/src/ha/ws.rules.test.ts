@@ -1,5 +1,20 @@
 import { describe, expect, it, vi } from "vitest";
-import { findZoneStrategies, listStrategyAutomations, loadZoneRules, loadZoneStrategy, saveZoneRules, stopZoneStrategies, strategyAutomationId, useZoneStrategy } from "./ws";
+import {
+  detachAutomation,
+  findZoneStrategies,
+  listStrategyAutomations,
+  loadRulesAutomation,
+  loadZoneRules,
+  loadZoneStrategy,
+  nextRulesId,
+  rulesIdIndex,
+  saveZoneRules,
+  stopZoneStrategies,
+  strategyAutomationId,
+  useZoneStrategy,
+  zoneRulesIds,
+} from "./ws";
+import { rulesAutomationConfig } from "../rules/automation";
 import { officeSaverRules } from "../rules/templates";
 
 const rules = officeSaverRules();
@@ -58,7 +73,7 @@ describe("rules automations", () => {
       "share_space_zone_a_rules",
       {
         alias: "Share Space · Zone A · Custom rules",
-        description: "Managed by Share Space",
+        description: expect.stringMatching(/^Managed by Share Space · [0-9a-f]{8}$/),
         use_blueprint: { path: "share_space/rules.yaml", input: { zone: "sensor.zone_a", area: "office", rules, previous_rules: null } },
       },
     ]);
@@ -89,5 +104,68 @@ describe("rules automations", () => {
       ["automation", "turn_off", { entity_id: "automation.r" }],
       ["share_space_heating", "set_base_target", { entity_id: "sensor.zone_a" }],
     ]);
+  });
+});
+
+describe("rules automations outside Share Space", () => {
+  const Z = "sensor.zone_a";
+  const managedCfg = rulesAutomationConfig({ entity_id: Z, name: "Zone A" }, "office", rules, null);
+
+  it("numbers extra rules automations _rules_2, _rules_3", () => {
+    expect(rulesIdIndex(Z, "share_space_zone_a_rules")).toBe(1);
+    expect(rulesIdIndex(Z, "share_space_zone_a_rules_3")).toBe(3);
+    expect(rulesIdIndex(Z, "share_space_zone_a_rules_x")).toBeNull();
+    expect(rulesIdIndex(Z, "share_space_zone_b_rules_2")).toBeNull();
+    expect(nextRulesId(Z, [])).toBe("share_space_zone_a_rules_2");
+    expect(nextRulesId(Z, ["share_space_zone_a_rules", "share_space_zone_a_rules_2"])).toBe("share_space_zone_a_rules_3");
+  });
+
+  it("keeps recognising numbered rules automations for exclusivity", async () => {
+    const { hass, calls } = fake(
+      ents({ "automation.d": ["share_space_zone_a_rules", "on"], "automation.n": ["share_space_zone_a_rules_2", "off"], "automation.o": ["share_space_zone_a_office_saver_2", "on"] }),
+    );
+    expect(findZoneStrategies(hass, Z).map((a) => a.id)).toEqual(["share_space_zone_a_rules", "share_space_zone_a_rules_2"]);
+    expect(zoneRulesIds(hass, Z)).toEqual(["share_space_zone_a_rules", "share_space_zone_a_rules_2"]);
+    await useZoneStrategy(hass, { entity_id: Z, entry_id: "e1", presence_entity: null }, "share_space_zone_a_rules_2");
+    expect(calls).toEqual([
+      ["automation", "turn_on", { entity_id: "automation.n" }],
+      ["automation", "turn_off", { entity_id: "automation.d" }],
+    ]);
+  });
+
+  it("loads the latest rules automation with its managed state", async () => {
+    const detached = { ...managedCfg, description: "Detached from Share Space" };
+    const { hass } = fake(ents({ "automation.d": ["share_space_zone_a_rules", "off"], "automation.n": ["share_space_zone_a_rules_2", "on"] }), {
+      share_space_zone_a_rules: detached,
+      share_space_zone_a_rules_2: managedCfg,
+    });
+    expect(await loadZoneRules(hass, Z)).toMatchObject({ id: "share_space_zone_a_rules_2", state: "managed", enabled: true, rules });
+    expect(await loadRulesAutomation(hass, Z, "share_space_zone_a_rules")).toMatchObject({ state: "detached", enabled: false });
+  });
+
+  it("reports taken-control automations as edited, without rules, and loadZoneStrategy copes", async () => {
+    const { use_blueprint: _bp, ...rest } = managedCfg;
+    const { hass } = fake(ents({ "automation.r": ["share_space_zone_a_rules", "on"] }), { share_space_zone_a_rules: { ...rest, triggers: [] } });
+    expect(await loadZoneRules(hass, Z)).toMatchObject({ state: "edited", rules: null, previous: null, area: "" });
+    expect(await loadZoneStrategy(hass, Z)).toMatchObject({ area: "", rules: null });
+  });
+
+  it("drops invalid rules but keeps a valid previous version", async () => {
+    const input = { ...managedCfg.use_blueprint.input, rules: { version: 1, rules: "junk" }, previous_rules: rules };
+    const { hass } = fake({}, { share_space_zone_a_rules: { ...managedCfg, alias: "Renamed", use_blueprint: { ...managedCfg.use_blueprint, input } } });
+    expect(await loadZoneRules(hass, Z)).toMatchObject({ state: "edited", rules: null, previous: rules });
+  });
+
+  it("detach only rewrites the description", async () => {
+    const edited = { ...managedCfg, alias: "Renamed", mode: "single" };
+    const { hass, calls } = fake({}, { share_space_zone_a_rules: edited });
+    await detachAutomation(hass, "share_space_zone_a_rules");
+    expect(calls[1]).toEqual(["api", "POST", "share_space_zone_a_rules", { ...edited, description: "Detached from Share Space" }]);
+  });
+
+  it("saves to a given id", async () => {
+    const { hass, calls } = fake({});
+    await saveZoneRules(hass, { entity_id: Z, name: "Zone A" }, "office", rules, null, "share_space_zone_a_rules_2");
+    expect(calls[0]).toEqual(["api", "POST", "share_space_zone_a_rules_2", managedCfg]);
   });
 });
