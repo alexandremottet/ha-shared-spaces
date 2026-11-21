@@ -1,4 +1,7 @@
 """Area actions store migration, services, runner and websocket."""
+import pytest
+from homeassistant.core import Context
+from homeassistant.exceptions import Unauthorized
 from homeassistant.helpers import entity_registry as er
 from pytest_homeassistant_custom_component.common import MockConfigEntry, async_fire_time_changed, async_mock_service
 from datetime import timedelta
@@ -163,3 +166,13 @@ async def test_services_removed_only_after_unload(hass):
     assert await hass.config_entries.async_unload(entry.entry_id)
     assert not hass.services.has_service(DOMAIN, "set_calendar")
     assert entry.entry_id not in hass.data[DOMAIN]
+
+
+@pytest.mark.parametrize("service,data", [
+    ("set_area_actions", {"area": "office", "on_actions": [{"action": "homeassistant.stop"}]}),
+    ("run_area_actions", {"area": "office", "state": "on"}),
+])
+async def test_area_action_services_require_admin(hass, hass_read_only_user, service, data):
+    await _setup(hass)
+    with pytest.raises(Unauthorized):
+        await hass.services.async_call(DOMAIN, service, data, blocking=True, context=Context(user_id=hass_read_only_user.id))

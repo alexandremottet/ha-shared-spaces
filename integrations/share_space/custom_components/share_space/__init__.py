@@ -6,6 +6,7 @@ from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant, ServiceCall, SupportsResponse, callback
 from homeassistant.helpers import config_validation as cv
 from homeassistant.helpers.dispatcher import async_dispatcher_send
+from homeassistant.helpers.service import async_register_admin_service
 from homeassistant.util import dt as dt_util
 
 from .area_schedule import compute_area_schedule
@@ -177,11 +178,12 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
             schema=ASSIGN_PERSON_AREA_SCHEMA,
         )
 
-        hass.services.async_register(
-            DOMAIN, SERVICE_SET_AREA_ACTIONS, _handle_set_area_actions, schema=SET_AREA_ACTIONS_SCHEMA
+        # Stored actions run arbitrary services, so only admins may write or trigger them.
+        async_register_admin_service(
+            hass, DOMAIN, SERVICE_SET_AREA_ACTIONS, _handle_set_area_actions, schema=SET_AREA_ACTIONS_SCHEMA
         )
-        hass.services.async_register(
-            DOMAIN, SERVICE_RUN_AREA_ACTIONS, _handle_run_area_actions, schema=RUN_AREA_ACTIONS_SCHEMA
+        async_register_admin_service(
+            hass, DOMAIN, SERVICE_RUN_AREA_ACTIONS, _handle_run_area_actions, schema=RUN_AREA_ACTIONS_SCHEMA
         )
         hass.services.async_register(
             DOMAIN,
