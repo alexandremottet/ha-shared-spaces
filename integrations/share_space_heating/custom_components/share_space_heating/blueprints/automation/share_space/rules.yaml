@@ -1,0 +1,165 @@
+# share_space_blueprint_version: 1
+blueprint:
+  name: Share Space - Rules
+  description: >
+    Runs a Share Space rule list: rules are checked top to bottom, the first rule whose
+    conditions all hold sets the zone's base target, otherwise the fallback does.
+  domain: automation
+  input:
+    zone:
+      name: Heating zone
+      selector:
+        entity:
+          integration: share_space_heating
+          domain: sensor
+    area:
+      name: Share Space area id
+      description: Area id used in binary_sensor.share_space_<area> (e.g. open_space).
+      selector:
+        text:
+    rules:
+      name: Rules
+      description: >
+        Strategy JSON {version, rules: [{label, when: [...], then}], fallback: {label, then}}
+        (see fixtures/heating/RULES.md). Edited from the Share Space panel.
+      selector:
+        object:
+    previous_rules:
+      name: Previous rules
+      description: Rule list before the last save, kept for undo. Not used when running.
+      default: null
+      selector:
+        object:
+
+mode: queued
+max: 5
+max_exceeded: silent
+
+trigger_variables:
+  area: !input area
+  rules: !input rules
+  # Largest occupied_within lead time, or -1 when no rule uses it.
+  preheat_hours: >
+    {% set ns = namespace(h=-1) %}
+    {% for rule in rules.rules | default([]) %}{% for c in rule.when | default([]) %}
+    {% if c.type == 'occupied_within' %}{% set ns.h = [ns.h, c.hours | float(0)] | max %}{% endif %}
+    {% endfor %}{% endfor %}
+    {{ ns.h }}
+  # Local minutes where a time condition starts or ends.
+  time_edges: >
+    {% set ns = namespace(m=[]) %}
+    {% for rule in rules.rules | default([]) %}{% for c in rule.when | default([]) %}
+    {% if c.type == 'time' %}
+    {% for t in [c.start, c.end] %}{% set p = (t ~ '').split(':') %}
+    {% set ns.m = ns.m + [(p[0] | int(0)) * 60 + (p[1] | int(0))] %}
+    {% endfor %}{% endif %}
+    {% endfor %}{% endfor %}
+    {{ ns.m }}
+
+variables:
+  zone: !input zone
+  area: !input area
+  rules: !input rules
+  main_entity: "{{ 'binary_sensor.share_space_' ~ area }}"
+  occupied: "{{ is_state(main_entity, 'on') }}"
+  now_ts: "{{ now().timestamp() }}"
+  next_on_ts: "{{ as_timestamp(states('sensor.share_space_' ~ area ~ '_next_on'), -1) }}"
+  previous_off_ts: "{{ as_timestamp(states('sensor.share_space_' ~ area ~ '_previous_off'), -1) }}"
+  # {label, then} of the first rule whose conditions all hold, else the fallback.
+  decision: >
+    {% macro mins(t) %}{% set p = (t ~ '').split(':') %}{{ (p[0] | int(0)) * 60 + (p[1] | int(0)) }}{% endmacro %}
+    {% set n = now() %}
+    {% set minute = n.hour * 60 + n.minute %}
+    {% set day = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'][n.weekday()] %}
+    {% set sched = state_attr(main_entity, 'schedule') or {} %}
+    {% set ns = namespace(slots=[]) %}
+    {% for r in sched.get(day, []) or [] %}
+      {% set a = mins(r[0]) | int %}{% set b = mins(r[1]) | int %}
+      {% set s0 = (a // 30) * 30 %}
+      {% for s in range(s0, b, 30) %}{% set ns.slots = ns.slots + [s] %}{% endfor %}
+    {% endfor %}
+    {% set slots = ns.slots %}
+    {% set out = namespace(hit=none) %}
+    {% for rule in rules.rules | default([]) %}
+      {% if out.hit is none %}
+        {% set c_ns = namespace(ok=true) %}
+        {% for c in rule.when | default([]) %}
+          {% if c_ns.ok %}
+            {% set h = false %}
+            {% if c.type == 'occupied' %}
+              {% set h = occupied %}
+            {% elif c.type == 'occupied_within' %}
+              {% set h = next_on_ts > 0 and now_ts >= next_on_ts - (c.hours | float(0)) * 3600 %}
+            {% elif c.type == 'between_days' %}
+              {% set gap = (c.gap_hours | float(0)) * 3600 %}
+              {% set h = previous_off_ts > 0 and now_ts - previous_off_ts <= gap
+                         and next_on_ts > 0 and next_on_ts - now_ts <= gap %}
+            {% elif c.type == 'weekday' %}
+              {% set h = day in (c.days | default([])) %}
+            {% elif c.type == 'time' %}
+              {% set a = mins(c.start) | int %}{% set b = mins(c.end) | int %}
+              {% set h = (minute >= a and minute < b) if a < b else (minute >= a or minute < b) %}
+            {% elif c.type == 'planned' %}
+              {% set w_ns = namespace(hits=[]) %}
+              {% for w in c.windows | default([]) %}
+                {% set a = mins(w.start) | int %}{% set b = mins(w.end) | int %}
+                {% set w_ns.hits = w_ns.hits + [slots | select('ge', a) | select('lt', b) | list | count > 0] %}
+              {% endfor %}
+              {% set h = (true in w_ns.hits) if c.match == 'any' else (false not in w_ns.hits) %}
+            {% endif %}
+            {% set neg = true if c.get('negate') else false %}
+            {% set c_ns.ok = (h != neg) %}
+          {% endif %}
+        {% endfor %}
+        {% if c_ns.ok %}{% set out.hit = {'label': rule.label, 'then': rule.then} %}{% endif %}
+      {% endif %}
+    {% endfor %}
+    {{ out.hit if out.hit is not none else {'label': rules.fallback.label, 'then': rules.fallback.then} }}
+
+triggers:
+  - trigger: event
+    event_type: state_changed
+    event_data:
+      entity_id: "{{ 'binary_sensor.share_space_' ~ area }}"
+  - trigger: event
+    event_type: state_changed
+    event_data:
+      entity_id: "{{ 'sensor.share_space_' ~ area ~ '_next_on' }}"
+  - trigger: event
+    event_type: state_changed
+    event_data:
+      entity_id: "{{ 'sensor.share_space_' ~ area ~ '_previous_off' }}"
+  - trigger: template
+    value_template: >
+      {% set nxt = as_timestamp(states('sensor.share_space_' ~ area ~ '_next_on'), -1) %}
+      {{ preheat_hours | float(-1) >= 0 and nxt > 0
+         and now().timestamp() >= nxt - preheat_hours | float(0) * 3600 }}
+  - trigger: template
+    value_template: "{{ (now().hour * 60 + now().minute) in time_edges }}"
+  - trigger: time_pattern
+    minutes: "/5"
+  - trigger: homeassistant
+    event: start
+
+actions:
+  - alias: Planning not loaded
+    condition: template
+    value_template: >
+      {% set main = states('binary_sensor.share_space_' ~ area) %}
+      {% set nxt = states('sensor.share_space_' ~ area ~ '_next_on') %}
+      {% set prv = states('sensor.share_space_' ~ area ~ '_previous_off') %}
+      {{ main not in ['unknown', 'unavailable']
+         and nxt != 'unavailable' and prv != 'unavailable'
+         and states.sensor['share_space_' ~ area ~ '_next_on'] is not none
+         and states.sensor['share_space_' ~ area ~ '_previous_off'] is not none }}
+  - alias: Unknown action
+    condition: template
+    value_template: "{{ decision.then.type in ['comfort', 'eco', 'temperature', 'off'] }}"
+  # Whole data dict from one template so labels like "None" or "21" stay strings.
+  - action: share_space_heating.set_base_target
+    data: >
+      {% set t = decision.then %}
+      {% set d = {'entity_id': zone, 'reason': decision.label ~ ''} %}
+      {% if t.type in ['comfort', 'eco'] %}{{ dict(d, preset=t.type) }}
+      {%- elif t.type == 'temperature' %}{{ dict(d, temperature=t.value | float) }}
+      {%- else %}{{ dict(d, off=true) }}{% endif %}

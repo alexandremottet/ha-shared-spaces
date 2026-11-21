@@ -75,6 +75,25 @@ Inputs: `zone`, `area`, `morning_start` ("11:00"), `morning_end` ("12:00"), `aft
 
 Triggers: time at `heat_start` and `heat_end`, main sensor state change, `homeassistant` start, time pattern every 5 minutes.
 
+### `rules.yaml`
+
+Inputs: `zone`, `area`, `rules` (object: a rule strategy, see `RULES.md`), `previous_rules` (object, default `null`; kept for undo, never read when running).
+
+Evaluated in Jinja (`variables.decision`), first rule whose `when` all hold wins, else `fallback`; `reason` = the label. Condition sources:
+- `occupied`: main sensor state `on`.
+- `occupied_within` / `between_days`: `next_on` / `previous_off` sensor timestamps vs `now()` (same formulas as `office_saver`).
+- `weekday` / `time`: `now()` local weekday and minute (`time` wraps past midnight when `start > end`).
+- `planned`: main sensor attribute `schedule` for today's weekday, expanded to 30-min slot starts; a window matches when a slot start `t` has `start <= t < end` (same rule as `query_occupancy`). Missing attribute = empty planning.
+- `negate` inverts the condition.
+
+Action: `comfort` / `eco` → `preset`, `temperature` → `temperature: value`, `off` → `off: true`.
+
+Triggers: main / `next_on` / `previous_off` state changes (attribute changes included), a template trigger at `next_on - max(occupied_within hours)` (only when a rule uses `occupied_within`), a template trigger on every `time` condition `start` / `end` minute, time pattern every 5 minutes, `homeassistant` start.
+
+Guard: same "planning not loaded" guard as `office_saver`; an unknown action type stops the run.
+
+Parity: `tests/test_rules_blueprint.py` runs it for every check of `rules_cases.json`, and for the Office saver / Lunch room templates over `strategy_cases.json` (Python port of `frontend/ui/src/rules/templates.ts` in the test; the TS templates are checked against the same fixture in `rules.test.ts`, so both stay in sync through it).
+
 ## Automation ids created by the card
 
 `share_space_<zone object id>_<preset>` (e.g. `share_space_share_space_heating_open_space_office_saver`), alias `Share Space · <zone name> · <Preset label>`.
