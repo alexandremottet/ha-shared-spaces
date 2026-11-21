@@ -158,4 +158,24 @@ describe("automation config API and runner", () => {
     expect(attrs(KITCHEN).active_rule).toBe("No lunch today");
     expect(c.hass.states[KITCHEN].state).toBe("7");
   });
+
+  it("rules blueprint evaluates the rule list and sets preset / off bases", async () => {
+    make(at(20, 17)); // Friday
+    const id = `share_space_${OPEN.slice(7)}_rules`;
+    const strategy = {
+      version: 1,
+      rules: [{ label: "Busy", when: [{ type: "occupied" }], then: { type: "comfort" } }],
+      fallback: { label: "Empty", then: { type: "off" } },
+    };
+    await c.hass.callApi("POST", `config/automation/config/${id}`, {
+      alias: "Share Space · Open space · Custom rules",
+      use_blueprint: { path: "share_space/rules.yaml", input: { zone: OPEN, area: "open_space", rules: strategy, previous_rules: null } },
+    });
+    expect(c.hass.states["automation.share_space_open_space_custom_rules"].attributes.id).toBe(id);
+    expect(attrs(OPEN)).toMatchObject({ mode: "automation", active_rule: "Busy" });
+    expect(c.hass.states[OPEN].state).toBe(String(attrs(OPEN).comfort_temp));
+    c.clock.set(at(20, 22));
+    expect(attrs(OPEN).active_rule).toBe("Empty");
+    expect(c.hass.states[OPEN].state).toBe("7");
+  });
 });
