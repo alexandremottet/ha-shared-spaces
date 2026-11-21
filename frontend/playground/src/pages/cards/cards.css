@@ -1,5 +1,7 @@
 .card-layout { display: grid; grid-template-columns: minmax(0, 1fr) minmax(320px, 420px); gap: 16px; align-items: start; }
 @media (max-width: 900px) { .card-layout { grid-template-columns: 1fr; } }
+/* Full width: side panel moves below */
+.card-layout:has(.card-frame[data-full]) { grid-template-columns: 1fr; }
 .card-stage { display: flex; flex-direction: column; gap: 12px; overflow-x: auto; }
 .card-frame { max-width: 100%; }
 .card-slot { display: block; }
