@@ -4,7 +4,7 @@ import { fromWall, wallTime } from "./tz";
 
 export type StrategyPreset = "office_saver" | "lunch_room";
 export type ScheduleRanges = Partial<Record<WeekDay, Array<[string, string]>>>;
-export type StrategyResult = { off: true } | { target: number };
+export type StrategyResult = { off: true } | { target: number; preset?: "comfort" | "eco" };
 export interface StrategyEvaluation {
   result: StrategyResult;
   reason: string;
@@ -200,15 +200,27 @@ export function evaluate(
 }
 
 export const sameResult = (a: StrategyEvaluation, b: StrategyEvaluation): boolean =>
-  a.reason === b.reason && ("off" in a.result ? "off" in b.result : "target" in b.result && a.result.target === b.result.target);
+  a.reason === b.reason && ("off" in a.result ? "off" in b.result : "target" in b.result && a.result.target === b.result.target && a.result.preset === b.result.preset);
 
-interface Timeline {
+export interface Timeline {
   cuts: number[];
   at(t: number): StrategyEvaluation;
 }
 
+export interface OccupancyFacts {
+  occupied: boolean;
+  nextOn(): number | null;
+  previousOff(): number | null;
+}
+
+export interface OccupancyTrack {
+  flips: Array<{ t: number; on: boolean }>;
+  slots: number[];
+  at(t: number): OccupancyFacts;
+}
+
 // Occupancy facts from one pass over the slots; mirrors nextOn/previousOff search windows exactly.
-function officeSaverTimeline(inputs: OfficeSaverInputs, schedule: ScheduleRanges, start: number, end: number, tz: string): Timeline {
+export function occupancyTrack(schedule: ScheduleRanges, start: number, end: number, tz: string): OccupancyTrack {
   const p = plannerFor(schedule, tz);
   const t0 = slotStart(start, tz);
   const pad = SEARCH_SLOTS + 1;
@@ -216,27 +228,42 @@ function officeSaverTimeline(inputs: OfficeSaverInputs, schedule: ScheduleRanges
   const n = Math.ceil((end - t0) / SLOT_MS) + 2 * pad;
   const on = Array.from({ length: n }, (_, k) => slotOn(p, first + k * SLOT_MS));
   const time = (k: number) => first + k * SLOT_MS;
-  const cuts: number[] = [];
-  for (let k = 1; k < n; k++) {
-    if (on[k] === on[k - 1]) continue;
-    const t = time(k);
-    if (on[k]) cuts.push(t - inputs.preheat_hours * HOUR, t - inputs.max_gap_hours * HOUR);
-    else cuts.push(t + inputs.max_gap_hours * HOUR);
+  const flips: OccupancyTrack["flips"] = [];
+  for (let k = 1; k < n; k++) if (on[k] !== on[k - 1]) flips.push({ t: time(k), on: on[k] });
+  const slots: number[] = [];
+  for (let t = t0; t < end; t += SLOT_MS) slots.push(t);
+  return {
+    flips,
+    slots,
+    at(t) {
+      const idx = pad + Math.floor((t - t0) / SLOT_MS);
+      return {
+        occupied: on[idx],
+        nextOn: () => {
+          for (let j = idx + 1; j <= idx + SEARCH_SLOTS; j++) if (on[j] && !on[j - 1]) return time(j);
+          return null;
+        },
+        previousOff: () => {
+          for (let j = idx; j >= idx - SEARCH_SLOTS; j--) if (!on[j] && on[j - 1]) return time(j);
+          return null;
+        },
+      };
+    },
+  };
+}
+
+function officeSaverTimeline(inputs: OfficeSaverInputs, schedule: ScheduleRanges, start: number, end: number, tz: string): Timeline {
+  const track = occupancyTrack(schedule, start, end, tz);
+  const cuts = [...track.slots];
+  for (const f of track.flips) {
+    if (f.on) cuts.push(f.t - inputs.preheat_hours * HOUR, f.t - inputs.max_gap_hours * HOUR);
+    else cuts.push(f.t + inputs.max_gap_hours * HOUR);
   }
-  for (let t = t0; t < end; t += SLOT_MS) cuts.push(t);
   return {
     cuts,
     at(t) {
-      const idx = pad + Math.floor((t - t0) / SLOT_MS);
-      const nextOnAt = () => {
-        for (let j = idx + 1; j <= idx + SEARCH_SLOTS; j++) if (on[j] && !on[j - 1]) return time(j);
-        return null;
-      };
-      const previousOffAt = () => {
-        for (let j = idx; j >= idx - SEARCH_SLOTS; j--) if (!on[j] && on[j - 1]) return time(j);
-        return null;
-      };
-      return officeSaverRule(inputs, t, on[idx], nextOnAt, previousOffAt);
+      const f = track.at(t);
+      return officeSaverRule(inputs, t, f.occupied, f.nextOn, f.previousOff);
     },
   };
 }
@@ -254,19 +281,21 @@ function lunchRoomTimeline(inputs: LunchRoomInputs, schedule: ScheduleRanges, st
   return { cuts, at: (t) => evaluateLunchRoom(inputs, schedule, t, tz) };
 }
 
-/** Exact strategy segments over [start, end): result is constant between schedule-derived breakpoints. */
-export function strategyTimeline(
+export function presetTimeline(
   preset: StrategyPreset,
   inputs: StrategyInputs,
   schedule: ScheduleRanges,
   start: number,
   end: number,
   tz: string,
-): StrategySegment[] {
-  const timeline =
-    preset === "office_saver"
-      ? officeSaverTimeline(inputs as OfficeSaverInputs, schedule, start, end, tz)
-      : lunchRoomTimeline(inputs as LunchRoomInputs, schedule, start, end, tz);
+): Timeline {
+  return preset === "office_saver"
+    ? officeSaverTimeline(inputs as OfficeSaverInputs, schedule, start, end, tz)
+    : lunchRoomTimeline(inputs as LunchRoomInputs, schedule, start, end, tz);
+}
+
+/** Segments over [start, end): one evaluation per interval between cuts, equal neighbours merged. */
+export function buildSegments(timeline: Timeline, start: number, end: number): StrategySegment[] {
   const bounds = [...new Set([start, end, ...timeline.cuts.filter((t) => t > start && t < end)])].sort((a, b) => a - b);
   const segments: StrategySegment[] = [];
   for (let i = 0; i < bounds.length - 1; i++) {

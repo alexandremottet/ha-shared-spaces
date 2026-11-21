@@ -18,7 +18,8 @@ import {
 } from "../ha/ws";
 import type { StrategyAutomation } from "../ha/ws";
 import { haTheme } from "../ha/theme";
-import { STRATEGY_LABELS, defaultInputs, strategyTimeline } from "./strategy-sim";
+import { STRATEGY_LABELS, defaultInputs } from "./strategy-sim";
+import { strategyTimeline } from "./strategy-timeline";
 import type { StrategyInputs, StrategyPreset, StrategySegment } from "./strategy-sim";
 import { fromWall, wallTime } from "./tz";
 
