@@ -1,0 +1,30 @@
+"""Share Space Space: isometric floor plan panel with interactive hotspots."""
+from __future__ import annotations
+
+from homeassistant.config_entries import ConfigEntry
+from homeassistant.core import HomeAssistant
+
+from . import websocket_api
+from .const import DATA_STORE, DOMAIN
+from .panel import async_register_space_panel, async_register_static, async_remove_space_panel
+from .store import FloorplanStore
+
+
+async def async_setup(hass: HomeAssistant, config: dict) -> bool:
+    websocket_api.async_register(hass)
+    await async_register_static(hass)
+    return True
+
+
+async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
+    store = FloorplanStore(hass)
+    await store.async_load()
+    hass.data[DOMAIN] = {DATA_STORE: store}
+    await async_register_space_panel(hass)
+    return True
+
+
+async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
+    async_remove_space_panel(hass)
+    hass.data.pop(DOMAIN, None)
+    return True

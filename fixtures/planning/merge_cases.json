@@ -1,0 +1,436 @@
+[
+  {
+    "name": "single range exact slots",
+    "calendars": [
+      {
+        "monday": [
+          {
+            "start": "09:00",
+            "end": "10:00"
+          }
+        ]
+      }
+    ],
+    "expected": {
+      "monday": [
+        "09:00",
+        "09:30"
+      ],
+      "tuesday": [],
+      "wednesday": [],
+      "thursday": [],
+      "friday": [],
+      "saturday": [],
+      "sunday": []
+    }
+  },
+  {
+    "name": "partial slot ranges touch whole slot",
+    "calendars": [
+      {
+        "tuesday": [
+          {
+            "start": "09:10",
+            "end": "09:20"
+          },
+          {
+            "start": "10:29",
+            "end": "10:31"
+          }
+        ]
+      }
+    ],
+    "expected": {
+      "monday": [],
+      "tuesday": [
+        "09:00",
+        "10:00",
+        "10:30"
+      ],
+      "wednesday": [],
+      "thursday": [],
+      "friday": [],
+      "saturday": [],
+      "sunday": []
+    }
+  },
+  {
+    "name": "overlapping ranges same person",
+    "calendars": [
+      {
+        "monday": [
+          {
+            "start": "09:00",
+            "end": "11:00"
+          },
+          {
+            "start": "10:00",
+            "end": "12:00"
+          }
+        ]
+      }
+    ],
+    "expected": {
+      "monday": [
+        "09:00",
+        "09:30",
+        "10:00",
+        "10:30",
+        "11:00",
+        "11:30"
+      ],
+      "tuesday": [],
+      "wednesday": [],
+      "thursday": [],
+      "friday": [],
+      "saturday": [],
+      "sunday": []
+    }
+  },
+  {
+    "name": "adjacent ranges",
+    "calendars": [
+      {
+        "wednesday": [
+          {
+            "start": "09:00",
+            "end": "10:00"
+          },
+          {
+            "start": "10:00",
+            "end": "11:00"
+          }
+        ]
+      }
+    ],
+    "expected": {
+      "monday": [],
+      "tuesday": [],
+      "wednesday": [
+        "09:00",
+        "09:30",
+        "10:00",
+        "10:30"
+      ],
+      "thursday": [],
+      "friday": [],
+      "saturday": [],
+      "sunday": []
+    }
+  },
+  {
+    "name": "end exclusive at slot boundary",
+    "calendars": [
+      {
+        "thursday": [
+          {
+            "start": "08:00",
+            "end": "08:30"
+          }
+        ]
+      }
+    ],
+    "expected": {
+      "monday": [],
+      "tuesday": [],
+      "wednesday": [],
+      "thursday": [
+        "08:00"
+      ],
+      "friday": [],
+      "saturday": [],
+      "sunday": []
+    }
+  },
+  {
+    "name": "24:00 end",
+    "calendars": [
+      {
+        "friday": [
+          {
+            "start": "22:00",
+            "end": "24:00"
+          }
+        ]
+      }
+    ],
+    "expected": {
+      "monday": [],
+      "tuesday": [],
+      "wednesday": [],
+      "thursday": [],
+      "friday": [
+        "22:00",
+        "22:30",
+        "23:00",
+        "23:30"
+      ],
+      "saturday": [],
+      "sunday": []
+    }
+  },
+  {
+    "name": "last quarter hour of day",
+    "calendars": [
+      {
+        "saturday": [
+          {
+            "start": "23:45",
+            "end": "24:00"
+          }
+        ]
+      }
+    ],
+    "expected": {
+      "monday": [],
+      "tuesday": [],
+      "wednesday": [],
+      "thursday": [],
+      "friday": [],
+      "saturday": [
+        "23:30"
+      ],
+      "sunday": []
+    }
+  },
+  {
+    "name": "full day",
+    "calendars": [
+      {
+        "sunday": [
+          {
+            "start": "00:00",
+            "end": "24:00"
+          }
+        ]
+      }
+    ],
+    "expected": {
+      "monday": [],
+      "tuesday": [],
+      "wednesday": [],
+      "thursday": [],
+      "friday": [],
+      "saturday": [],
+      "sunday": [
+        "00:00",
+        "00:30",
+        "01:00",
+        "01:30",
+        "02:00",
+        "02:30",
+        "03:00",
+        "03:30",
+        "04:00",
+        "04:30",
+        "05:00",
+        "05:30",
+        "06:00",
+        "06:30",
+        "07:00",
+        "07:30",
+        "08:00",
+        "08:30",
+        "09:00",
+        "09:30",
+        "10:00",
+        "10:30",
+        "11:00",
+        "11:30",
+        "12:00",
+        "12:30",
+        "13:00",
+        "13:30",
+        "14:00",
+        "14:30",
+        "15:00",
+        "15:30",
+        "16:00",
+        "16:30",
+        "17:00",
+        "17:30",
+        "18:00",
+        "18:30",
+        "19:00",
+        "19:30",
+        "20:00",
+        "20:30",
+        "21:00",
+        "21:30",
+        "22:00",
+        "22:30",
+        "23:00",
+        "23:30"
+      ]
+    }
+  },
+  {
+    "name": "empty calendars list",
+    "calendars": [],
+    "expected": {
+      "monday": [],
+      "tuesday": [],
+      "wednesday": [],
+      "thursday": [],
+      "friday": [],
+      "saturday": [],
+      "sunday": []
+    }
+  },
+  {
+    "name": "empty days",
+    "calendars": [
+      {
+        "monday": [],
+        "tuesday": []
+      }
+    ],
+    "expected": {
+      "monday": [],
+      "tuesday": [],
+      "wednesday": [],
+      "thursday": [],
+      "friday": [],
+      "saturday": [],
+      "sunday": []
+    }
+  },
+  {
+    "name": "multiple persons union",
+    "calendars": [
+      {
+        "monday": [
+          {
+            "start": "09:00",
+            "end": "12:00"
+          }
+        ]
+      },
+      {
+        "monday": [
+          {
+            "start": "11:00",
+            "end": "14:00"
+          }
+        ],
+        "tuesday": [
+          {
+            "start": "08:00",
+            "end": "09:00"
+          }
+        ]
+      },
+      {
+        "monday": [
+          {
+            "start": "20:00",
+            "end": "21:30"
+          }
+        ]
+      }
+    ],
+    "expected": {
+      "monday": [
+        "09:00",
+        "09:30",
+        "10:00",
+        "10:30",
+        "11:00",
+        "11:30",
+        "12:00",
+        "12:30",
+        "13:00",
+        "13:30",
+        "20:00",
+        "20:30",
+        "21:00"
+      ],
+      "tuesday": [
+        "08:00",
+        "08:30"
+      ],
+      "wednesday": [],
+      "thursday": [],
+      "friday": [],
+      "saturday": [],
+      "sunday": []
+    }
+  },
+  {
+    "name": "event replaces day",
+    "calendars": [
+      {
+        "monday": [
+          {
+            "start": "09:00",
+            "end": "12:00"
+          }
+        ],
+        "tuesday": [
+          {
+            "start": "09:00",
+            "end": "12:00"
+          }
+        ]
+      }
+    ],
+    "events": [
+      {
+        "day": "monday",
+        "presence": [
+          {
+            "start": "14:00",
+            "end": "15:00"
+          }
+        ]
+      }
+    ],
+    "expected": {
+      "monday": [
+        "14:00",
+        "14:30"
+      ],
+      "tuesday": [
+        "09:00",
+        "09:30",
+        "10:00",
+        "10:30",
+        "11:00",
+        "11:30"
+      ],
+      "wednesday": [],
+      "thursday": [],
+      "friday": [],
+      "saturday": [],
+      "sunday": []
+    }
+  },
+  {
+    "name": "event empty presence clears day",
+    "calendars": [
+      {
+        "friday": [
+          {
+            "start": "09:00",
+            "end": "17:00"
+          }
+        ]
+      }
+    ],
+    "events": [
+      {
+        "day": "friday",
+        "presence": []
+      }
+    ],
+    "expected": {
+      "monday": [],
+      "tuesday": [],
+      "wednesday": [],
+      "thursday": [],
+      "friday": [],
+      "saturday": [],
+      "sunday": []
+    }
+  }
+]

@@ -1,0 +1,144 @@
+# share_space_blueprint_version: 1
+blueprint:
+  name: Share Space - Lunch room
+  description: >
+    Heat at lunch only when the planning shows someone at the end of the morning
+    and at the start of the afternoon.
+  domain: automation
+  input:
+    zone:
+      name: Heating zone
+      selector:
+        entity:
+          integration: share_space_heating
+          domain: sensor
+    area:
+      name: Share Space area id
+      description: Area id used in binary_sensor.share_space_<area> (e.g. kitchen).
+      selector:
+        text:
+    morning_start:
+      name: End of morning window start
+      default: "11:00:00"
+      selector:
+        time:
+    morning_end:
+      name: End of morning window end
+      default: "12:00:00"
+      selector:
+        time:
+    afternoon_start:
+      name: Start of afternoon window start
+      default: "13:00:00"
+      selector:
+        time:
+    afternoon_end:
+      name: Start of afternoon window end
+      default: "14:00:00"
+      selector:
+        time:
+    heat_start:
+      name: Heating starts
+      default: "11:00:00"
+      selector:
+        time:
+    heat_end:
+      name: Heating ends
+      default: "14:00:00"
+      selector:
+        time:
+    temperature:
+      name: Lunch temperature
+      default: 20
+      selector:
+        number:
+          min: 5
+          max: 35
+          step: 0.5
+          unit_of_measurement: "°"
+    match:
+      name: Windows that must be occupied
+      default: all
+      selector:
+        select:
+          options:
+            - all
+            - any
+
+mode: queued
+max: 5
+max_exceeded: silent
+
+trigger_variables:
+  area: !input area
+
+variables:
+  area: !input area
+  morning_start: !input morning_start
+  morning_end: !input morning_end
+  afternoon_start: !input afternoon_start
+  afternoon_end: !input afternoon_end
+  match: !input match
+
+triggers:
+  - trigger: time
+    at: !input heat_start
+  - trigger: time
+    at: !input heat_end
+  - trigger: event
+    event_type: state_changed
+    event_data:
+      entity_id: "{{ 'binary_sensor.share_space_' ~ area }}"
+  - trigger: time_pattern
+    minutes: "/5"
+  - trigger: homeassistant
+    event: start
+
+actions:
+  - choose:
+      - alias: Outside lunch hours
+        conditions:
+          - condition: not
+            conditions:
+              - condition: time
+                after: !input heat_start
+                before: !input heat_end
+        sequence:
+          - action: share_space_heating.set_base_target
+            data:
+              entity_id: !input zone
+              "off": true
+              reason: Outside lunch hours
+    default:
+      - action: share_space.query_occupancy
+        data:
+          area: "{{ area }}"
+          windows:
+            - start: "{{ morning_start[:5] }}"
+              end: "{{ morning_end[:5] }}"
+            - start: "{{ afternoon_start[:5] }}"
+              end: "{{ afternoon_end[:5] }}"
+          match: "{{ match }}"
+          day: today
+        response_variable: occupancy
+        continue_on_error: true
+      - alias: No occupancy response
+        condition: template
+        value_template: "{{ occupancy is defined and occupancy.occupied is defined }}"
+      - choose:
+          - alias: Lunch
+            conditions:
+              - condition: template
+                value_template: "{{ occupancy.occupied }}"
+            sequence:
+              - action: share_space_heating.set_base_target
+                data:
+                  entity_id: !input zone
+                  temperature: !input temperature
+                  reason: Lunch
+        default:
+          - action: share_space_heating.set_base_target
+            data:
+              entity_id: !input zone
+              "off": true
+              reason: No lunch today

@@ -1,0 +1,130 @@
+set_calendar:
+  name: Set calendar
+  description: Store a person's own weekly presence calendar.
+  fields:
+    person:
+      name: Person
+      description: The person entity this calendar belongs to.
+      required: true
+      selector:
+        entity:
+          domain: person
+    calendar:
+      name: Calendar
+      description: Map of weekday to a list of {start, end} "HH:MM" presence ranges.
+      required: true
+      example: '{"monday": [{"start": "09:00", "end": "17:00"}]}'
+      selector:
+        object:
+
+assign_person_area:
+  name: Assign person area
+  description: Associate a person with an area.
+  fields:
+    person:
+      name: Person
+      description: The person entity to assign.
+      required: true
+      selector:
+        entity:
+          domain: person
+    area:
+      name: Area
+      description: The area to assign this person to.
+      required: true
+      selector:
+        area:
+
+set_area_actions:
+  name: Set area actions
+  description: Update the actions run when an area becomes occupied or empty. Omitted fields are kept.
+  fields:
+    area:
+      name: Area
+      description: The area to configure.
+      required: true
+      selector:
+        area:
+    on_actions:
+      name: On actions
+      description: Actions to run when the area becomes occupied.
+      required: false
+      selector:
+        action:
+    off_actions:
+      name: Off actions
+      description: Actions to run when the area becomes empty.
+      required: false
+      selector:
+        action:
+    enabled:
+      name: Enabled
+      description: Whether transitions trigger the actions.
+      required: false
+      selector:
+        boolean:
+
+run_area_actions:
+  name: Run area actions
+  description: Manually run an area's on or off actions, regardless of the enabled flag.
+  fields:
+    area:
+      name: Area
+      description: The area whose actions to run.
+      required: true
+      selector:
+        area:
+    state:
+      name: State
+      description: Which action list to run.
+      required: true
+      selector:
+        select:
+          options:
+            - "on"
+            - "off"
+
+query_occupancy:
+  name: Query occupancy
+  description: Check whether an area has planned presence in given time windows. Returns {occupied, matches}.
+  fields:
+    area:
+      name: Area
+      description: The area to query.
+      required: true
+      selector:
+        area:
+    windows:
+      name: Windows
+      description: List of {start, end} "HH:MM" windows. A window matches when an occupied slot starts within [start, end).
+      required: true
+      example: '[{"start": "11:00", "end": "12:00"}, {"start": "13:00", "end": "14:00"}]'
+      selector:
+        object:
+    match:
+      name: Match
+      description: Whether all windows or any window must match.
+      required: false
+      default: all
+      selector:
+        select:
+          options:
+            - all
+            - any
+    day:
+      name: Day
+      description: today, tomorrow or a weekday name.
+      required: false
+      default: today
+      selector:
+        select:
+          options:
+            - today
+            - tomorrow
+            - monday
+            - tuesday
+            - wednesday
+            - thursday
+            - friday
+            - saturday
+            - sunday

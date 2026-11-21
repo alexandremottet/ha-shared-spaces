@@ -1,0 +1,302 @@
+import { safeCustomElement } from "../define";
+import { LitElement, html, css, nothing } from "lit";
+import { property, state } from "lit/decorators.js";
+import type { PropertyValues } from "lit";
+
+export type HeatingMode = "schedule" | "override" | "manual_only" | "automation" | "unmanaged";
+
+export interface OverrideRequestedDetail {
+  temperature: number;
+  hours: number;
+}
+
+@safeCustomElement("share-space-heating-control")
+export class HeatingControl extends LitElement {
+  @property() name = "";
+  @property({ type: Number }) currentTemperature: number | null = null;
+  @property({ type: Number }) target = 20;
+  @property({ type: Number }) min = 5;
+  @property({ type: Number }) max = 30;
+  @property({ type: Number }) step = 0.5;
+  @property() unit = "°C";
+  @property() mode: HeatingMode = "schedule";
+  @property({ attribute: false }) overrideUntil: Date | null = null;
+  @property({ type: Boolean }) presence: boolean | null = null;
+  @property() reason: string | null = null;
+  @property({ attribute: false }) durations: number[] = [1, 3, 6];
+  @property({ type: Boolean, reflect: true }) compact = false;
+
+  @state() private _pending: number | null = null;
+
+  protected willUpdate(changed: PropertyValues): void {
+    if (changed.has("target") || changed.has("mode")) {
+      this._pending = null;
+    }
+  }
+
+  static styles = css`
+    :host {
+      display: block;
+      container-type: inline-size;
+      color: var(--primary-text-color);
+    }
+    .wrap {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      padding: 16px;
+    }
+    .head {
+      display: flex;
+      justify-content: space-between;
+      align-items: baseline;
+      gap: 8px;
+    }
+    .name {
+      font-weight: 600;
+      font-size: 1.1em;
+    }
+    .current {
+      font-size: 2.2em;
+      font-weight: 300;
+      line-height: 1;
+    }
+    .current small {
+      font-size: 0.4em;
+      color: var(--secondary-text-color);
+      margin-left: 4px;
+    }
+    .setpoint {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 16px;
+    }
+    .value {
+      font-size: 2em;
+      font-weight: 500;
+      min-width: 4.5em;
+      text-align: center;
+    }
+    .value.pending {
+      color: var(--accent-color, var(--primary-color));
+    }
+    .label {
+      text-align: center;
+      font-size: 0.8em;
+      color: var(--secondary-text-color);
+      margin-top: -8px;
+    }
+    button {
+      font: inherit;
+      color: inherit;
+      cursor: pointer;
+      border: 1px solid var(--divider-color, #ccc);
+      background: transparent;
+      border-radius: var(--ha-card-border-radius, 12px);
+    }
+    button:focus-visible {
+      outline: 2px solid var(--primary-color);
+    }
+    .round {
+      width: 56px;
+      height: 56px;
+      font-size: 1.8em;
+      border-radius: 50%;
+      line-height: 1;
+    }
+    .round:disabled {
+      opacity: 0.35;
+      cursor: default;
+    }
+    .chips {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: center;
+      gap: 8px;
+    }
+    .chip {
+      min-height: 44px;
+      padding: 0 18px;
+      border-radius: 22px;
+      border-color: var(--primary-color);
+      color: var(--primary-color);
+      font-weight: 500;
+    }
+    .chip.cancel {
+      border-color: var(--divider-color, #ccc);
+      color: var(--secondary-text-color);
+    }
+    .banner {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      padding: 10px 12px;
+      border-radius: var(--ha-card-border-radius, 12px);
+      border: 1px solid var(--warning-color, #ffa600);
+      color: var(--primary-text-color);
+    }
+    .banner strong {
+      color: var(--warning-color, #ffa600);
+    }
+    .banner .actions {
+      display: flex;
+      gap: 8px;
+    }
+    .banner button {
+      min-height: 40px;
+      padding: 0 14px;
+    }
+    .status {
+      text-align: center;
+      color: var(--secondary-text-color);
+    }
+    .hint {
+      text-align: center;
+      font-size: 0.8em;
+      color: var(--secondary-text-color);
+      opacity: 0.8;
+    }
+    @container (max-width: 240px) {
+      .wrap {
+        padding: 12px;
+        gap: 8px;
+      }
+      .value {
+        font-size: 1.6em;
+        min-width: 3.5em;
+      }
+      .round {
+        width: 48px;
+        height: 48px;
+      }
+    }
+    :host([compact]) .wrap {
+      padding: 8px;
+      gap: 8px;
+    }
+    :host([compact]) .current {
+      font-size: 1.6em;
+    }
+    :host([compact]) .value {
+      font-size: 1.6em;
+    }
+  `;
+
+  private get _shown(): number {
+    return this._pending ?? this.target;
+  }
+
+  private _fmt(value: number): string {
+    return `${Number.isInteger(value) ? value : value.toFixed(1)}${this.unit}`;
+  }
+
+  private _time(date: Date): string {
+    return date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+  }
+
+  private _bump(direction: 1 | -1): void {
+    const next = Math.round((this._shown + direction * this.step) / this.step) * this.step;
+    const clamped = Math.min(this.max, Math.max(this.min, next));
+    this._pending = clamped === this.target ? null : clamped;
+  }
+
+  private _emit<T>(name: string, detail?: T): void {
+    this.dispatchEvent(new CustomEvent(name, { detail, bubbles: true, composed: true }));
+  }
+
+  private _confirmHours(hours: number): void {
+    this._emit<OverrideRequestedDetail>("override-requested", { temperature: this._shown, hours });
+    this._pending = null;
+  }
+
+  private _confirmTarget(): void {
+    this._emit("target-set", { temperature: this._shown });
+    this._pending = null;
+  }
+
+  private _renderConfirm() {
+    if (this._pending === null) {
+      return nothing;
+    }
+    if (this.mode === "unmanaged") {
+      return html`<div class="chips">
+        <button class="chip" @click=${this._confirmTarget}>Set ${this._fmt(this._pending)}</button>
+        <button class="chip cancel" @click=${() => (this._pending = null)}>Cancel</button>
+      </div>`;
+    }
+    return html`<div class="chips">
+      ${this.durations.map(
+        (h) => html`<button class="chip" @click=${() => this._confirmHours(h)}>+${h}h</button>`
+      )}
+      <button class="chip cancel" @click=${() => (this._pending = null)}>Cancel</button>
+    </div>`;
+  }
+
+  private _renderStatus() {
+    switch (this.mode) {
+      case "override":
+        return html`<div class="banner" role="status">
+          <span
+            ><strong>Manual ${this._fmt(this.target)}</strong>${this.overrideUntil
+              ? html` until ${this._time(this.overrideUntil)}`
+              : nothing}</span
+          >
+          <span class="actions">
+            <button @click=${() => this._emit("override-extended", { hours: 1 })}>+1h</button>
+            <button @click=${() => this._emit("override-cleared")}>Resume schedule</button>
+          </span>
+        </div>`;
+      case "schedule":
+        return html`<div class="status">
+          Following schedule${this.presence === null ? nothing : html` · ${this.presence ? "Present" : "Away"}`}
+        </div>`;
+      case "automation":
+        return html`<div class="status">Automatic${this.reason ? html` · ${this.reason}` : nothing}</div>`;
+      case "manual_only":
+        return html`<div class="status">Manual</div>`;
+      default:
+        return html`<div class="hint">No auto-resume</div>`;
+    }
+  }
+
+  render() {
+    return html`<div class="wrap">
+      <div class="head">
+        <span class="name">${this.name}</span>
+        <span class="current"
+          >${this.currentTemperature === null ? "–" : this._fmt(this.currentTemperature)}<small>now</small></span
+        >
+      </div>
+      <div class="setpoint">
+        <button
+          class="round"
+          aria-label="Decrease"
+          ?disabled=${this._shown <= this.min}
+          @click=${() => this._bump(-1)}
+        >
+          −
+        </button>
+        <div class="value ${this._pending === null ? "" : "pending"}">${this._fmt(this._shown)}</div>
+        <button
+          class="round"
+          aria-label="Increase"
+          ?disabled=${this._shown >= this.max}
+          @click=${() => this._bump(1)}
+        >
+          +
+        </button>
+      </div>
+      <div class="label">${this._pending === null ? "Target" : "Keep for…"}</div>
+      ${this._renderConfirm()} ${this._renderStatus()}
+    </div>`;
+  }
+}
+
+declare global {
+  interface HTMLElementTagNameMap {
+    "share-space-heating-control": HeatingControl;
+  }
+}

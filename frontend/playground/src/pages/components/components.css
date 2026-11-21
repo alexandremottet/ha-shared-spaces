@@ -1,0 +1,18 @@
+.cmp { display: grid; grid-template-columns: 220px 1fr; gap: 16px; align-items: start; }
+.cmp-list { display: flex; flex-direction: column; gap: 2px; position: sticky; top: 56px; }
+.cmp-list h5 { margin: 12px 0 4px; font-size: 12px; text-transform: uppercase; color: var(--secondary-text-color); }
+.cmp-list button { text-align: left; border-color: transparent; background: transparent; }
+.cmp-list button.on { background: var(--primary-color); color: var(--text-primary-color, #fff); }
+.cmp-detail { display: flex; flex-direction: column; gap: 12px; min-width: 0; }
+.cmp-detail header p { margin: 0; }
+.cmp-stage { padding: 4px 0; }
+.cmp-live { display: flex; flex-direction: column; gap: 8px; }
+.cmp-lower { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; align-items: start; }
+.cmp-props { display: flex; flex-direction: column; gap: 8px; }
+.cmp-props label { display: grid; grid-template-columns: 140px 1fr; gap: 8px; align-items: start; font-size: 13px; }
+.cmp-props label.wide { grid-template-columns: 1fr; }
+.cmp-props textarea { width: 100%; font: 12px ui-monospace, monospace; color: var(--primary-text-color); background: var(--card-background-color); border: 1px solid var(--divider-color); border-radius: 6px; padding: 6px; }
+.cmp-props textarea.invalid { border-color: var(--error-color); }
+.cmp-log { font-size: 12px; max-height: 320px; overflow: auto; margin-top: 8px; }
+.cmp-log div { padding: 2px 0; word-break: break-all; }
+@media (max-width: 900px) { .cmp, .cmp-lower { grid-template-columns: 1fr; } .cmp-list { position: static; } }

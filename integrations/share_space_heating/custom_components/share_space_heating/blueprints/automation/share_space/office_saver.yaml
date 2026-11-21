@@ -1,0 +1,149 @@
+# share_space_blueprint_version: 1
+blueprint:
+  name: Share Space - Office saver
+  description: >
+    Comfort while the area is occupied, preheat before the next occupied period,
+    setback between two working days, off otherwise.
+  domain: automation
+  input:
+    zone:
+      name: Heating zone
+      selector:
+        entity:
+          integration: share_space_heating
+          domain: sensor
+    area:
+      name: Share Space area id
+      description: Area id used in binary_sensor.share_space_<area> (e.g. open_space).
+      selector:
+        text:
+    comfort_temp:
+      name: Comfort temperature
+      default: 21
+      selector:
+        number:
+          min: 5
+          max: 35
+          step: 0.5
+          unit_of_measurement: "°"
+    setback_temp:
+      name: Setback temperature between working days
+      default: 16
+      selector:
+        number:
+          min: 5
+          max: 35
+          step: 0.5
+          unit_of_measurement: "°"
+    preheat_hours:
+      name: Preheat hours before the next occupied period
+      default: 6
+      selector:
+        number:
+          min: 0
+          max: 48
+          step: 0.5
+          unit_of_measurement: h
+    max_gap_hours:
+      name: Longest gap still treated as between working days
+      default: 24
+      selector:
+        number:
+          min: 1
+          max: 72
+          step: 1
+          unit_of_measurement: h
+
+mode: queued
+max: 5
+max_exceeded: silent
+
+trigger_variables:
+  area: !input area
+  preheat_hours: !input preheat_hours
+
+variables:
+  area: !input area
+  comfort_temp: !input comfort_temp
+  setback_temp: !input setback_temp
+  preheat_hours: !input preheat_hours
+  max_gap_hours: !input max_gap_hours
+  occupied: "{{ is_state('binary_sensor.share_space_' ~ area, 'on') }}"
+  now_ts: "{{ now().timestamp() }}"
+  next_on_ts: "{{ as_timestamp(states('sensor.share_space_' ~ area ~ '_next_on'), -1) }}"
+  previous_off_ts: "{{ as_timestamp(states('sensor.share_space_' ~ area ~ '_previous_off'), -1) }}"
+
+triggers:
+  - trigger: event
+    event_type: state_changed
+    event_data:
+      entity_id: "{{ 'binary_sensor.share_space_' ~ area }}"
+  - trigger: event
+    event_type: state_changed
+    event_data:
+      entity_id: "{{ 'sensor.share_space_' ~ area ~ '_next_on' }}"
+  - trigger: event
+    event_type: state_changed
+    event_data:
+      entity_id: "{{ 'sensor.share_space_' ~ area ~ '_previous_off' }}"
+  - trigger: template
+    value_template: >
+      {% set nxt = as_timestamp(states('sensor.share_space_' ~ area ~ '_next_on'), -1) %}
+      {{ nxt > 0 and now().timestamp() >= nxt - preheat_hours | float(0) * 3600 }}
+  - trigger: time_pattern
+    minutes: "/5"
+  - trigger: homeassistant
+    event: start
+
+actions:
+  - alias: Planning not loaded
+    condition: template
+    value_template: >
+      {% set main = states('binary_sensor.share_space_' ~ area) %}
+      {% set nxt = states('sensor.share_space_' ~ area ~ '_next_on') %}
+      {% set prv = states('sensor.share_space_' ~ area ~ '_previous_off') %}
+      {{ main not in ['unknown', 'unavailable']
+         and nxt != 'unavailable' and prv != 'unavailable'
+         and states.sensor['share_space_' ~ area ~ '_next_on'] is not none
+         and states.sensor['share_space_' ~ area ~ '_previous_off'] is not none }}
+  - choose:
+      - alias: Occupied
+        conditions:
+          - condition: template
+            value_template: "{{ occupied }}"
+        sequence:
+          - action: share_space_heating.set_base_target
+            data:
+              entity_id: !input zone
+              temperature: !input comfort_temp
+              reason: Occupied
+      - alias: Preheat
+        conditions:
+          - condition: template
+            value_template: >
+              {{ next_on_ts > 0 and now_ts >= next_on_ts - preheat_hours | float(0) * 3600 }}
+        sequence:
+          - action: share_space_heating.set_base_target
+            data:
+              entity_id: !input zone
+              temperature: !input comfort_temp
+              reason: Preheat
+      - alias: Between working days
+        conditions:
+          - condition: template
+            value_template: >
+              {{ previous_off_ts > 0 and next_on_ts > 0
+                 and now_ts - previous_off_ts <= max_gap_hours | float(0) * 3600
+                 and next_on_ts - now_ts <= max_gap_hours | float(0) * 3600 }}
+        sequence:
+          - action: share_space_heating.set_base_target
+            data:
+              entity_id: !input zone
+              temperature: !input setback_temp
+              reason: Between working days
+    default:
+      - action: share_space_heating.set_base_target
+        data:
+          entity_id: !input zone
+          "off": true
+          reason: Away

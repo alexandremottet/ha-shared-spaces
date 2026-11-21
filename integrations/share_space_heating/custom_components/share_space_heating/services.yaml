@@ -1,0 +1,79 @@
+set_override:
+  fields:
+    entity_id:
+      required: true
+      selector:
+        entity:
+          integration: share_space_heating
+          domain: sensor
+    temperature:
+      required: true
+      selector:
+        number:
+          min: 5
+          max: 35
+          step: 0.5
+          unit_of_measurement: "°"
+    hours:
+      selector:
+        number:
+          min: 0.5
+          max: 72
+          step: 0.5
+          unit_of_measurement: h
+
+extend_override:
+  fields:
+    entity_id:
+      required: true
+      selector:
+        entity:
+          integration: share_space_heating
+          domain: sensor
+    hours:
+      required: true
+      selector:
+        number:
+          min: 0.5
+          max: 72
+          step: 0.5
+          unit_of_measurement: h
+
+clear_override:
+  fields:
+    entity_id:
+      required: true
+      selector:
+        entity:
+          integration: share_space_heating
+          domain: sensor
+
+# Provide exactly one of temperature, preset or off. Provide none to clear the base target
+# and return the zone to presence / manual behaviour.
+set_base_target:
+  fields:
+    entity_id:
+      required: true
+      selector:
+        entity:
+          integration: share_space_heating
+          domain: sensor
+    temperature:
+      selector:
+        number:
+          min: 5
+          max: 35
+          step: 0.5
+          unit_of_measurement: "°"
+    preset:
+      selector:
+        select:
+          options:
+            - comfort
+            - eco
+    "off":
+      selector:
+        boolean:
+    reason:
+      selector:
+        text:

@@ -1,9 +1,0 @@
-{
-  "name": "calendar-merge",
-  "version": "0.1.0",
-  "private": true,
-  "description": "Changesets-only shim: this package is pure Python (see pyproject.toml). No JS/npm content.",
-  "dependencies": {
-    "share-space-types": "workspace:*"
-  }
-}

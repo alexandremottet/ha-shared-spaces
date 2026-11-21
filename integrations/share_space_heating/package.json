@@ -1,0 +1,6 @@
+{
+  "name": "share-space-heating-integration",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Changesets-only shim: this package is a Python Home Assistant integration. Version is synced into manifest.json."
+}
