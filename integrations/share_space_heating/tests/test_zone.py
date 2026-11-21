@@ -60,6 +60,9 @@ async def test_presence_drives_target(hass, calls):
     assert hass.states.get(SENSOR).attributes["mode"] == "schedule"
     assert hass.states.get(SENSOR).attributes["presence"] is True
     assert hass.states.get(SENSOR).attributes["current_temperature"] == 19.5
+    assert hass.states.get(SENSOR).attributes["comfort_temp"] == 21.0
+    assert hass.states.get(SENSOR).attributes["eco_temp"] == 17.0
+    assert "frost_temp" in hass.states.get(SENSOR).attributes
 
     hass.states.async_set(PRESENCE, "off")
     await hass.async_block_till_done()

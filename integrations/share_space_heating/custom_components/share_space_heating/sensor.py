@@ -46,4 +46,7 @@ class ZoneSensor(SensorEntity):
             "presence": zone.presence,
             "climate_entity": zone.climate_entity,
             "current_temperature": zone.current_temperature,
+            "comfort_temp": zone.comfort_temp,
+            "eco_temp": zone.eco_temp,
+            "frost_temp": zone.frost_temp,
         }

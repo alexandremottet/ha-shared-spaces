@@ -167,7 +167,8 @@ export class ShareSpaceHeatingCard extends ShareSpaceCardBase<CardConfig> {
           .overrideUntil=${vm.overrideUntil}
           .presence=${vm.presence}
           .reason=${vm.activeRule}
-          .durations=${cfg.durations ?? [1, 3, 6]}
+          .durations=${cfg.durations ?? [1, 2, 3, 6]}
+          .presets=${vm.presets}
           @override-requested=${(e: CustomEvent<{ temperature: number; hours: number }>) =>
             zone && this._run(() => setOverride(hass, zone, e.detail.temperature, e.detail.hours))}
           @override-extended=${(e: CustomEvent<{ hours: number }>) =>

@@ -38,6 +38,9 @@ export interface HeatingZoneAttributes {
   presence: boolean | null;
   climate_entity: string;
   current_temperature: number | null;
+  comfort_temp?: number;
+  eco_temp?: number;
+  frost_temp?: number;
 }
 
 export interface CreateZoneInput {

@@ -3,6 +3,8 @@ import { LitElement, html, css, nothing } from "lit";
 import { property, state } from "lit/decorators.js";
 import type { PropertyValues } from "lit";
 
+const AUTO_APPLY_MS = 4000;
+
 export type HeatingMode = "schedule" | "override" | "manual_only" | "automation" | "unmanaged";
 
 export interface OverrideRequestedDetail {
@@ -23,15 +25,35 @@ export class HeatingControl extends LitElement {
   @property({ attribute: false }) overrideUntil: Date | null = null;
   @property({ type: Boolean }) presence: boolean | null = null;
   @property() reason: string | null = null;
-  @property({ attribute: false }) durations: number[] = [1, 3, 6];
+  @property({ attribute: false }) durations: number[] = [1, 2, 3, 6];
+  /** Duration applied automatically if the user picks none; must be one of `durations`. */
+  @property({ type: Number }) defaultHours = 2;
+  @property({ attribute: false }) presets: Array<{ label: string; temperature: number }> = [];
   @property({ type: Boolean, reflect: true }) compact = false;
 
   @state() private _pending: number | null = null;
+
+  private _autoTimer: ReturnType<typeof setTimeout> | undefined;
 
   protected willUpdate(changed: PropertyValues): void {
     if (changed.has("target") || changed.has("mode")) {
       this._pending = null;
     }
+  }
+
+  protected updated(changed: PropertyValues): void {
+    if (!changed.has("_pending")) return;
+    clearTimeout(this._autoTimer);
+    if (this._autoApplies) this._autoTimer = setTimeout(() => this._confirmHours(this.defaultHours), AUTO_APPLY_MS);
+  }
+
+  disconnectedCallback(): void {
+    clearTimeout(this._autoTimer);
+    super.disconnectedCallback();
+  }
+
+  private get _autoApplies(): boolean {
+    return this._pending !== null && this.mode !== "unmanaged" && this.durations.includes(this.defaultHours);
   }
 
   static styles = css`
@@ -123,6 +145,26 @@ export class HeatingControl extends LitElement {
       color: var(--primary-color);
       font-weight: 500;
     }
+    .presets {
+      display: flex;
+      justify-content: center;
+      gap: 6px;
+    }
+    .preset {
+      min-height: 32px;
+      padding: 0 12px;
+      border-radius: 16px;
+      font-size: 0.85em;
+      color: var(--secondary-text-color);
+    }
+    .preset.active {
+      border-color: var(--primary-color);
+      color: var(--primary-color);
+    }
+    .chip.default {
+      background: var(--primary-color);
+      color: var(--text-primary-color, #fff);
+    }
     .chip.cancel {
       border-color: var(--divider-color, #ccc);
       color: var(--secondary-text-color);
@@ -203,6 +245,11 @@ export class HeatingControl extends LitElement {
     this._pending = clamped === this.target ? null : clamped;
   }
 
+  private _choose(temperature: number): void {
+    const clamped = Math.min(this.max, Math.max(this.min, temperature));
+    this._pending = clamped === this.target ? null : clamped;
+  }
+
   private _emit<T>(name: string, detail?: T): void {
     this.dispatchEvent(new CustomEvent(name, { detail, bubbles: true, composed: true }));
   }
@@ -229,7 +276,7 @@ export class HeatingControl extends LitElement {
     }
     return html`<div class="chips">
       ${this.durations.map(
-        (h) => html`<button class="chip" @click=${() => this._confirmHours(h)}>+${h}h</button>`
+        (h) => html`<button class="chip ${h === this.defaultHours ? "default" : ""}" @click=${() => this._confirmHours(h)}>+${h}h</button>`
       )}
       <button class="chip cancel" @click=${() => (this._pending = null)}>Cancel</button>
     </div>`;
@@ -289,7 +336,22 @@ export class HeatingControl extends LitElement {
           +
         </button>
       </div>
-      <div class="label">${this._pending === null ? "Target" : "Keep for…"}</div>
+      ${this.presets.length
+        ? html`<div class="presets">
+            ${this.presets.map(
+              (p) => html`<button
+                class="preset ${this._shown === p.temperature ? "active" : ""}"
+                aria-pressed=${this._shown === p.temperature}
+                @click=${() => this._choose(p.temperature)}
+              >
+                ${p.label} ${this._fmt(p.temperature)}
+              </button>`,
+            )}
+          </div>`
+        : nothing}
+      <div class="label">
+        ${this._pending === null ? "Target" : this._autoApplies ? `Keep for… (+${this.defaultHours}h applies automatically)` : "Keep for…"}
+      </div>
       ${this._renderConfirm()} ${this._renderStatus()}
     </div>`;
   }

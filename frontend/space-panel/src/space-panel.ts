@@ -748,6 +748,7 @@ export class ShareSpaceSpace extends LitElement {
           .mode=${vm.mode}
           .overrideUntil=${vm.overrideUntil}
           .presence=${vm.presence}
+          .presets=${vm.presets}
           @override-requested=${(e: CustomEvent<{ temperature: number; hours: number }>) =>
             zone && this._run(() => setOverride(hass, zone, e.detail.temperature, e.detail.hours))}
           @override-extended=${(e: CustomEvent<{ hours: number }>) =>

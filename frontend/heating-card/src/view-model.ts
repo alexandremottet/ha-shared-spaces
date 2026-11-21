@@ -2,6 +2,11 @@ import type { HomeAssistant, HeatingZoneAttributes } from "ha-share-space-ui/ha"
 
 export type HeatingMode = HeatingZoneAttributes["mode"] | "unmanaged";
 
+export interface HeatingPreset {
+  label: string;
+  temperature: number;
+}
+
 export interface ZoneViewModel {
   entityId: string;
   serviceEntityId: string | null;
@@ -18,6 +23,7 @@ export interface ZoneViewModel {
   presence: boolean | null;
   activeRule: string | null;
   hvacAction: string | null;
+  presets: HeatingPreset[];
 }
 
 const num = (v: unknown): number | null => {
@@ -55,6 +61,7 @@ export function zoneViewModel(hass: HomeAssistant, entityId: string): ZoneViewMo
       overrideUntil: null,
       presence: null,
       activeRule: null,
+      presets: [],
     };
   }
   const until = zoneAttrs?.override_until ? new Date(zoneAttrs.override_until) : null;
@@ -67,5 +74,12 @@ export function zoneViewModel(hass: HomeAssistant, entityId: string): ZoneViewMo
     overrideUntil: until && !Number.isNaN(until.getTime()) ? until : null,
     presence: zoneAttrs?.presence ?? null,
     activeRule: zoneAttrs?.active_rule ?? null,
+    presets: (
+      [
+        ["Comfort", zoneAttrs?.comfort_temp],
+        ["Eco", zoneAttrs?.eco_temp],
+        ["Frost", zoneAttrs?.frost_temp],
+      ] as const
+    ).flatMap(([label, t]) => (num(t) === null ? [] : [{ label, temperature: num(t)! }])),
   };
 }
