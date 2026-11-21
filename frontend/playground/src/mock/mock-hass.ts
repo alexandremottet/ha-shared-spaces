@@ -26,7 +26,8 @@ export interface StrategyAutomationRec {
   config: {
     alias: string;
     description?: string;
-    use_blueprint: { path: string; input: Record<string, unknown> };
+    use_blueprint?: { path: string; input: Record<string, unknown> };
+    [key: string]: unknown;
   };
   enabled: boolean;
   lastTriggered: number | null;
@@ -213,6 +214,36 @@ export class MockHassController {
 
   updateZone(entryId: string, patch: Partial<ZoneConfig>): void {
     this._zones.get(entryId)?.patchConfig(patch);
+    this._settle(true);
+  }
+
+  /** Strategy automations stored in the mock (dev controls). */
+  automations(): Array<{ id: string; entityId: string; alias: string; description: string; blueprint: string | null; enabled: boolean }> {
+    return [...this._automations.entries()].map(([id, a]) => ({
+      id,
+      entityId: a.entityId,
+      alias: a.config.alias,
+      description: a.config.description ?? "",
+      blueprint: a.config.use_blueprint?.path ?? null,
+      enabled: a.enabled,
+    }));
+  }
+
+  /** Dev: simulate editing an automation in HA's editor (alias changes, description untouched). */
+  simulateAutomationEdit(id: string): void {
+    const a = this._automations.get(id);
+    if (!a) return;
+    a.config = { ...a.config, alias: `${a.config.alias} (edited in HA)` };
+    this._settle(true);
+  }
+
+  /** Dev: simulate HA's "Take control" (blueprint expanded, use_blueprint removed). */
+  simulateTakeControl(id: string): void {
+    const a = this._automations.get(id);
+    if (!a?.config.use_blueprint) return;
+    const { use_blueprint: _bp, ...rest } = a.config;
+    a.config = { ...rest, triggers: [{ trigger: "time_pattern", minutes: "/5" }], conditions: [], actions: [] };
+    this._autoLast.delete(id);
     this._settle(true);
   }
 
@@ -482,9 +513,10 @@ export class MockHassController {
         mode: "single",
         last_triggered: a.lastTriggered === null ? null : new Date(a.lastTriggered).toISOString(),
       });
-      const preset = BLUEPRINTS[a.config.use_blueprint.path];
-      if (!a.enabled || !preset || !this.installed.heating || !this.installed.planning) continue;
-      const input = { ...(preset === "rules" ? {} : DEFAULT_INPUTS[preset]), ...a.config.use_blueprint.input };
+      const bp = a.config.use_blueprint;
+      const preset = bp ? BLUEPRINTS[bp.path] : undefined;
+      if (!bp || !a.enabled || !preset || !this.installed.heating || !this.installed.planning) continue;
+      const input = { ...(preset === "rules" ? {} : DEFAULT_INPUTS[preset]), ...bp.input };
       const area = String(input.area);
       if (!this._knownAreas.has(area)) continue;
       const ev =
@@ -614,9 +646,10 @@ export class MockHassController {
     }
     if (method !== "POST") throw HA_ERROR("invalid_format", `Unsupported method ${method}`);
     const config = data as StrategyAutomationRec["config"] | undefined;
-    if (!config?.alias || !config.use_blueprint?.path) throw HA_ERROR("invalid_format", "alias and use_blueprint are required");
+    if (!config?.alias || !(config.use_blueprint?.path || Array.isArray(config.triggers)))
+      throw HA_ERROR("invalid_format", "alias and use_blueprint or triggers are required");
     this._automations.set(id, {
-      entityId: existing?.entityId ?? `automation.${slugify(config.alias) || id}`,
+      entityId: existing?.entityId ?? this._freeAutomationEntity(`automation.${slugify(config.alias) || id}`),
       config: clone(config),
       enabled: existing?.enabled ?? true,
       lastTriggered: existing?.lastTriggered ?? null,
@@ -624,6 +657,15 @@ export class MockHassController {
     this._autoLast.delete(id);
     this._settle(false);
     return { result: "ok" };
+  }
+
+  // Like HA: a taken entity id gets a _2, _3 suffix.
+  private _freeAutomationEntity(base: string): string {
+    const taken = new Set([...this._automations.values()].map((a) => a.entityId));
+    let n = 1;
+    let id = base;
+    while (taken.has(id)) id = `${base}_${++n}`;
+    return id;
   }
 
   private async _callServiceAsync(domain: string, service: string, data: Record<string, unknown>): Promise<void> {

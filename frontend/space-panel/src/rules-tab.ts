@@ -1,14 +1,16 @@
 import { LitElement, html, css, nothing } from "lit";
-import type { TemplateResult } from "lit";
-import { customElement, property } from "lit/decorators.js";
+import type { PropertyValues, TemplateResult } from "lit";
+import { customElement, property, state } from "lit/decorators.js";
 import "ha-share-space-ui";
 import { STRATEGY_LABELS, isDirty, validateStrategy } from "ha-share-space-ui";
-import type { PresetTemps, RuleStrategy, SavedRules, ScheduleRanges, StrategyPreset } from "ha-share-space-ui";
-import type { AreaInfo, HeatingZone } from "ha-share-space-ui/ha";
+import type { ManagedState, PresetTemps, RuleStrategy, SavedRules, ScheduleRanges, StrategyPreset } from "ha-share-space-ui";
+import { STRATEGY_KIND_LABELS } from "ha-share-space-ui/ha";
+import type { AreaInfo, HeatingZone, StrategyKind } from "ha-share-space-ui/ha";
 
 const PRESETS: StrategyPreset[] = ["office_saver", "lunch_room"];
 
-// Rules page, props in / events out: zone-select, area-change, template-pick, draft-change, save, undo, discard.
+// Rules page, props in / events out: zone-select, area-change, template-pick, draft-change, save, undo, discard,
+// convert, reenable, take-back, detach, start-new, open-automation.
 @customElement("share-space-rules-tab")
 export class ShareSpaceRulesTab extends LitElement {
   @property({ attribute: false }) zones: HeatingZone[] | null = null;
@@ -25,6 +27,13 @@ export class ShareSpaceRulesTab extends LitElement {
   @property({ type: Boolean }) loading = false;
   @property({ type: Boolean }) busy = false;
   @property() error = "";
+  @property({ attribute: false }) managed: ManagedState | null = null;
+  @property({ attribute: false }) active: StrategyKind | null = null;
+  @property({ type: Boolean }) rulesEnabled = false;
+  @property({ attribute: false }) convertFrom: StrategyPreset | null = null;
+  @property({ attribute: false }) keptDisabled: StrategyPreset | null = null;
+  @property({ type: Boolean }) startingNew = false;
+  @state() private _confirmNew = false;
 
   static styles = css`
     :host {
@@ -80,11 +89,32 @@ export class ShareSpaceRulesTab extends LitElement {
       color: var(--text-primary-color, #fff);
       border-color: transparent;
     }
+    button.link {
+      min-height: 0;
+      border: none;
+      padding: 0;
+      color: var(--primary-color);
+      text-decoration: underline;
+    }
+    .banner {
+      border: 1px solid var(--divider-color);
+      border-left: 4px solid var(--warning-color, #ffa600);
+      border-radius: 8px;
+      padding: 8px 12px;
+      margin: 8px 0;
+    }
+    .banner.info {
+      border-left-color: var(--primary-color);
+    }
     button:disabled {
       opacity: 0.5;
       cursor: default;
     }
   `;
+
+  protected willUpdate(changed: PropertyValues): void {
+    if (changed.has("zone") || changed.has("managed")) this._confirmNew = false;
+  }
 
   private _emit(name: string, detail?: unknown): void {
     this.dispatchEvent(new CustomEvent(name, { detail }));
@@ -125,8 +155,24 @@ export class ShareSpaceRulesTab extends LitElement {
 
   private _editor(draft: RuleStrategy): TemplateResult {
     const dirty = isDirty(draft, this.saved);
-    const canSave = this._valid && dirty && !this.busy;
+    const canSave = this._valid && (dirty || !this.rulesEnabled) && !this.busy;
+    const conv = this.convertFrom && !this.saved ? STRATEGY_LABELS[this.convertFrom] : "";
     return html`
+      ${this.startingNew
+        ? html`<div class="banner info">New rules automation. Saving it disables the detached one.</div>`
+        : nothing}
+      ${conv
+        ? html`<div class="banner info">Converting from ${conv}: review, then Save. The ${conv} automation will be kept disabled, not deleted.</div>`
+        : nothing}
+      ${this.keptDisabled
+        ? html`<div class="row muted">
+            Previous ${STRATEGY_LABELS[this.keptDisabled]} automation kept disabled.
+            <button class="link" ?disabled=${this.busy} @click=${() => this._emit("reenable")}>Re-enable it</button>
+          </div>`
+        : nothing}
+      ${this.saved && !this.rulesEnabled && !this.startingNew
+        ? html`<div class="banner info">These rules are saved but not running. Save to use them.</div>`
+        : nothing}
       <div class="row">${this._areaField()}</div>
       <share-space-rule-list .strategy=${draft} @strategy-change=${(e: CustomEvent<{ strategy: RuleStrategy }>) => {
           e.stopPropagation();
@@ -139,11 +185,57 @@ export class ShareSpaceRulesTab extends LitElement {
       <div class="row">
         <button class="primary" ?disabled=${!canSave} @click=${() => this._emit("save")}>${this.busy ? "Saving…" : "Save"}</button>
         <button ?disabled=${this.busy || !this.saved?.previous} @click=${() => this._emit("undo")}>Undo last change</button>
-        <button ?disabled=${this.busy || (!dirty && !!this.saved)} @click=${() => this._emit("discard")}>Discard</button>
+        <button ?disabled=${this.busy || (!dirty && !!this.saved && !this.startingNew)} @click=${() => this._emit("discard")}>Discard</button>
         ${dirty && this.saved ? html`<span class="muted">Unsaved changes</span>` : nothing}
       </div>
       ${this._templates("Reset to template:", (p) => this._emit("template-pick", p))}
     `;
+  }
+
+  private _edited(): TemplateResult {
+    const what = this.managed === "edited" ? "Edited outside Share Space" : "Not managed by Share Space";
+    return html`<div class="banner" role="status">
+        <strong>${what}.</strong>
+        <div class="muted">Take back overwrites it with the last rules Share Space can read. Detach leaves it as a normal Home Assistant automation.</div>
+      </div>
+      <div class="row">${this._areaField()}</div>
+      <div class="row">
+        <button class="primary" ?disabled=${this.busy || !this.area} @click=${() => this._emit("take-back")}>Take back</button>
+        <button ?disabled=${this.busy} @click=${() => this._emit("detach")}>Detach</button>
+        <button class="link" @click=${() => this._emit("open-automation")}>Open in Home Assistant</button>
+      </div>`;
+  }
+
+  private _detached(): TemplateResult {
+    return html`<div class="banner info" role="status">
+        This automation is detached; edit it in Home Assistant.
+        <button class="link" @click=${() => this._emit("open-automation")}>Open automation</button>
+      </div>
+      ${this._confirmNew
+        ? html`<div class="row">
+            <span>Create a new rules automation for this zone? The detached one will be disabled.</span>
+            <button class="primary" ?disabled=${this.busy} @click=${() => this._emit("start-new")}>Confirm</button>
+            <button @click=${() => (this._confirmNew = false)}>Cancel</button>
+          </div>`
+        : html`<div class="row"><button ?disabled=${this.busy} @click=${() => (this._confirmNew = true)}>Start new rules</button></div>`}`;
+  }
+
+  private _empty(): TemplateResult {
+    const conv = this.convertFrom ? STRATEGY_LABELS[this.convertFrom] : "";
+    return html`<div class="row">${this._areaField()}</div>
+      ${conv
+        ? html`<div class="banner info row">
+            This zone uses ${conv}.
+            <button class="primary" ?disabled=${this.busy} @click=${() => this._emit("convert")}>Convert to rules</button>
+          </div>`
+        : html`<p class="muted">This zone has no custom rules yet.</p>`}
+      ${this._templates("Start from template:", (p) => this._emit("template-pick", p))}`;
+  }
+
+  private _body(): TemplateResult {
+    if (this.managed === "detached" && !this.startingNew) return this._detached();
+    if (this.managed === "edited" || this.managed === "unmanaged") return this._edited();
+    return this.draft ? this._editor(this.draft) : this._empty();
   }
 
   protected render(): TemplateResult {
@@ -157,11 +249,8 @@ export class ShareSpaceRulesTab extends LitElement {
         ? nothing
         : this.loading
           ? html`<div class="muted">Loading…</div>`
-          : this.draft
-            ? this._editor(this.draft)
-            : html`<div class="row">${this._areaField()}</div>
-                <p class="muted">This zone has no custom rules yet.</p>
-                ${this._templates("Start from template:", (p) => this._emit("template-pick", p))}`}
+          : html`<div class="row muted">Active: <strong>${this.active ? STRATEGY_KIND_LABELS[this.active] : "no strategy automation"}</strong></div>
+              ${this._body()}`}
     `;
   }
 }
