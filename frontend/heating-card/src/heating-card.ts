@@ -14,7 +14,7 @@ import {
   loadZoneStrategy,
   planningSchedule,
 } from "ha-share-space-ui/ha";
-import { simulateRange } from "ha-share-space-ui";
+import { strategyTimeline } from "ha-share-space-ui";
 import type { StrategySegment } from "ha-share-space-ui";
 import type { ZoneStrategy } from "ha-share-space-ui/ha";
 import type { HomeAssistant, LovelaceConfigForm, LovelaceGridOptions } from "ha-share-space-ui/ha";
@@ -117,7 +117,7 @@ export class ShareSpaceHeatingCard extends ShareSpaceCardBase<CardConfig> {
     if (this._nextMemo?.key !== key) {
       this._nextMemo = {
         key,
-        segments: simulateRange(strategy.automation.preset, strategy.inputs, schedule, bucket * 300000, bucket * 300000 + 7 * 86400000, tz),
+        segments: strategyTimeline(strategy.automation.preset, strategy.inputs, schedule, bucket * 300000, bucket * 300000 + 7 * 86400000, tz),
       };
     }
     const next = this._nextMemo.segments.find((s) => s.start > now);

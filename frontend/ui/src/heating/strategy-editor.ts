@@ -18,7 +18,7 @@ import {
 } from "../ha/ws";
 import type { StrategyAutomation } from "../ha/ws";
 import { haTheme } from "../ha/theme";
-import { STRATEGY_LABELS, defaultInputs, simulateRange } from "./strategy-sim";
+import { STRATEGY_LABELS, defaultInputs, strategyTimeline } from "./strategy-sim";
 import type { StrategyInputs, StrategyPreset, StrategySegment } from "./strategy-sim";
 import { fromWall, wallTime } from "./tz";
 
@@ -406,7 +406,7 @@ export class ShareSpaceStrategyEditor extends LitElement {
     const days = Array.from({ length: 8 }, (_, i) => fromWall(tz, w.year, w.month, w.day + i, 0, 0));
     const key = [this._preset, JSON.stringify(this._inputs()), this._areaId, days[0], JSON.stringify(schedule)].join("|");
     if (this._memo?.key !== key) {
-      this._memo = { key, days, segments: simulateRange(this._preset, this._inputs(), schedule, days[0], days[7], tz) };
+      this._memo = { key, days, segments: strategyTimeline(this._preset, this._inputs(), schedule, days[0], days[7], tz) };
     }
     return this._memo;
   }

@@ -2,7 +2,7 @@ import { fromWall, wallTime } from "./tz";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
-import { evaluate, nextOn, occupiedAt, previousOff, simulateWeek } from "./strategy-sim";
+import { evaluate, nextOn, occupiedAt, previousOff, strategyTimeline } from "./strategy-sim";
 
 const cases = JSON.parse(readFileSync(resolve(__dirname, "../../../../fixtures/heating/strategy_cases.json"), "utf8"));
 
@@ -26,14 +26,34 @@ describe("helpers", () => {
     expect(new Date(previousOff(office.schedule, now, office.tz)!).toISOString()).toBe("2026-11-20T17:00:00.000Z");
   });
 
-  it("week simulation merges and covers the range", () => {
+  it("timeline merges and covers the range", () => {
     const start = Date.parse("2026-11-20T00:00:00+01:00");
-    const segs = simulateWeek("office_saver", office.inputs, office.schedule, start, office.tz);
+    const segs = strategyTimeline("office_saver", office.inputs, office.schedule, start, start + 7 * 86400000, office.tz);
     expect(segs[0].start).toBe(start);
     expect(segs[segs.length - 1].end).toBe(start + 7 * 86400000);
     for (let i = 1; i < segs.length; i++) expect(segs[i].start).toBe(segs[i - 1].end);
     expect(segs.find((s) => s.reason === "Away")).toBeTruthy();
   });
+});
+
+describe("timeline matches evaluate", () => {
+  const empty = { ...cases[0], name: "empty schedule", schedule: {} };
+  const sparse = { ...cases[0], name: "sparse schedule", schedule: { monday: [["09:30", "12:30"]] } };
+  for (const c of [...cases, empty, sparse]) {
+    it(c.name, () => {
+      const start = Date.parse("2026-11-20T00:07:00Z");
+      const end = start + 7 * 86400000;
+      const t = performance.now();
+      const segs = strategyTimeline(c.preset, c.inputs, c.schedule, start, end, c.tz);
+      expect(performance.now() - t).toBeLessThan(200);
+      for (let now = start; now < end; now += 41 * 60000) {
+        const seg = segs.find((s) => s.start <= now && now < s.end)!;
+        const ev = evaluate(c.preset, c.inputs, c.schedule, now, c.tz);
+        if (seg.start === now) continue;
+        expect({ ...seg.result, reason: seg.reason }, new Date(now).toISOString()).toEqual({ ...ev.result, reason: ev.reason });
+      }
+    });
+  }
 });
 
 describe("regressions", () => {
