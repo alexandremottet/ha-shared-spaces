@@ -1,7 +1,11 @@
 node_modules/
-custom_components/share_space/frontend/*.js
-packages/components/demo/dist/
+integrations/**/frontend/*.js
+frontend/*/dist/
+frontend/ui/demo/dist/
+.venv/
 *.pyc
 __pycache__/
 .pytest_cache/
 .ha-dev/
+frontend/playground/dist/
+.env.local

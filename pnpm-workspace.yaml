@@ -1,4 +1,5 @@
 packages:
-  - "packages/*"
+  - "frontend/*"
+  - "integrations/*"
 allowBuilds:
   esbuild: true

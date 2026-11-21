@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# Start a local Home Assistant Docker instance with this repo's
-# custom_components/share_space bind-mounted in, for visually testing the card/panel.
+# Start a local Home Assistant Docker instance with this repo's three integrations
+# (share_space, share_space_heating, share_space_space) bind-mounted in, for visually testing cards/panel.
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -35,16 +35,27 @@ if docker inspect "$CONTAINER_NAME" >/dev/null 2>&1; then
   docker rm -f "$CONTAINER_NAME" >/dev/null
 fi
 
+WWW_DIR="$HA_CONFIG_DIR/www/share_space"
+mkdir -p "$WWW_DIR"
+cp "$REPO_ROOT"/frontend/{planning-cards,heating-card,dashboard-strategy}/dist/*.js "$WWW_DIR/"
+
 echo "Creating container..."
 docker run -d \
   --name "$CONTAINER_NAME" \
   -p "${HA_PORT}:8123" \
   -v "$HA_CONFIG_DIR:/config" \
-  -v "$REPO_ROOT/custom_components/share_space:/config/custom_components/share_space" \
+  -v "$REPO_ROOT/integrations/share_space/custom_components/share_space:/config/custom_components/share_space" \
+  -v "$REPO_ROOT/integrations/share_space_heating/custom_components/share_space_heating:/config/custom_components/share_space_heating" \
+  -v "$REPO_ROOT/integrations/share_space_space/custom_components/share_space_space:/config/custom_components/share_space_space" \
   "$HA_IMAGE" >/dev/null
 
 echo ""
 echo "Home Assistant dev instance: http://localhost:${HA_PORT}"
-echo "First run needs onboarding. Then: Settings > Devices & Services > Add Integration > Share Space."
+echo "First run needs onboarding. Then: Settings > Devices & Services > Add Integration > Share Space, Share Space Heating, Share Space Space."
+echo "Add Lovelace resources (module):"
+echo "  /local/share_space/share-space-planning-cards.js"
+echo "  /local/share_space/share-space-heating-card.js"
+echo "  /local/share_space/share-space-dashboard.js  (then new dashboard, raw config: strategy: {type: custom:share-space})"
+echo "The Space panel (/share-space) needs no resource."
 echo "Rerun this script after JS or Python changes (it rebuilds and recreates the container)."
 echo "Your HA config/onboarding in $HA_CONFIG_DIR persists across recreation."

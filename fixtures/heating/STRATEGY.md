@@ -1,0 +1,88 @@
+# Heating strategies — contract
+
+Strategies are real Home Assistant automations created from Share Space blueprints. Python
+(the blueprints running in HA) is the source of truth; the TypeScript simulator used for the
+7-day preview must produce the same result for every case in `strategy_cases.json`.
+
+## Planning entities (integration `share_space`, per area with ≥1 person)
+
+| Entity | Type | Value |
+|---|---|---|
+| `binary_sensor.share_space_<area>` | occupancy | on when the current 30-min slot is in the merged schedule. New attribute `schedule`: `{monday: [["09:00","12:00"], ...], ...}` (merged slots compacted into `[start, end)` ranges, end may be `"24:00"`, every weekday key present) |
+| `sensor.share_space_<area>_next_on` | timestamp | earliest instant `t > now` where the area flips off→on (when currently on: the start of the next run after the current one). `None` if none within 8 days |
+| `sensor.share_space_<area>_next_off` | timestamp | earliest instant `t > now` where it flips on→off. `None` if none within 8 days |
+| `sensor.share_space_<area>_previous_off` | timestamp | latest instant `t <= now` where it flipped on→off. `None` if none within the last 8 days |
+| `binary_sensor.share_space_<area>_occupied_today` | — | on if any slot from the current slot until end of today is on |
+| `binary_sensor.share_space_<area>_occupied_tomorrow` | — | on if any slot of tomorrow's weekday is on |
+
+Flip instants are computed by stepping 30-min slots in UTC and converting each to local time
+(same approach as `occupancy.next_change`), so DST is handled in real elapsed time. Timestamp
+states are ISO 8601 UTC.
+
+### Service `share_space.query_occupancy` (SupportsResponse.ONLY)
+
+Request: `{area, windows: [{start: "HH:MM", end: "HH:MM"}], match: "all" | "any" (default "all"), day: "today" | "tomorrow" | <weekday> (default "today")}`
+
+A window matches when at least one ON slot start `t` satisfies `start <= t < end` on that day.
+
+Response: `{occupied: bool, matches: [bool per window]}` — `occupied` is all/any of `matches`.
+
+## Zone input (integration `share_space_heating`)
+
+### Service `share_space_heating.set_base_target`
+
+`{entity_id: zone sensor, temperature?: float, preset?: "comfort" | "eco", off?: true, reason?: str}` — exactly one of temperature / preset / off, or none to clear the base target (zone returns to presence / manual-only).
+
+- Stores the zone's base target (persisted) and `reason`. Zone `mode` becomes `"automation"`, sensor attribute `active_rule` = reason.
+- Manual override still wins and expires back to the base target.
+- `off`: if zone option `off_mode` is `"frost"` (default) → set `frost_temp` (option, default 7); if `"hvac_off"` → `climate.set_hvac_mode off`; a later non-off target sets `hvac_mode heat` first when the climate is off.
+- The climate is called only when the base (temperature / preset / off) actually changed; a reason-only change just updates attributes. The base is persisted before any climate call.
+- A thermostat the user turned off manually is never switched back on; `hvac_mode heat` is only sent when the zone itself turned it off.
+- External-change detection: a device setpoint equal (tolerance 0.05, after clamping / rounding to the device step) to a value the zone applied within the last 60 s is an echo; any other value is a manual override.
+- Applying the base target uses the zone's own context (never treated as an external override).
+
+New zone options (also accepted by WS `share_space_heating/update_zone`): `frost_temp` (5–15), `off_mode` (`frost` | `hvac_off`).
+
+## Blueprints (`blueprints/automation/share_space/`)
+
+All blueprints use `mode: queued`, `max: 5`, `max_exceeded: silent`, ship a `# share_space_blueprint_version: N` header (the installer overwrites an installed copy only when it has this header with a lower N), and end by calling `share_space_heating.set_base_target` with the result below.
+Results: `{target: number}` or `{off: true}`, plus `reason`.
+
+### `office_saver.yaml`
+
+Inputs: `zone` (zone sensor), `area` (share_space area id), `comfort_temp` (21), `setback_temp` (16), `preheat_hours` (6), `max_gap_hours` (24).
+
+Evaluated in order, first match wins:
+1. area occupied now → `comfort_temp`, reason `"Occupied"`
+2. `next_on` exists and `now >= next_on - preheat_hours` → `comfort_temp`, reason `"Preheat"`
+3. `previous_off` exists and `now - previous_off <= max_gap_hours` and `next_on` exists and `next_on - now <= max_gap_hours` → `setback_temp`, reason `"Between working days"`
+4. otherwise → off, reason `"Away"`
+
+Triggers: main sensor state change, `next_on` / `previous_off` sensor changes, a template trigger using `now()` (re-rendered every minute, so preheat fires within 1 minute of `next_on - preheat_hours`), time pattern every
+5 minutes (safety net for the gap boundary), `homeassistant` start.
+
+Guard: the run stops without calling `set_base_target` when the main sensor is `unknown`/`unavailable` or the `next_on` / `previous_off` entities are missing or `unavailable` (planning not loaded). A `next_on` / `previous_off` state of `unknown` means none within 8 days.
+
+### `lunch_room.yaml`
+
+Inputs: `zone`, `area`, `morning_start` ("11:00"), `morning_end` ("12:00"), `afternoon_start` ("13:00"), `afternoon_end` ("14:00"), `heat_start` ("11:00"), `heat_end` ("14:00"), `temperature` (20), `match` ("all").
+
+1. now (local) not in `[heat_start, heat_end)` → off, reason `"Outside lunch hours"`
+2. `share_space.query_occupancy {area, windows: [morning, afternoon], match, day: today}` occupied → `temperature`, reason `"Lunch"`
+3. otherwise → off, reason `"No lunch today"`
+
+`query_occupancy` runs with `continue_on_error: true`; with no valid response (`occupied` undefined) the run stops without calling `set_base_target`.
+
+Triggers: time at `heat_start` and `heat_end`, main sensor state change, `homeassistant` start, time pattern every 5 minutes.
+
+## Automation ids created by the card
+
+`share_space_<zone object id>_<preset>` (e.g. `share_space_share_space_heating_open_space_office_saver`), alias `Share Space · <zone name> · <Preset label>`.
+
+## Fixture format (`strategy_cases.json`)
+
+```
+[{ name, tz, area, schedule: {<weekday>: [["HH:MM","HH:MM"]...]}, preset: "office_saver"|"lunch_room",
+   inputs: {...blueprint inputs except zone/area...},
+   checks: [{ now: ISO with offset, expected: {target: number} | {off: true}, reason }] }]
+```

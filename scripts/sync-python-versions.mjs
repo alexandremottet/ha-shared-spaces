@@ -1,30 +1,23 @@
 #!/usr/bin/env node
-// Runs after `changeset version`: copies each Python shim package.json's version into its pyproject.toml.
+// Runs after `changeset version`: copies each integration shim package.json's version into its manifest.json.
 import { readFileSync, writeFileSync, readdirSync, existsSync } from "node:fs";
 import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const rootDir = join(dirname(fileURLToPath(import.meta.url)), "..");
-const packagesDir = join(rootDir, "packages");
+const integrationsDir = join(rootDir, "integrations");
 
-const VERSION_LINE = /^version\s*=\s*"[^"]*"/m;
-
-for (const name of readdirSync(packagesDir)) {
-  const pkgDir = join(packagesDir, name);
+for (const name of readdirSync(integrationsDir)) {
+  const pkgDir = join(integrationsDir, name);
   const packageJsonPath = join(pkgDir, "package.json");
-  const pyprojectPath = join(pkgDir, "pyproject.toml");
-  if (!existsSync(packageJsonPath) || !existsSync(pyprojectPath)) continue;
+  const manifestPath = join(pkgDir, "custom_components", name, "manifest.json");
+  if (!existsSync(packageJsonPath) || !existsSync(manifestPath)) continue;
 
   const { version } = JSON.parse(readFileSync(packageJsonPath, "utf8"));
-  const pyproject = readFileSync(pyprojectPath, "utf8");
-  if (!VERSION_LINE.test(pyproject)) {
-    console.warn(`Skipping ${pyprojectPath}: no version field found`);
-    continue;
-  }
+  const manifest = JSON.parse(readFileSync(manifestPath, "utf8"));
+  if (manifest.version === version) continue;
 
-  const updated = pyproject.replace(VERSION_LINE, `version = "${version}"`);
-  if (updated !== pyproject) {
-    writeFileSync(pyprojectPath, updated);
-    console.log(`Synced ${name}: pyproject.toml -> ${version}`);
-  }
+  manifest.version = version;
+  writeFileSync(manifestPath, JSON.stringify(manifest, null, 2) + "\n");
+  console.log(`Synced ${name}: manifest.json -> ${version}`);
 }
