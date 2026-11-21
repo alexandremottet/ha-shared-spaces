@@ -1,5 +1,5 @@
-import { WEEK_DAYS, evaluate, nextOff, nextOn, occupiedAt, previousOff, wallTime, windowMatches } from "ha-share-space-ui";
-import type { Calendar, Schedule, ScheduleRanges, StrategyInputs, StrategyPreset } from "ha-share-space-ui";
+import { WEEK_DAYS, evaluate, evaluateRules, nextOff, nextOn, occupiedAt, previousOff, wallTime, windowMatches } from "ha-share-space-ui";
+import type { Calendar, RuleStrategy, Schedule, ScheduleRanges, StrategyInputs, StrategyPreset } from "ha-share-space-ui";
 import type { AreaActions, Floorplan, HassEntity, HomeAssistant } from "ha-share-space-ui/ha";
 import { MockClock } from "./clock";
 import { HeatingZoneSim } from "./heating";
@@ -48,9 +48,10 @@ export interface MockState {
 type WsHandler = (msg: Record<string, unknown>) => unknown;
 type ServiceHandler = (data: Record<string, unknown>) => void;
 
-const BLUEPRINTS: Record<string, StrategyPreset> = {
+const BLUEPRINTS: Record<string, StrategyPreset | "rules"> = {
   "share_space/office_saver.yaml": "office_saver",
   "share_space/lunch_room.yaml": "lunch_room",
+  "share_space/rules.yaml": "rules",
 };
 const DEFAULT_INPUTS: Record<StrategyPreset, Record<string, unknown>> = {
   office_saver: { comfort_temp: 21, setback_temp: 16, preheat_hours: 6, max_gap_hours: 24 },
@@ -483,10 +484,14 @@ export class MockHassController {
       });
       const preset = BLUEPRINTS[a.config.use_blueprint.path];
       if (!a.enabled || !preset || !this.installed.heating || !this.installed.planning) continue;
-      const input = { ...DEFAULT_INPUTS[preset], ...a.config.use_blueprint.input };
+      const input = { ...(preset === "rules" ? {} : DEFAULT_INPUTS[preset]), ...a.config.use_blueprint.input };
       const area = String(input.area);
       if (!this._knownAreas.has(area)) continue;
-      const ev = evaluate(preset, input as unknown as StrategyInputs, this._ranges(area), now, this.tz);
+      const ev =
+        preset === "rules"
+          ? this._evalRules(input, area, now)
+          : evaluate(preset, input as unknown as StrategyInputs, this._ranges(area), now, this.tz);
+      if (!ev) continue;
       const key = JSON.stringify(ev);
       if (this._autoLast.get(id) === key) continue;
       this._autoLast.set(id, key);
@@ -494,12 +499,23 @@ export class MockHassController {
       try {
         this._callService("share_space_heating", "set_base_target", {
           entity_id: input.zone,
-          ...("off" in ev.result ? { off: true } : { temperature: ev.result.target }),
+          ...("off" in ev.result ? { off: true } : ev.result.preset ? { preset: ev.result.preset } : { temperature: ev.result.target }),
           reason: ev.reason,
         });
       } catch {
         this._autoLast.delete(id);
       }
+    }
+  }
+
+  private _evalRules(input: Record<string, unknown>, area: string, now: number) {
+    const rules = input.rules as RuleStrategy | undefined;
+    if (!rules) return null;
+    try {
+      const cfg = this._zoneByEntity(input.zone).config;
+      return evaluateRules(rules, this._ranges(area), now, this.tz, { comfort: cfg.comfort_temp, eco: cfg.eco_temp });
+    } catch {
+      return null;
     }
   }
 

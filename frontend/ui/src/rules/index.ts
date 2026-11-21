@@ -9,3 +9,4 @@ export * from "./ui/rule-action";
 export * from "./ui/rule-row";
 export * from "./ui/rule-list";
 export * from "./ui/rule-preview";
+export * from "./automation";

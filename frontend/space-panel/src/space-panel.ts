@@ -18,6 +18,7 @@ import type { SharePrefs, HomeAssistant, Floorplan, Hotspot, AreaInfo } from "ha
 import { zoneViewModel } from "ha-share-space-heating-card/view-model";
 import "./panel-tabs";
 import "./settings-tab";
+import "./rules-page";
 import { PLACEHOLDER_SIZE, PLACEHOLDER_URL } from "./placeholder";
 
 interface Box {
@@ -675,7 +676,7 @@ private _prefsFor = "";
         ${this._edit && this._draft ? this._renderEditor(this._draft) : nothing}
         ${this._renderPopover()}
       </div>
-      ${tab === "rules" ? html`<div class="page muted">Rules editor coming soon</div>` : nothing}
+      ${tab === "rules" ? html`<share-space-rules-page .hass=${this.hass}></share-space-rules-page>` : nothing}
       ${tab === "settings"
         ? html`<share-space-settings
             .role=${this._role}

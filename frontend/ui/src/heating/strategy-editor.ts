@@ -15,6 +15,7 @@ import {
   setAutomationEnabled,
   strategyAutomationId,
   strategyBlueprintPath,
+  STRATEGY_KIND_LABELS,
 } from "../ha/ws";
 import type { StrategyAutomation } from "../ha/ws";
 import { haTheme } from "../ha/theme";
@@ -159,7 +160,7 @@ export class ShareSpaceStrategyEditor extends LitElement {
   }
 
   private get _existing(): StrategyAutomation | undefined {
-    return this._strategies.find((a) => a.preset === this._preset) ?? this._renamed.get(this._preset);
+    return this._strategies.find((a) => a.kind === this._preset) ?? this._renamed.get(this._preset);
   }
 
   private get _id(): string {
@@ -185,8 +186,9 @@ export class ShareSpaceStrategyEditor extends LitElement {
     } catch {
       this._areas = Object.values(hass.areas ?? {}).map((a) => ({ area_id: a.area_id, name: a.name }));
     }
-    const first = this._strategies.find((a) => a.enabled) ?? this._strategies[0];
-    await this._loadPreset(first?.preset ?? this._preset);
+    const presets = this._strategies.flatMap((a) => (a.kind === "rules" ? [] : [{ ...a, kind: a.kind }]));
+    const first = presets.find((a) => a.enabled) ?? presets[0];
+    await this._loadPreset(first?.kind ?? this._preset);
   }
 
   private _defaultArea(): string {
@@ -371,7 +373,7 @@ export class ShareSpaceStrategyEditor extends LitElement {
       const list = this._strategies;
       return html`<div class="wrap">${list.length === 0
         ? html`<div class="muted">No strategy on this zone.</div>`
-        : list.map((a) => html`<div>${STRATEGY_LABELS[a.preset]} <span class="muted">· ${a.enabled ? "active" : "disabled"}</span></div>`)}</div>`;
+        : list.map((a) => html`<div>${STRATEGY_KIND_LABELS[a.kind]} <span class="muted">· ${a.enabled ? "active" : "disabled"}</span></div>`)}</div>`;
     }
     const existing = this._existing;
     const exists = !!existing || this._saved.has(this._id);
