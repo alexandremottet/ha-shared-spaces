@@ -2,7 +2,7 @@ import { WEEK_DAYS, evaluate, evaluateRules, nextOff, nextOn, occupiedAt, previo
 import type { Calendar, RuleStrategy, Schedule, ScheduleRanges, StrategyInputs, StrategyPreset } from "ha-share-space-ui";
 import type { AreaActions, Floorplan, HassEntity, HomeAssistant } from "ha-share-space-ui/ha";
 import { MockClock } from "./clock";
-import { HeatingZoneSim } from "./heating";
+import { HeatingZoneSim, templateSyntaxError } from "./heating";
 import type { ClimateInfo, ZoneConfig } from "./heating";
 import { DAYS, isOccupied, mergeCalendars, nextChange, scheduleToRanges, toIsoLocal, SLOT_MINUTES } from "./planning";
 import { demoSeed, defaultStartTime } from "./seed";
@@ -461,6 +461,9 @@ export class MockHassController {
         override_until: zone.overrideActive ? new Date(zone.overrideUntil as number).toISOString() : null,
         override_temp: zone.overrideTemp,
         presence: zone.presence,
+        target_template: zone.config.target_template ?? null,
+        template_result: null,
+        template_error: null,
         climate_entity: zone.config.climate_entity,
         current_temperature: zone.currentTemperature,
       });
@@ -596,6 +599,9 @@ export class MockHassController {
       callApi: (method, path, data) => this._callApi(method, path, data) as Promise<never>,
       now: this.clock.now,
       connection: {
+        subscribeMessage: async () => {
+          throw HA_ERROR("unknown_command", "Unknown command.");
+        },
         subscribeEvents: async <T,>(cb: (e: T) => void, type?: string) => {
           const key = type ?? "*";
           const handler = (e: MockHassEvent) => cb(e as unknown as T);
@@ -770,6 +776,9 @@ export class MockHassController {
         mode: z.mode,
         target: z.target,
         override_until: z.overrideActive ? new Date(z.overrideUntil as number).toISOString() : null,
+        target_template: z.config.target_template ?? null,
+        template_result: null,
+        template_error: null,
       }))
     );
     ws(
@@ -788,6 +797,12 @@ export class MockHassController {
           if (m.off_mode !== "frost" && m.off_mode !== "hvac_off") throw HA_ERROR("invalid_format", "invalid off_mode");
           patch.off_mode = m.off_mode;
         }
+        if ("target_template" in m) {
+          const tpl = typeof m.target_template === "string" && m.target_template.trim() ? m.target_template : null;
+          const bad = tpl ? templateSyntaxError(tpl) : null;
+          if (bad) throw HA_ERROR("invalid_format", bad);
+          patch.target_template = tpl;
+        }
         zone.patchConfig(patch);
         this._settle(false);
         const z = zone;
@@ -800,6 +815,9 @@ export class MockHassController {
           mode: z.mode,
           target: z.target,
           override_until: z.overrideActive ? new Date(z.overrideUntil as number).toISOString() : null,
+          target_template: z.config.target_template ?? null,
+          template_result: null,
+          template_error: null,
         };
       },
       true

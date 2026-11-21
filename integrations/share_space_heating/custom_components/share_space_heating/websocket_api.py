@@ -7,8 +7,10 @@ import voluptuous as vol
 
 from homeassistant.components import websocket_api
 from homeassistant.core import HomeAssistant
+from homeassistant.exceptions import TemplateError
 from homeassistant.helpers import config_validation as cv
 from homeassistant.helpers import entity_registry as er
+from homeassistant.helpers.template import Template
 
 from .const import (
     CONF_CLIMATE_ENTITY,
@@ -19,6 +21,7 @@ from .const import (
     CONF_MAX_OVERRIDE_HOURS,
     CONF_OFF_MODE,
     CONF_PRESENCE_ENTITY,
+    CONF_TARGET_TEMPLATE,
     DATA_ZONES,
     DOMAIN,
     OFF_MODES,
@@ -45,6 +48,21 @@ _HOURS = vol.All(vol.Coerce(float), vol.Range(min=0.5, max=72))
 _FROST = vol.All(vol.Coerce(float), vol.Range(min=5, max=15))
 
 
+def _template_error(hass: HomeAssistant, msg: dict) -> str | None:
+    """Normalize `target_template` in msg ("" -> None); return a syntax error message."""
+    if CONF_TARGET_TEMPLATE not in msg:
+        return None
+    source = msg[CONF_TARGET_TEMPLATE]
+    if source is None or not source.strip():
+        msg[CONF_TARGET_TEMPLATE] = None
+        return None
+    try:
+        Template(source, hass).ensure_valid()
+    except TemplateError as err:
+        return str(err)
+    return None
+
+
 def _summary(hass: HomeAssistant, entry_id: str, zone) -> dict:
     return {
         "entry_id": entry_id,
@@ -55,6 +73,9 @@ def _summary(hass: HomeAssistant, entry_id: str, zone) -> dict:
         "mode": zone.mode,
         "active_rule": zone.active_rule,
         "target": zone.target,
+        "target_template": zone.target_template,
+        "template_result": zone.template_result,
+        "template_error": zone.template_error,
         "override_until": zone.override_until.isoformat() if zone.override_active else None,
     }
 
@@ -80,10 +101,14 @@ async def ws_list_zones(hass: HomeAssistant, connection, msg: dict) -> None:
         vol.Optional(CONF_COMFORT_TEMP): vol.Coerce(float),
         vol.Optional(CONF_ECO_TEMP): vol.Coerce(float),
         vol.Optional(CONF_DEFAULT_OVERRIDE_HOURS): vol.Coerce(float),
+        vol.Optional(CONF_TARGET_TEMPLATE): vol.Any(None, str),
     }
 )
 @websocket_api.async_response
 async def ws_create_zone(hass: HomeAssistant, connection, msg: dict) -> None:
+    if error := _template_error(hass, msg):
+        connection.send_error(msg["id"], websocket_api.ERR_INVALID_FORMAT, error)
+        return
     data = {key: value for key, value in msg.items() if key not in ("id", "type")}
     result = await hass.config_entries.flow.async_init(
         DOMAIN, context={"source": "import"}, data=data
@@ -107,10 +132,14 @@ async def ws_create_zone(hass: HomeAssistant, connection, msg: dict) -> None:
         vol.Optional(CONF_MAX_OVERRIDE_HOURS): _HOURS,
         vol.Optional(CONF_FROST_TEMP): _FROST,
         vol.Optional(CONF_OFF_MODE): vol.In(OFF_MODES),
+        vol.Optional(CONF_TARGET_TEMPLATE): vol.Any(None, str),
     }
 )
 @websocket_api.async_response
 async def ws_update_zone(hass: HomeAssistant, connection, msg: dict) -> None:
+    if error := _template_error(hass, msg):
+        connection.send_error(msg["id"], websocket_api.ERR_INVALID_FORMAT, error)
+        return
     entry = hass.config_entries.async_get_entry(msg["entry_id"])
     zones = hass.data.get(DOMAIN, {}).get(DATA_ZONES, {})
     if entry is None or entry.domain != DOMAIN or entry.entry_id not in zones:

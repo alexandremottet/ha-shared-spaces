@@ -49,4 +49,7 @@ class ZoneSensor(SensorEntity):
             "comfort_temp": zone.comfort_temp,
             "eco_temp": zone.eco_temp,
             "frost_temp": zone.frost_temp,
+            "target_template": zone.target_template,
+            "template_result": zone.template_result,
+            "template_error": zone.template_error,
         }

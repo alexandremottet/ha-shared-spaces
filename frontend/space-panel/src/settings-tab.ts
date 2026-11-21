@@ -9,7 +9,7 @@ const ROLE_LABEL: Record<SpaceRole, string> = {
   technical_admin: "Technical admin",
 };
 
-// Settings page: shows the role; emits `technical-change` (detail = boolean).
+// Settings page: shows the role; technical admins get the `extension-points` slot; emits `technical-change` (detail = boolean).
 @customElement("share-space-settings")
 export class ShareSpaceSettings extends LitElement {
   @property() role: SpaceRole = "user";
@@ -52,7 +52,7 @@ export class ShareSpaceSettings extends LitElement {
             Technical tools
           </label>`
         : nothing}
-      ${this.role === "technical_admin" ? html`<p class="muted">Extension points coming soon</p>` : nothing}
+      ${this.role === "technical_admin" ? html`<slot name="extension-points"></slot>` : nothing}
     `;
   }
 }

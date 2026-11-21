@@ -19,6 +19,7 @@ import { zoneViewModel } from "ha-share-space-heating-card/view-model";
 import "./panel-tabs";
 import "./settings-tab";
 import "./rules-page";
+import "./extension-points-page";
 import { PLACEHOLDER_SIZE, PLACEHOLDER_URL } from "./placeholder";
 
 interface Box {
@@ -681,7 +682,11 @@ private _prefsFor = "";
         ? html`<share-space-settings
             .role=${this._role}
             @technical-change=${(e: CustomEvent<boolean>) => void this._setTechnical(e.detail)}
-          ></share-space-settings>`
+          >
+            ${this._role === "technical_admin"
+              ? html`<share-space-extension-points slot="extension-points" .hass=${this.hass}></share-space-extension-points>`
+              : nothing}
+          </share-space-settings>`
         : nothing}
     `;
   }

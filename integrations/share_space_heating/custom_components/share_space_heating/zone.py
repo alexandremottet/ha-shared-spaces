@@ -1,6 +1,7 @@
 """Heating zone controller: effective target, timed overrides, external-change detection."""
 from __future__ import annotations
 
+import logging
 import math
 import time
 from collections import deque
@@ -10,11 +11,16 @@ from datetime import datetime, timedelta
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import STATE_OFF, STATE_ON, STATE_UNAVAILABLE, STATE_UNKNOWN
 from homeassistant.core import Context, Event, HomeAssistant, callback
+from homeassistant.helpers import entity_registry as er
 from homeassistant.helpers.event import (
+    TrackTemplate,
     async_track_point_in_utc_time,
     async_track_state_change_event,
+    async_track_template_result,
 )
+from homeassistant.helpers.template import Template
 from homeassistant.util import dt as dt_util
+from homeassistant.util import slugify
 
 from .const import (
     CONF_CLIMATE_ENTITY,
@@ -25,23 +31,30 @@ from .const import (
     CONF_OFF_MODE,
     CONF_MAX_OVERRIDE_HOURS,
     CONF_PRESENCE_ENTITY,
+    CONF_TARGET_TEMPLATE,
     DEFAULT_COMFORT_TEMP,
     DEFAULT_ECO_TEMP,
     DEFAULT_FROST_TEMP,
     DEFAULT_OFF_MODE,
     DEFAULT_MAX_OVERRIDE_HOURS,
     DEFAULT_OVERRIDE_HOURS,
+    DOMAIN,
     MODE_AUTOMATION,
     MODE_MANUAL_ONLY,
     OFF_MODE_HVAC_OFF,
     MODE_OVERRIDE,
     MODE_SCHEDULE,
+    MODE_TEMPLATE,
+    TEMPLATE_RULE,
 )
 from .store import OverrideStore
 
 _BAD_STATES = (STATE_UNAVAILABLE, STATE_UNKNOWN)
 _ECHO_TOL = 0.05
 _ECHO_WINDOW = 60.0
+_TEMPLATE_WORDS = ("comfort", "eco", "off")
+
+_LOGGER = logging.getLogger(__name__)
 
 
 def _as_float(value) -> float | None:
@@ -72,6 +85,13 @@ class Zone:
         self._unsubs: list[Callable[[], None]] = []
         self._expiry_unsub: Callable[[], None] | None = None
         self._listeners: list[Callable[[], None]] = []
+        self.template_result: str | None = None
+        self.template_error: str | None = None
+        self._template_value: float | str | None = None
+        self._template: Template | None = None
+        self._template_vars: dict = {}
+        self._template_tracker = None
+        self._logged_errors: set[str] = set()
 
     @property
     def _conf(self) -> dict:
@@ -110,11 +130,21 @@ class Zone:
         return self._conf.get(CONF_OFF_MODE, DEFAULT_OFF_MODE)
 
     @property
+    def target_template(self) -> str | None:
+        return self._conf.get(CONF_TARGET_TEMPLATE) or None
+
+    @property
+    def template_active(self) -> bool:
+        return self._template_value is not None
+
+    @property
     def base_active(self) -> bool:
         return self.base_off or self.base_temp is not None or self.base_preset is not None
 
     @property
     def active_rule(self) -> str | None:
+        if self.template_active:
+            return TEMPLATE_RULE
         return self.base_reason if self.base_active else None
 
     @property
@@ -146,12 +176,31 @@ class Zone:
     def mode(self) -> str:
         if self.override_active:
             return MODE_OVERRIDE
+        if self.template_active:
+            return MODE_TEMPLATE
         if self.base_active:
             return MODE_AUTOMATION
         return MODE_MANUAL_ONLY if self.presence_entity is None else MODE_SCHEDULE
 
     @property
+    def _off_requested(self) -> bool:
+        return self._template_value == "off" if self.template_active else self.base_off
+
+    @property
     def _schedule_target(self) -> float | None:
+        value = self._template_value
+        if value is None:
+            return self._mode_target
+        if value == "off":
+            return self.frost_temp
+        if value == "comfort":
+            return self.comfort_temp
+        if value == "eco":
+            return self.eco_temp
+        return value
+
+    @property
+    def _mode_target(self) -> float | None:
         if self.base_off:
             return self.frost_temp
         if self.base_temp is not None:
@@ -244,6 +293,87 @@ class Zone:
             for value, at in self._applied
         )
 
+    def _zone_entity_id(self) -> str:
+        entity_id = er.async_get(self.hass).async_get_entity_id("sensor", DOMAIN, self.entry.entry_id)
+        return entity_id or f"sensor.{DOMAIN}_{slugify(self.entry.title)}"
+
+    def _parse_template(self, raw: str) -> float | str | None:
+        text = raw.strip()
+        word = text.lower()
+        if word in ("", "none"):
+            return None
+        if word in _TEMPLATE_WORDS:
+            return word
+        value = _as_float(text)
+        if value is not None and math.isfinite(value) and (5 <= value <= 35 or value == self.frost_temp):
+            return value
+        raise ValueError(f"Invalid result {raw!r}: expected 5-35, comfort, eco, off or none")
+
+    @callback
+    def _evaluate_template(self) -> bool:
+        """Render the zone target template; return True if its effective value changed."""
+        if self._template is None:
+            return False
+        before = self._template_value
+        self._template_vars["base"] = self._mode_target
+        self.template_result = None
+        self._template_value = None
+        try:
+            self.template_result = str(
+                self._template.async_render(self._template_vars, parse_result=False, strict=True)
+            )
+            self._template_value = self._parse_template(self.template_result)
+            self.template_error = None
+        except Exception as err:  # noqa: BLE001
+            self.template_error = str(err) or type(err).__name__
+            if self.template_error not in self._logged_errors:
+                self._logged_errors.add(self.template_error)
+                _LOGGER.warning(
+                    "Zone %s target template failed, using the zone mode: %s",
+                    self.entry.title,
+                    self.template_error,
+                )
+        return self._template_value != before
+
+    def _start_template(self) -> None:
+        source = self.target_template
+        if source is None:
+            return
+        self._template = Template(source, self.hass)
+        self._template_vars = {
+            "zone": self._zone_entity_id(),
+            "comfort": self.comfort_temp,
+            "eco": self.eco_temp,
+            "base": self._mode_target,
+        }
+        # tracker re-renders on referenced entity changes and every minute when now() is used
+        self._template_tracker = async_track_template_result(
+            self.hass,
+            [TrackTemplate(self._template, self._template_vars)],
+            self._handle_template_update,
+            strict=True,
+            log_fn=lambda _level, _msg: None,
+        )
+        self._unsubs.append(self._template_tracker.async_remove)
+        self._evaluate_template()
+
+    @callback
+    def _sync_template_base(self) -> None:
+        if self._template_tracker is None:
+            return
+        if self._template_vars.get("base") != self._mode_target:
+            self._template_vars["base"] = self._mode_target
+            self._template_tracker.async_refresh()
+        self._evaluate_template()
+
+    async def _handle_template_update(self, _event, _updates) -> None:
+        if not self._ready or not self._evaluate_template():
+            self._notify()
+            return
+        if not self.override_active:
+            await self._async_apply()
+        self._notify()
+
     async def async_start(self) -> None:
         self._ready = False
         self._refresh_presence()
@@ -261,6 +391,7 @@ class Zone:
         self.base_preset = base.get("preset")
         self.base_off = bool(base.get("off"))
         self.base_reason = base.get("reason")
+        self._start_template()
         previous = _as_float(saved.get("previous_temp"))
         until = dt_util.parse_datetime(saved["until"]) if saved.get("until") else None
         temp = _as_float(saved.get("temp"))
@@ -306,6 +437,8 @@ class Zone:
         if self._expiry_unsub:
             self._expiry_unsub()
             self._expiry_unsub = None
+        self._template_tracker = None
+        self._template = None
 
     def _schedule_expiry(self) -> None:
         if self._expiry_unsub:
@@ -323,7 +456,7 @@ class Zone:
     async def _async_apply(self, force: bool = False) -> None:
         if self.mode == MODE_MANUAL_ONLY:
             return
-        if not self.override_active and self.base_off and self.off_mode == OFF_MODE_HVAC_OFF:
+        if not self.override_active and self._off_requested and self.off_mode == OFF_MODE_HVAC_OFF:
             await self._async_hvac_off(force)
             return
         target = self.override_temp if self.override_active else self._schedule_target
@@ -378,6 +511,7 @@ class Zone:
         entity_id = event.data["entity_id"]
         if entity_id == self.presence_entity:
             self._refresh_presence()
+            self._sync_template_base()
             await self._async_apply()
             self._notify()
             return
@@ -471,8 +605,9 @@ class Zone:
         self.base_preset = preset
         self.base_off = off
         self.base_reason = reason if self.base_active else None
+        self._sync_template_base()
         await self._async_persist()
         self._notify()
         if not self.override_active:
-            await self._async_apply(force=changed)
+            await self._async_apply(force=changed and not self.template_active)
         self._notify()

@@ -43,6 +43,16 @@ Response: `{occupied: bool, matches: [bool per window]}` — `occupied` is all/a
 
 New zone options (also accepted by WS `share_space_heating/update_zone`): `frost_temp` (5–15), `off_mode` (`frost` | `hvac_off`).
 
+### Zone target template (hook)
+
+Zone option `target_template` (str or null; `""` = no hook), set via admin-only WS `update_zone` (or `create_zone`). Syntax is checked on save: invalid → error `invalid_format`, nothing stored.
+
+- Rendered by HA (`async_track_template_result`, strict: undefined variables are errors); re-rendered when a referenced entity changes, every minute when it uses `now()`, and when `base` changes.
+- Variables: `zone` (zone sensor entity id), `comfort`, `eco` (zone temps), `base` (target the zone mode would set: presence / base target; number or null).
+- Results: a number in 5–35 (or equal to `frost_temp`), `comfort`, `eco`, `off` (follows `off_mode`, like `set_base_target off: true`), or `none` / empty = no opinion.
+- Priority: manual override > template > zone mode. Render error or invalid result → zone mode, warning logged once per distinct error.
+- Sensor attributes: `target_template`, `template_result` (raw rendered string or null), `template_error` (string or null). While the template drives the target: `mode` = `"template"`, `active_rule` = `"Template"`.
+
 ## Blueprints (`blueprints/automation/share_space/`)
 
 All blueprints use `mode: queued`, `max: 5`, `max_exceeded: silent`, ship a `# share_space_blueprint_version: N` header (the installer overwrites an installed copy only when it has this header with a lower N), and end by calling `share_space_heating.set_base_target` with the result below.

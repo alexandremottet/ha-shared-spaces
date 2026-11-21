@@ -9,6 +9,7 @@ CONF_DEFAULT_OVERRIDE_HOURS = "default_override_hours"
 CONF_MAX_OVERRIDE_HOURS = "max_override_hours"
 CONF_FROST_TEMP = "frost_temp"
 CONF_OFF_MODE = "off_mode"
+CONF_TARGET_TEMPLATE = "target_template"
 
 DEFAULT_COMFORT_TEMP = 21.0
 DEFAULT_ECO_TEMP = 17.0
@@ -30,6 +31,9 @@ MODE_SCHEDULE = "schedule"
 MODE_OVERRIDE = "override"
 MODE_MANUAL_ONLY = "manual_only"
 MODE_AUTOMATION = "automation"
+MODE_TEMPLATE = "template"
+
+TEMPLATE_RULE = "Template"
 
 SERVICE_SET_OVERRIDE = "set_override"
 SERVICE_EXTEND_OVERRIDE = "extend_override"

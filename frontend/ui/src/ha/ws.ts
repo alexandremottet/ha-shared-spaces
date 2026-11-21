@@ -34,10 +34,16 @@ export interface HeatingZone {
   mode: HeatingZoneAttributes["mode"];
   target: number;
   override_until: string | null;
+  target_template?: string | null;
+  template_result?: string | null;
+  template_error?: string | null;
 }
 
 export interface HeatingZoneAttributes {
-  mode: "schedule" | "override" | "manual_only" | "automation";
+  mode: "schedule" | "override" | "manual_only" | "automation" | "template";
+  target_template?: string | null;
+  template_result?: string | null;
+  template_error?: string | null;
   active_rule?: string | null;
   override_until: string | null;
   override_temp: number | null;
@@ -69,6 +75,7 @@ export interface ZoneUpdate {
   eco_temp?: number;
   default_override_hours?: number;
   max_override_hours?: number;
+  target_template?: string | null;
 }
 
 export interface HotspotShape {
@@ -144,6 +151,35 @@ export const createZone = (hass: HomeAssistant, input: CreateZoneInput) =>
 
 export const updateZone = (hass: HomeAssistant, entryId: string, patch: ZoneUpdate) =>
   hass.callWS<HeatingZone>({ type: "share_space_heating/update_zone", entry_id: entryId, ...patch });
+
+export interface TemplatePreview {
+  result?: string;
+  error?: string;
+}
+
+// HA core websocket_api/commands.py handle_render_template: events are {result, listeners} or {error, level}.
+export async function subscribeTemplatePreview(
+  hass: HomeAssistant,
+  template: string,
+  variables: Record<string, unknown>,
+  cb: (preview: TemplatePreview) => void
+): Promise<() => void> {
+  const conn = hass.connection;
+  if (!conn?.subscribeMessage) throw { code: "unknown_command", message: "Unknown command." };
+  try {
+    return await conn.subscribeMessage<{ result?: unknown; error?: string }>(
+      (ev) => {
+        if (typeof ev.error === "string") cb({ error: ev.error });
+        else cb({ result: ev.result === null || ev.result === undefined ? "" : String(ev.result) });
+      },
+      { type: "render_template", template, variables, strict: true, report_errors: true, timeout: 3 }
+    );
+  } catch (err) {
+    if (isBackendMissing(err)) throw err;
+    cb({ error: String((err as { message?: string })?.message ?? err) });
+    return () => undefined;
+  }
+}
 
 export const setOverride = (hass: HomeAssistant, entityId: string, temperature: number, hours?: number) =>
   hass.callService("share_space_heating", "set_override", {

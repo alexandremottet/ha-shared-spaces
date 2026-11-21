@@ -1,5 +1,5 @@
 import type { CSSProperties } from "react";
-import { WEEK_DAYS, lunchRoomRules, officeSaverRules } from "ha-share-space-ui";
+import { WEEK_DAYS, ZONE_TARGET_HOOK, lunchRoomRules, officeSaverRules } from "ha-share-space-ui";
 import type { Calendar, Condition, ScheduleRanges, TimeRange } from "ha-share-space-ui";
 
 export type PropKind = "text" | "number" | "boolean" | "select" | "json";
@@ -326,6 +326,30 @@ export const COMPONENTS: ComponentDef[] = [
     ],
     events: [],
     stage: { maxWidth: 560 },
+  },
+  {
+    id: "template-editor-zone-target",
+    tag: "share-space-template-editor",
+    group: "HA",
+    description: "Jinja template editor for the Zone target hook, with help, snippets and entity picker. Live result needs Home Assistant.",
+    props: [
+      { name: "value", kind: "text", value: "{{ 'comfort' if is_state('binary_sensor.door', 'on') else 'eco' }}" },
+      { name: "hook", kind: "json", value: ZONE_TARGET_HOOK },
+      {
+        name: "entities",
+        kind: "json",
+        value: [
+          { entity_id: "binary_sensor.door", name: "Front door" },
+          { entity_id: "sensor.outdoor_temperature", name: "Outdoor temperature" },
+        ],
+      },
+      { name: "result", kind: "json", value: null },
+      { name: "liveAvailable", kind: "boolean", value: false },
+      { name: "busy", kind: "boolean", value: false },
+      { name: "error", kind: "text", value: "" },
+    ],
+    events: ["value-change", "save", "clear"],
+    stage: { maxWidth: 640 },
   },
   {
     id: "ha-period-edit-dialog",
