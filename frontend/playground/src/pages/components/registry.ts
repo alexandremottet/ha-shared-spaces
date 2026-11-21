@@ -1,6 +1,6 @@
 import type { CSSProperties } from "react";
-import { WEEK_DAYS } from "ha-share-space-ui";
-import type { Calendar, TimeRange } from "ha-share-space-ui";
+import { WEEK_DAYS, lunchRoomRules, officeSaverRules } from "ha-share-space-ui";
+import type { Calendar, Condition, ScheduleRanges, TimeRange } from "ha-share-space-ui";
 
 export type PropKind = "text" | "number" | "boolean" | "select" | "json";
 
@@ -20,7 +20,7 @@ export interface ActionDef {
 export interface ComponentDef {
   id: string;
   tag: string;
-  group: "Schedule" | "Roster" | "Heating" | "HA";
+  group: "Schedule" | "Roster" | "Heating" | "Rules" | "HA";
   description: string;
   props: PropDef[];
   events: string[];
@@ -89,6 +89,14 @@ const heatingProps = (extra: Partial<Record<string, unknown>> = {}): PropDef[] =
 };
 
 const heatingEvents = ["override-requested", "override-cleared", "override-extended", "target-set"];
+
+const officeSchedule: ScheduleRanges = Object.fromEntries(
+  ["monday", "tuesday", "wednesday", "thursday", "friday"].map((d) => [d, [["08:00", "12:00"], ["14:00", "18:00"]]]),
+);
+
+const sampleStrategy = officeSaverRules();
+const sampleLunch = lunchRoomRules();
+const sampleCondition: Condition = { type: "occupied_within", hours: 2 };
 
 export const COMPONENTS: ComponentDef[] = [
   {
@@ -247,6 +255,77 @@ export const COMPONENTS: ComponentDef[] = [
     props: heatingProps({ target: 19, currentTemperature: 18.5, presence: false, compact: true }),
     events: heatingEvents,
     stage: { maxWidth: 240 },
+  },
+  {
+    id: "rule-condition",
+    tag: "share-space-rule-condition",
+    group: "Rules",
+    description: "One rule condition: type, fields and a not toggle. Try Planned during or Day of week.",
+    props: [
+      { name: "condition", kind: "json", value: sampleCondition },
+      { name: "errors", kind: "json", value: [] },
+    ],
+    events: ["condition-change", "condition-remove"],
+    stage: { maxWidth: 480 },
+  },
+  {
+    id: "rule-action",
+    tag: "share-space-rule-action",
+    group: "Rules",
+    description: "What a rule does: comfort, eco, off or a fixed temperature.",
+    props: [
+      { name: "action", kind: "json", value: { type: "temperature", value: 18 } },
+      { name: "errors", kind: "json", value: [] },
+    ],
+    events: ["action-change"],
+    stage: { maxWidth: 480 },
+  },
+  {
+    id: "rule-row",
+    tag: "share-space-rule-row",
+    group: "Rules",
+    description: "A When / Then rule with name, conditions, action and move / remove buttons.",
+    props: [
+      { name: "rule", kind: "json", value: sampleStrategy.rules[1] },
+      { name: "index", kind: "number", value: 1 },
+      { name: "count", kind: "number", value: 3 },
+      { name: "errors", kind: "json", value: [] },
+    ],
+    events: ["rule-change", "rule-remove", "rule-move"],
+    stage: { maxWidth: 560 },
+  },
+  {
+    id: "rule-list-office",
+    tag: "share-space-rule-list",
+    group: "Rules",
+    description: "Office saver as a rule list. Edit the strategy JSON to see inline validation errors.",
+    props: [{ name: "strategy", kind: "json", value: sampleStrategy }],
+    events: ["strategy-change"],
+    stage: { maxWidth: 560 },
+  },
+  {
+    id: "rule-list-lunch",
+    tag: "share-space-rule-list",
+    group: "Rules",
+    description: "Lunch room as a rule list (Planned during with several windows).",
+    props: [{ name: "strategy", kind: "json", value: sampleLunch }],
+    events: ["strategy-change"],
+    stage: { maxWidth: 560 },
+  },
+  {
+    id: "rule-preview",
+    tag: "share-space-rule-preview",
+    group: "Rules",
+    description: "7-day timeline of a rule strategy for a sample office schedule.",
+    props: [
+      { name: "strategy", kind: "json", value: sampleStrategy },
+      { name: "schedule", kind: "json", value: officeSchedule },
+      { name: "now", kind: "number", value: Date.now() },
+      { name: "tz", kind: "text", value: "Europe/Paris" },
+      { name: "temps", kind: "json", value: { comfort: 21, eco: 17 } },
+    ],
+    events: [],
+    stage: { maxWidth: 560 },
   },
   {
     id: "ha-period-edit-dialog",

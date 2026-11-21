@@ -20,6 +20,7 @@ import type { StrategyAutomation } from "../ha/ws";
 import { haTheme } from "../ha/theme";
 import { STRATEGY_LABELS, defaultInputs } from "./strategy-sim";
 import { strategyTimeline } from "./strategy-timeline";
+import "./week-preview";
 import type { StrategyInputs, StrategyPreset, StrategySegment } from "./strategy-sim";
 import { fromWall, wallTime } from "./tz";
 
@@ -116,63 +117,6 @@ export class ShareSpaceStrategyEditor extends LitElement {
       .ok {
         color: var(--success-color, green);
         font-size: 0.9em;
-      }
-      .preview {
-        display: flex;
-        flex-direction: column;
-        gap: 3px;
-      }
-      .day {
-        display: grid;
-        grid-template-columns: 56px 1fr;
-        align-items: center;
-        gap: 6px;
-        font-size: 0.8em;
-        color: var(--secondary-text-color);
-      }
-      .track {
-        position: relative;
-        height: 18px;
-        border-radius: 4px;
-        overflow: hidden;
-        background: var(--divider-color);
-      }
-      .seg {
-        position: absolute;
-        top: 0;
-        bottom: 0;
-      }
-      .seg.off {
-        background: var(--secondary-text-color);
-        opacity: 0.25;
-      }
-      .seg.setback {
-        background: var(--primary-color);
-        opacity: 0.4;
-      }
-      .seg.comfort {
-        background: var(--primary-color);
-      }
-      .now {
-        position: absolute;
-        top: -2px;
-        bottom: -2px;
-        width: 2px;
-        background: var(--error-color, red);
-      }
-      .legend {
-        display: flex;
-        gap: 12px;
-        font-size: 0.8em;
-        color: var(--secondary-text-color);
-      }
-      .legend i {
-        display: inline-block;
-        width: 10px;
-        height: 10px;
-        border-radius: 2px;
-        margin-right: 4px;
-        vertical-align: middle;
       }
       .link {
         display: inline-flex;
@@ -418,30 +362,7 @@ export class ShareSpaceStrategyEditor extends LitElement {
     const now = hassNow(this.hass);
     const sim = this._segments(tz, now);
     if (!sim) return html`<div class="muted">No planning for this area, preview unavailable.</div>`;
-    const { segments, days } = sim;
-    const targets = segments.flatMap((s) => ("target" in s.result ? [s.result.target] : []));
-    const top = Math.max(...targets);
-    const fmt = new Intl.DateTimeFormat([], { timeZone: tz, weekday: "short", hour: "2-digit", minute: "2-digit" });
-    const dayFmt = new Intl.DateTimeFormat([], { timeZone: tz, weekday: "short", day: "numeric" });
-    const cls = (s: StrategySegment) => ("off" in s.result ? "off" : s.result.target >= top ? "comfort" : "setback");
-    return html`<div class="preview" aria-label="Next 7 days">
-      ${days.slice(0, 7).map((ds, i) => {
-        const de = days[i + 1];
-        const span = de - ds;
-        return html`<div class="day"><span>${dayFmt.format(ds)}</span><div class="track">
-          ${segments
-            .filter((s) => s.end > ds && s.start < de)
-            .map((s) => {
-              const a = Math.max(s.start, ds);
-              const b = Math.min(s.end, de);
-              const label = "off" in s.result ? "off" : `${s.result.target}°`;
-              return html`<div class="seg ${cls(s)}" style="left:${((a - ds) / span) * 100}%;width:${((b - a) / span) * 100}%" title="${s.reason} · ${label} · ${fmt.format(s.start)} – ${fmt.format(s.end)}"></div>`;
-            })}
-          ${now >= ds && now < de ? html`<div class="now" style="left:${((now - ds) / span) * 100}%" title="Now"></div>` : nothing}
-        </div></div>`;
-      })}
-      <div class="legend"><span><i style="background:var(--primary-color)"></i>comfort</span><span><i style="background:var(--primary-color);opacity:.4"></i>setback</span><span><i style="background:var(--secondary-text-color);opacity:.25"></i>off</span></div>
-    </div>`;
+    return html`<share-space-week-preview .segments=${sim.segments} .days=${sim.days} .now=${now} .tz=${tz}></share-space-week-preview>`;
   }
 
   protected render() {
