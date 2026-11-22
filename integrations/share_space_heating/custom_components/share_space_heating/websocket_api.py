@@ -22,6 +22,7 @@ from .const import (
     CONF_OFF_MODE,
     CONF_PRESENCE_ENTITY,
     CONF_TARGET_TEMPLATE,
+    DATA_STRATEGIES,
     DATA_ZONES,
     DOMAIN,
     OFF_MODES,
@@ -32,6 +33,9 @@ def async_register(hass: HomeAssistant) -> None:
     websocket_api.async_register_command(hass, ws_list_zones)
     websocket_api.async_register_command(hass, ws_create_zone)
     websocket_api.async_register_command(hass, ws_update_zone)
+    websocket_api.async_register_command(hass, ws_list_strategies)
+    websocket_api.async_register_command(hass, ws_save_strategy)
+    websocket_api.async_register_command(hass, ws_delete_strategy)
 
 
 def _presence_entity(value):
@@ -156,3 +160,56 @@ async def ws_update_zone(hass: HomeAssistant, connection, msg: dict) -> None:
             connection.send_error(msg["id"], "reload_timeout", "Zone reload timed out")
             return
     connection.send_result(msg["id"], _summary(hass, entry.entry_id, zones[entry.entry_id]))
+
+
+def _valid_rules(rules: dict) -> bool:
+    return rules.get("version") == 1 and isinstance(rules.get("rules"), list) and isinstance(rules.get("fallback"), dict)
+
+
+@websocket_api.websocket_command({vol.Required("type"): f"{DOMAIN}/list_strategies"})
+@websocket_api.async_response
+async def ws_list_strategies(hass: HomeAssistant, connection, msg: dict) -> None:
+    store = hass.data.get(DOMAIN, {}).get(DATA_STRATEGIES)
+    connection.send_result(msg["id"], store.all() if store else [])
+
+
+@websocket_api.require_admin
+@websocket_api.websocket_command(
+    {
+        vol.Required("type"): f"{DOMAIN}/save_strategy",
+        vol.Optional("strategy_id"): str,
+        vol.Required("name"): str,
+        vol.Required("rules"): dict,
+        vol.Optional("previous"): vol.Any(dict, None),
+    }
+)
+@websocket_api.async_response
+async def ws_save_strategy(hass: HomeAssistant, connection, msg: dict) -> None:
+    store = hass.data[DOMAIN][DATA_STRATEGIES]
+    name = msg["name"].strip()
+    if not name:
+        connection.send_error(msg["id"], websocket_api.ERR_INVALID_FORMAT, "Name is required")
+        return
+    previous = msg.get("previous")
+    if not _valid_rules(msg["rules"]) or (previous is not None and not _valid_rules(previous)):
+        connection.send_error(msg["id"], websocket_api.ERR_INVALID_FORMAT, "Invalid strategy shape")
+        return
+    strategy_id = msg.get("strategy_id")
+    if strategy_id is not None and store.get(strategy_id) is None:
+        connection.send_error(msg["id"], websocket_api.ERR_NOT_FOUND, "Strategy not found")
+        return
+    if any(s["id"] != strategy_id and s["name"].casefold() == name.casefold() for s in store.all()):
+        connection.send_error(msg["id"], "name_taken", "A strategy with this name already exists")
+        return
+    saved = await store.async_save(strategy_id, name, msg["rules"], previous)
+    connection.send_result(msg["id"], {"id": saved})
+
+
+@websocket_api.require_admin
+@websocket_api.websocket_command({vol.Required("type"): f"{DOMAIN}/delete_strategy", vol.Required("strategy_id"): str})
+@websocket_api.async_response
+async def ws_delete_strategy(hass: HomeAssistant, connection, msg: dict) -> None:
+    if not await hass.data[DOMAIN][DATA_STRATEGIES].async_delete(msg["strategy_id"]):
+        connection.send_error(msg["id"], websocket_api.ERR_NOT_FOUND, "Strategy not found")
+        return
+    connection.send_result(msg["id"], {})

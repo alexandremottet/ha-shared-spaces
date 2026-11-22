@@ -22,9 +22,11 @@ OFF_MODES = [OFF_MODE_FROST, OFF_MODE_HVAC_OFF]
 DEFAULT_OFF_MODE = OFF_MODE_FROST
 
 STORAGE_KEY_OVERRIDES = "share_space_heating.overrides"
+STORAGE_KEY_STRATEGIES = "share_space_heating.strategies"
 STORAGE_VERSION = 1
 
 DATA_STORE = "store"
+DATA_STRATEGIES = "strategies"
 DATA_ZONES = "zones"
 
 MODE_SCHEDULE = "schedule"

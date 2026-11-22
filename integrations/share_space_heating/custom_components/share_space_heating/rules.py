@@ -21,7 +21,7 @@ class Facts:
     next_on: float | None
     previous_off: float | None
     schedule: dict
-    outdoor: Callable[[str], float | None]
+    read: Callable[[str], float | None]
 
 
 @dataclass(frozen=True)
@@ -45,17 +45,25 @@ def _minutes(hhmm: str) -> int:
     return int(h) * 60 + int(m)
 
 
-def lead_hours(hours, outdoor: Callable[[str], float | None]) -> float:
-    """Fixed hours, or a lerp between cold and warm clamped to [0, 1]; cold hours without a reading."""
-    if not isinstance(hours, dict):
-        return float(hours)
-    cold, warm = hours["cold"], hours["warm"]
-    temp = outdoor(hours["sensor"])
-    if temp is None:
-        return float(cold["hours"])
-    c0, w0 = float(cold["temp"]), float(warm["temp"])
-    f = min(1.0, max(0.0, (temp - c0) / (w0 - c0)))
-    return float(cold["hours"]) + f * (float(warm["hours"]) - float(cold["hours"]))
+def eval_value(v, read: Callable[[str], float | None]) -> float:
+    """Fixed number, or the sensor reading (or default) through the curve points: linear between, flat outside."""
+    if not isinstance(v, dict):
+        return float(v)
+    r = read(v["entity"])
+    x = float(v["default"]) if r is None else r
+    pts = [(float(p["at"]), float(p["value"])) for p in v["points"]]
+    if x <= pts[0][0]:
+        return pts[0][1]
+    for (a_at, a_val), (b_at, b_val) in zip(pts, pts[1:]):
+        if x <= b_at:
+            return a_val + (x - a_at) / (b_at - a_at) * (b_val - a_val)
+    return pts[-1][1]
+
+
+def temperature_of(v, read: Callable[[str], float | None]) -> float:
+    """Limited to 5-35 and rounded to 0.5 (half up, as Math.round in the TS twin)."""
+    t = min(35.0, max(5.0, eval_value(v, read)))
+    return math.floor(t * 2 + 0.5) / 2
 
 
 def _slot_starts(schedule: dict, day: str) -> list[int]:
@@ -72,15 +80,16 @@ def _holds(c: dict, f: Facts) -> bool:
     if kind == "occupied":
         return f.occupied
     if kind == "occupied_within":
-        return f.next_on is not None and now_ts >= f.next_on - lead_hours(c["hours"], f.outdoor) * 3600
+        return f.next_on is not None and now_ts >= f.next_on - max(0.0, eval_value(c["hours"], f.read)) * 3600
     if kind == "between_days":
+        # the whole empty gap (left -> back) is short: a night between working days, not a weekend
         gap = float(c["gap_hours"]) * 3600
-        return (
-            f.previous_off is not None
-            and now_ts - f.previous_off <= gap
-            and f.next_on is not None
-            and f.next_on - now_ts <= gap
-        )
+        return not f.occupied and f.previous_off is not None and f.next_on is not None and f.next_on - f.previous_off <= gap
+    if kind == "sensor":
+        r = f.read(c["entity"])
+        if r is None:
+            return False
+        return r < float(c["than"]) if c["op"] == "below" else r > float(c["than"])
     day = WEEKDAYS[f.now.weekday()]
     if kind == "weekday":
         return day in c["days"]
@@ -95,13 +104,13 @@ def _holds(c: dict, f: Facts) -> bool:
     raise ValueError(f"unknown condition {kind!r}")
 
 
-def _decision(label, action: dict) -> Decision:
+def _decision(label, action: dict, read: Callable[[str], float | None]) -> Decision:
     kind = action["type"]
     label = str(label)
     if kind in ("comfort", "eco"):
         return Decision(label, preset=kind)
     if kind == "temperature":
-        return Decision(label, temperature=float(action["value"]))
+        return Decision(label, temperature=temperature_of(action["value"], read))
     if kind == "off":
         return Decision(label, off=True)
     raise ValueError(f"unknown action {kind!r}")
@@ -111,12 +120,12 @@ def decide(strategy: dict, facts: Facts) -> Decision:
     """First rule whose conditions all hold (negate inverts one), else the fallback."""
     for rule in strategy.get("rules") or []:
         if all(_holds(c, facts) != bool(c.get("negate")) for c in rule.get("when") or []):
-            return _decision(rule["label"], rule["then"])
+            return _decision(rule["label"], rule["then"], facts.read)
     fallback = strategy["fallback"]
-    return _decision(fallback["label"], fallback["then"])
+    return _decision(fallback["label"], fallback["then"], facts.read)
 
 
-def outdoor_reading(hass: HomeAssistant, entity_id: str) -> float | None:
+def sensor_reading(hass: HomeAssistant, entity_id: str) -> float | None:
     """Sensor state, or attribute temperature for a weather entity."""
     state = hass.states.get(entity_id)
     if state is None:
@@ -144,5 +153,5 @@ def planning_facts(hass: HomeAssistant, area: str) -> Facts | None:
         next_on=_timestamp(hass, next_id),
         previous_off=_timestamp(hass, prev_id),
         schedule=main.attributes.get("schedule") or {},
-        outdoor=lambda entity_id: outdoor_reading(hass, entity_id),
+        read=lambda entity_id: sensor_reading(hass, entity_id),
     )

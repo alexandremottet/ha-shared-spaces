@@ -1,4 +1,4 @@
-# share_space_blueprint_version: 2
+# share_space_blueprint_version: 3
 blueprint:
   name: Share Space - Rules
   description: >
@@ -22,8 +22,16 @@ blueprint:
       description: >
         Strategy JSON {version, rules: [{label, when: [...], then}], fallback: {label, then}}
         (see fixtures/heating/RULES.md). Edited from the Share Space panel.
+      default: {}
       selector:
         object:
+    strategy:
+      name: Shared strategy
+      description: >
+        Id of a shared strategy saved from the Share Space panel. Empty = use Rules.
+      default: ""
+      selector:
+        text:
     previous_rules:
       name: Previous rules
       description: Rule list before the last save, kept for undo. Not used when running.
@@ -64,3 +72,4 @@ actions:
       entity_id: !input zone
       area: !input area
       rules: !input rules
+      strategy: !input strategy

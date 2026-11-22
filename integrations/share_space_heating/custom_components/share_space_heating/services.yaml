@@ -64,15 +64,9 @@ run_rules:
     rules:
       selector:
         object:
-    preset:
+    strategy:
       selector:
-        select:
-          options:
-            - office_saver
-            - lunch_room
-    inputs:
-      selector:
-        object:
+        text:
 
 # Provide exactly one of temperature, preset or off. Provide none to clear the base target
 # and return the zone to presence / manual behaviour.
