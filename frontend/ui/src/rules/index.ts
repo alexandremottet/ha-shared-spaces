@@ -1,6 +1,7 @@
 export * from "./types";
 export * from "./validate";
 export * from "./evaluate";
+export * from "./outdoor";
 export * from "./templates";
 export * from "./timeline";
 export * from "./ui/edit";

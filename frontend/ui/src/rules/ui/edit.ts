@@ -1,4 +1,4 @@
-import type { Action, ActionType, Condition, ConditionType, Rule, RuleStrategy } from "../types";
+import type { Action, ActionType, Condition, ConditionType, OutdoorHours, Rule, RuleStrategy } from "../types";
 import type { RuleError } from "../validate";
 
 /** Beginner-facing names, in the order of the type select. */
@@ -35,6 +35,11 @@ export function defaultCondition(type: ConditionType): Condition {
     case "planned":
       return { type, windows: [{ start: "08:00", end: "12:00" }], match: "any" };
   }
+}
+
+/** Starting point when a lead time switches to outdoor-based: 6 h at 10 °C down to 1 h at 20 °C. */
+export function defaultOutdoorHours(sensor = ""): OutdoorHours {
+  return { sensor, cold: { temp: 10, hours: 6 }, warm: { temp: 20, hours: 1 } };
 }
 
 export function defaultAction(type: ActionType): Action {

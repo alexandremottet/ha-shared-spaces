@@ -404,6 +404,16 @@ private _prefsFor = "";
     .space[hidden] {
       display: none;
     }
+    share-space-panel-tabs {
+      flex-shrink: 0;
+    }
+    /* tab pages scroll inside the fixed host */
+    share-space-rules-page,
+    share-space-settings {
+      flex: 1;
+      min-height: 0;
+      overflow-y: auto;
+    }
     .page {
       padding: 16px 24px;
     }

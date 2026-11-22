@@ -44,6 +44,15 @@ describe("validateStrategy", () => {
       "$.rules[0].when[0].match unknown_kind",
       "$.rules[0].when[0].windows[0].end time_order",
     ]);
+    const lead = (hours: unknown) => rule({ type: "occupied_within", hours });
+    expect(codes(lead({ sensor: "sensor.out", cold: { temp: 10, hours: 6 }, warm: { temp: 20, hours: 1 } }))).toEqual([]);
+    expect(codes(lead({ sensor: "nope", cold: { temp: 20, hours: -1 }, warm: { temp: 20, hours: 1, x: 1 } }))).toEqual([
+      "$.rules[0].when[0].hours.sensor type",
+      "$.rules[0].when[0].hours.cold.hours range",
+      "$.rules[0].when[0].hours.warm.x unknown_field",
+      "$.rules[0].when[0].hours.warm.temp range",
+    ]);
+    expect(codes(lead({ sensor: "sensor.out", cold: { temp: 10, hours: 6 } }))).toEqual(["$.rules[0].when[0].hours.warm required"]);
     expect(codes(rule({ type: "between_days", gap_hours: -1, negate: "yes" }))).toEqual([
       "$.rules[0].when[0].negate type",
       "$.rules[0].when[0].gap_hours range",

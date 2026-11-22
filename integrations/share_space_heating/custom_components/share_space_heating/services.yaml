@@ -48,6 +48,32 @@ clear_override:
           integration: share_space_heating
           domain: sensor
 
+# Evaluate a rule strategy (fixtures/heating/RULES.md) and set the zone's base target.
+run_rules:
+  fields:
+    entity_id:
+      required: true
+      selector:
+        entity:
+          integration: share_space_heating
+          domain: sensor
+    area:
+      required: true
+      selector:
+        text:
+    rules:
+      selector:
+        object:
+    preset:
+      selector:
+        select:
+          options:
+            - office_saver
+            - lunch_room
+    inputs:
+      selector:
+        object:
+
 # Provide exactly one of temperature, preset or off. Provide none to clear the base target
 # and return the zone to presence / manual behaviour.
 set_base_target:

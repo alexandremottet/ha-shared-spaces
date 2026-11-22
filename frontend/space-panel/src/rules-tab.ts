@@ -3,7 +3,7 @@ import type { PropertyValues, TemplateResult } from "lit";
 import { customElement, property, state } from "lit/decorators.js";
 import "ha-share-space-ui";
 import { STRATEGY_LABELS, isDirty, validateStrategy } from "ha-share-space-ui";
-import type { ManagedState, PresetTemps, RuleStrategy, SavedRules, ScheduleRanges, StrategyPreset } from "ha-share-space-ui";
+import type { ManagedState, OutdoorTemps, PresetTemps, RuleStrategy, SavedRules, ScheduleRanges, StrategyPreset } from "ha-share-space-ui";
 import { STRATEGY_KIND_LABELS } from "ha-share-space-ui/ha";
 import type { AreaInfo, HeatingZone, StrategyKind } from "ha-share-space-ui/ha";
 
@@ -22,6 +22,7 @@ export class ShareSpaceRulesTab extends LitElement {
   @property({ attribute: false }) saved: SavedRules | null = null;
   @property({ attribute: false }) schedule: ScheduleRanges | null = null;
   @property({ attribute: false }) temps?: PresetTemps;
+  @property({ attribute: false }) outdoor?: OutdoorTemps;
   @property({ type: Number }) now = Date.now();
   @property() tz = "UTC";
   @property({ type: Boolean }) loading = false;
@@ -180,7 +181,7 @@ export class ShareSpaceRulesTab extends LitElement {
         }}></share-space-rule-list>
       <h4>Preview</h4>
       ${this.schedule
-        ? html`<share-space-rule-preview .strategy=${draft} .schedule=${this.schedule} .now=${this.now} .tz=${this.tz} .temps=${this.temps}></share-space-rule-preview>`
+        ? html`<share-space-rule-preview .strategy=${draft} .schedule=${this.schedule} .now=${this.now} .tz=${this.tz} .temps=${this.temps} .outdoor=${this.outdoor}></share-space-rule-preview>`
         : html`<div class="muted">${this.area ? "No planning for this area yet." : "Choose an area to see the preview."}</div>`}
       <div class="row">
         <button class="primary" ?disabled=${!canSave} @click=${() => this._emit("save")}>${this.busy ? "Saving…" : "Save"}</button>

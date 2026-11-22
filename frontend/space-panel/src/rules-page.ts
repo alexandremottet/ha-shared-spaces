@@ -1,7 +1,7 @@
 import { LitElement, html } from "lit";
 import type { PropertyValues, TemplateResult } from "lit";
 import { customElement, property, state } from "lit/decorators.js";
-import { afterSave, isDirty, sameRules, templateRules, undoRules } from "ha-share-space-ui";
+import { afterSave, isDirty, outdoorTemps, sameRules, templateRules, undoRules } from "ha-share-space-ui";
 import type { RuleStrategy, SavedRules, ScheduleRanges, StrategyPreset } from "ha-share-space-ui";
 import {
   detachAutomation,
@@ -257,6 +257,7 @@ export class ShareSpaceRulesPage extends LitElement {
       .draft=${this._draft}
       .saved=${this._saved}
       .schedule=${schedule}
+      .outdoor=${hass && this._draft ? outdoorTemps(this._draft, hass.states) : undefined}
       .temps=${attrs ? { comfort: Number(attrs.comfort_temp ?? 21), eco: Number(attrs.eco_temp ?? 17) } : undefined}
       .now=${hass ? hassNow(hass) : Date.now()}
       .tz=${hass ? hassTimeZone(hass) : "UTC"}

@@ -1,4 +1,4 @@
-import { WEEK_DAYS, evaluate, evaluateRules, nextOff, nextOn, occupiedAt, previousOff, wallTime, windowMatches } from "ha-share-space-ui";
+import { WEEK_DAYS, evaluate, evaluateRules, nextOff, outdoorTemps, nextOn, occupiedAt, previousOff, wallTime, windowMatches } from "ha-share-space-ui";
 import type { Calendar, RuleStrategy, Schedule, ScheduleRanges, StrategyInputs, StrategyPreset } from "ha-share-space-ui";
 import type { AreaActions, Floorplan, HassEntity, HomeAssistant } from "ha-share-space-ui/ha";
 import { MockClock } from "./clock";
@@ -548,7 +548,7 @@ export class MockHassController {
     if (!rules) return null;
     try {
       const cfg = this._zoneByEntity(input.zone).config;
-      return evaluateRules(rules, this._ranges(area), now, this.tz, { comfort: cfg.comfort_temp, eco: cfg.eco_temp });
+      return evaluateRules(rules, this._ranges(area), now, this.tz, { comfort: cfg.comfort_temp, eco: cfg.eco_temp }, outdoorTemps(rules, Object.fromEntries(this._entities)));
     } catch {
       return null;
     }

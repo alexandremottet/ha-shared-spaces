@@ -275,7 +275,7 @@ async def test_blueprints_installed_not_overwritten(hass, calls):
 
     custom.write_text("# share_space_blueprint_version: 0\nold")
     await hass.async_add_executor_job(_install_blueprints, Path(dest))
-    assert "share_space_blueprint_version: 1" in custom.read_text()
+    assert "share_space_blueprint_version: 2" in custom.read_text()
     assert "old" not in custom.read_text()
 
     custom.write_text("# share_space_blueprint_version: 9\nnewer")

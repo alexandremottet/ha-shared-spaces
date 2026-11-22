@@ -1,6 +1,6 @@
 # Heating rule strategies — contract
 
-A rule strategy is plain JSON (stored later as a blueprint input, evaluated in Jinja by HA).
+A rule strategy is plain JSON (stored as a `rules.yaml` blueprint input, evaluated in Python by `rules.py` in HA).
 The TypeScript model lives in `frontend/ui/src/rules/`; every case in `rules_cases.json` must give
 the same result in TS and in HA.
 
@@ -19,7 +19,7 @@ the same result in TS and in HA.
 | Condition | Fields | Holds when (now, local time of the zone's area) |
 |---|---|---|
 | `occupied` | — | the current 30-min slot is on (main sensor) |
-| `occupied_within` | `hours` ≥ 0 | `next_on` exists and `now >= next_on - hours` (`next_on` is the next run, also while occupied) |
+| `occupied_within` | `hours` ≥ 0, or `{sensor, cold: {temp, hours}, warm: {temp, hours}}` | `next_on` exists and `now >= next_on - hours` (`next_on` is the next run, also while occupied) |
 | `between_days` | `gap_hours` ≥ 0 | `previous_off` exists, `now - previous_off <= gap`, `next_on` exists, `next_on - now <= gap` |
 | `weekday` | `days`: weekday names | today's weekday is listed |
 | `time` | `start`, `end` "HH:MM" (`end` may be "24:00") | `start <= now < end`; wraps past midnight when `start > end`; `start != end` |
@@ -33,6 +33,13 @@ the same result in TS and in HA.
 
 `next_on` / `previous_off` follow `STRATEGY.md` (8-day search window).
 
+### Outdoor lead time
+
+`hours: {sensor, cold: {temp, hours}, warm: {temp, hours}}` (`cold.temp < warm.temp`, hours ≥ 0, temps −50…50):
+`hours = cold.hours + clamp((T - cold.temp) / (warm.temp - cold.temp), 0, 1) * (warm.hours - cold.hours)`.
+`T` is the `sensor` state, or attribute `temperature` for a `weather.*` entity. No numeric reading → `cold.hours`.
+The preview uses the current reading for the whole week.
+
 ## Templates
 
 `officeSaverRules(inputs)` and `lunchRoomRules(inputs)` produce the same result and reason as the
@@ -43,5 +50,5 @@ the same result in TS and in HA.
 ```
 [{ name, tz, schedule: {<weekday>: [["HH:MM","HH:MM"]...]}, strategy: {...},
    temps?: {comfort, eco},                               // zone presets, default {21, 17}
-   checks: [{ now: ISO with offset, expected: {target, preset?} | {off: true}, reason }] }]
+   checks: [{ now: ISO with offset, outdoor?: {<entity>: temp}, expected: {target, preset?} | {off: true}, reason }] }]
 ```

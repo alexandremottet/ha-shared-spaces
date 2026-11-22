@@ -55,7 +55,7 @@ Zone option `target_template` (str or null; `""` = no hook), set via admin-only 
 
 ## Blueprints (`blueprints/automation/share_space/`)
 
-All blueprints use `mode: queued`, `max: 5`, `max_exceeded: silent`, ship a `# share_space_blueprint_version: N` header (the installer overwrites an installed copy only when it has this header with a lower N), and end by calling `share_space_heating.set_base_target` with the result below.
+All blueprints call `share_space_heating.run_rules` (evaluation in Python, `rules.py`; presets are turned into rules by `presets.py`), use `mode: queued`, `max: 5`, `max_exceeded: silent`, ship a `# share_space_blueprint_version: N` header (the installer overwrites an installed copy only when it has this header with a lower N), and set the zone base target with the result below (the result equal to the current base target and reason is skipped).
 Results: `{target: number}` or `{off: true}`, plus `reason`.
 
 ### `office_saver.yaml`
@@ -68,41 +68,38 @@ Evaluated in order, first match wins:
 3. `previous_off` exists and `now - previous_off <= max_gap_hours` and `next_on` exists and `next_on - now <= max_gap_hours` → `setback_temp`, reason `"Between working days"`
 4. otherwise → off, reason `"Away"`
 
-Triggers: main sensor state change, `next_on` / `previous_off` sensor changes, a template trigger using `now()` (re-rendered every minute, so preheat fires within 1 minute of `next_on - preheat_hours`), time pattern every
-5 minutes (safety net for the gap boundary), `homeassistant` start.
+Triggers: main / `next_on` / `previous_off` state changes, time pattern every minute (preheat starts within 1 minute of `next_on - preheat_hours`), `homeassistant` start.
 
-Guard: the run stops without calling `set_base_target` when the main sensor is `unknown`/`unavailable` or the `next_on` / `previous_off` entities are missing or `unavailable` (planning not loaded). A `next_on` / `previous_off` state of `unknown` means none within 8 days.
+Guard: the run is skipped when the main sensor is `unknown`/`unavailable` or the `next_on` / `previous_off` entities are missing or `unavailable` (planning not loaded). A `next_on` / `previous_off` state of `unknown` means none within 8 days.
 
 ### `lunch_room.yaml`
 
 Inputs: `zone`, `area`, `morning_start` ("11:00"), `morning_end` ("12:00"), `afternoon_start` ("13:00"), `afternoon_end` ("14:00"), `heat_start` ("11:00"), `heat_end` ("14:00"), `temperature` (20), `match` ("all").
 
 1. now (local) not in `[heat_start, heat_end)` → off, reason `"Outside lunch hours"`
-2. `share_space.query_occupancy {area, windows: [morning, afternoon], match, day: today}` occupied → `temperature`, reason `"Lunch"`
+2. a planned slot of today (main sensor attribute `schedule`) starts in the morning and afternoon windows (`match`: all / any; same rule as `query_occupancy`) → `temperature`, reason `"Lunch"`. An empty window (`start >= end`) never matches.
 3. otherwise → off, reason `"No lunch today"`
 
-`query_occupancy` runs with `continue_on_error: true`; with no valid response (`occupied` undefined) the run stops without calling `set_base_target`.
-
-Triggers: time at `heat_start` and `heat_end`, main sensor state change, `homeassistant` start, time pattern every 5 minutes.
+Triggers: same as `office_saver`. Guard: same planning-not-loaded guard.
 
 ### `rules.yaml`
 
 Inputs: `zone`, `area`, `rules` (object: a rule strategy, see `RULES.md`), `previous_rules` (object, default `null`; kept for undo, never read when running).
 
-Evaluated in Jinja (`variables.decision`), first rule whose `when` all hold wins, else `fallback`; `reason` = the label. Condition sources:
+The blueprint only triggers; it calls `share_space_heating.run_rules {entity_id: zone, area, rules}`, which evaluates in Python (`rules.py`): first rule whose `when` all hold wins, else `fallback`; `reason` = the label. Condition sources:
 - `occupied`: main sensor state `on`.
-- `occupied_within` / `between_days`: `next_on` / `previous_off` sensor timestamps vs `now()` (same formulas as `office_saver`).
-- `weekday` / `time`: `now()` local weekday and minute (`time` wraps past midnight when `start > end`).
+- `occupied_within` / `between_days`: `next_on` / `previous_off` sensor timestamps vs now (same formulas as `office_saver`). An outdoor `occupied_within` lead reads its sensor at run time (see `RULES.md`).
+- `weekday` / `time`: local weekday and minute (`time` wraps past midnight when `start > end`).
 - `planned`: main sensor attribute `schedule` for today's weekday, expanded to 30-min slot starts; a window matches when a slot start `t` has `start <= t < end` (same rule as `query_occupancy`). Missing attribute = empty planning.
 - `negate` inverts the condition.
 
-Action: `comfort` / `eco` → `preset`, `temperature` → `temperature: value`, `off` → `off: true`.
+Action: `comfort` / `eco` → `preset`, `temperature` → `temperature: value`, `off` → `off: true`. A decision equal to the zone's current base target (and reason) is skipped, so the store is not rewritten every minute.
 
-Triggers: main / `next_on` / `previous_off` state changes (attribute changes included), a template trigger at `next_on - max(occupied_within hours)` (only when a rule uses `occupied_within`), a template trigger on every `time` condition `start` / `end` minute, time pattern every 5 minutes, `homeassistant` start.
+Triggers: main / `next_on` / `previous_off` state changes (attribute changes included), time pattern every minute (time conditions, preheat leads and outdoor readings apply within a minute), `homeassistant` start.
 
-Guard: same "planning not loaded" guard as `office_saver`; an unknown action type stops the run.
+Guard: same "planning not loaded" guard as `office_saver` (the run is skipped). Malformed rules (unknown condition / action, missing field) raise a service validation error; nothing is set.
 
-Parity: `tests/test_rules_blueprint.py` runs it for every check of `rules_cases.json`, and for the Office saver / Lunch room templates over `strategy_cases.json` (Python port of `frontend/ui/src/rules/templates.ts` in the test; the TS templates are checked against the same fixture in `rules.test.ts`, so both stay in sync through it).
+Parity: `tests/test_rules_blueprint.py` runs the blueprint (and so `rules.py`) for every check of `rules_cases.json`, and for the Office saver / Lunch room templates over `strategy_cases.json` (`presets.py` is the Python twin of `frontend/ui/src/rules/templates.ts`; both are checked against the same fixture, the TS one in `rules.test.ts`, so they stay in sync through it). `tests/test_blueprint_parity.py` runs `office_saver.yaml` / `lunch_room.yaml` over `strategy_cases.json`.
 
 ## Automation ids created by the card
 

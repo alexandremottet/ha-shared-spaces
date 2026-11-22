@@ -39,5 +39,6 @@ SERVICE_SET_OVERRIDE = "set_override"
 SERVICE_EXTEND_OVERRIDE = "extend_override"
 SERVICE_CLEAR_OVERRIDE = "clear_override"
 SERVICE_SET_BASE_TARGET = "set_base_target"
+SERVICE_RUN_RULES = "run_rules"
 
 BLUEPRINT_DIR = "blueprints/automation/share_space"

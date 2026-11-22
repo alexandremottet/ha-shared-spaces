@@ -23,6 +23,7 @@ export type ValidationResult = { ok: true; strategy: RuleStrategy } | { ok: fals
 
 export const TEMP_RANGE: [number, number] = [5, 35];
 const LABEL_MAX = 60;
+const ENTITY_RE = /^[a-z0-9_]+\.[a-z0-9_]+$/;
 const TIME_RE = /^([01]\d|2[0-3]):[0-5]\d$|^24:00$/;
 
 const FIELDS: Record<string, string[]> = {
@@ -108,7 +109,7 @@ class Checker {
     for (const f of FIELDS[kind]) if (!this.has(v, f, path)) return;
     switch (kind as Condition["type"]) {
       case "occupied_within":
-        return this.number(v.hours, `${path}.hours`, 0);
+        return isObj(v.hours) ? this.outdoorHours(v.hours, `${path}.hours`) : this.number(v.hours, `${path}.hours`, 0);
       case "between_days":
         return this.number(v.gap_hours, `${path}.gap_hours`, 0);
       case "weekday":
@@ -124,6 +125,21 @@ class Checker {
           if (this.obj(w, p, ["start", "end"])) this.window(w, p, false);
         });
     }
+  }
+
+  outdoorHours(o: Obj, path: string): void {
+    this.obj(o, path, ["sensor", "cold", "warm"]);
+    if (this.has(o, "sensor", path) && (typeof o.sensor !== "string" || !ENTITY_RE.test(o.sensor))) this.err(`${path}.sensor`, "type", "must be an entity id");
+    const temps: number[] = [];
+    for (const k of ["cold", "warm"] as const) {
+      const p = `${path}.${k}`;
+      if (!this.has(o, k, path) || !this.obj(o[k], p, ["temp", "hours"])) continue;
+      const pt = o[k] as Obj;
+      if (this.has(pt, "temp", p)) this.number(pt.temp, `${p}.temp`, -50, 50);
+      if (this.has(pt, "hours", p)) this.number(pt.hours, `${p}.hours`, 0);
+      if (typeof pt.temp === "number") temps.push(pt.temp);
+    }
+    if (temps.length === 2 && temps[0] >= temps[1]) this.err(`${path}.warm.temp`, "range", "must be warmer than the cold temperature");
   }
 
   days(v: unknown, path: string): void {

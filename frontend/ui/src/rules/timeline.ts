@@ -3,6 +3,8 @@ import { occupancyTrack, toMinutes } from "../heating/strategy-sim";
 import { fromWall, wallTime } from "../heating/tz";
 import { evaluateFacts } from "./evaluate";
 import { once } from "./once";
+import type { OutdoorTemps } from "./outdoor";
+import { leadHours } from "./outdoor";
 import type { PresetTemps, RuleStrategy } from "./types";
 import { DEFAULT_PRESET_TEMPS } from "./types";
 
@@ -32,13 +34,17 @@ export function ruleTimeline(
   end: number,
   tz: string,
   temps: PresetTemps = DEFAULT_PRESET_TEMPS,
+  outdoor?: OutdoorTemps,
 ): Timeline {
   const track = occupancyTrack(schedule, start, end, tz);
   const cuts = [...track.slots];
   const minutes = new Set([0]);
   for (const rule of strategy.rules) {
     for (const c of rule.when) {
-      if (c.type === "occupied_within") for (const f of track.flips) if (f.on) cuts.push(f.t - c.hours * HOUR);
+      if (c.type === "occupied_within") {
+        const lead = leadHours(c.hours, outdoor) * HOUR;
+        for (const f of track.flips) if (f.on) cuts.push(f.t - lead);
+      }
       if (c.type === "between_days") for (const f of track.flips) cuts.push(f.on ? f.t - c.gap_hours * HOUR : f.t + c.gap_hours * HOUR);
       if (c.type === "time") for (const hm of [c.start, c.end]) minutes.add(toMinutes(hm) % 1440);
     }
@@ -50,7 +56,7 @@ export function ruleTimeline(
       const f = track.at(t);
       return evaluateFacts(
         strategy,
-        { now: t, schedule, tz, occupied: () => f.occupied, nextOn: once(f.nextOn), previousOff: once(f.previousOff), wall: once(() => wallTime(t, tz)) },
+        { now: t, schedule, tz, outdoor, occupied: () => f.occupied, nextOn: once(f.nextOn), previousOff: once(f.previousOff), wall: once(() => wallTime(t, tz)) },
         temps,
       );
     },

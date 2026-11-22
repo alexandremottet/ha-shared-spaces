@@ -5,6 +5,7 @@ import type { ScheduleRanges } from "../../heating/strategy-sim";
 import { strategyTimeline } from "../../heating/strategy-timeline";
 import { fromWall, wallTime } from "../../heating/tz";
 import "../../heating/week-preview";
+import type { OutdoorTemps } from "../outdoor";
 import type { PresetTemps, RuleStrategy } from "../types";
 import { validateStrategy } from "../validate";
 
@@ -24,11 +25,13 @@ export class ShareSpaceRulePreview extends LitElement {
   @property({ type: Number }) now = Date.now();
   @property() tz = "UTC";
   @property({ attribute: false }) temps?: PresetTemps;
+  /** Current outdoor readings; outdoor lead times keep them for the whole week. */
+  @property({ attribute: false }) outdoor?: OutdoorTemps;
 
   private _compute() {
     const days = previewDays(this.now, this.tz);
     if (!this.strategy || !validateStrategy(this.strategy).ok) return null;
-    return { days, segments: strategyTimeline(this.strategy, this.schedule, days[0], days[PREVIEW_DAYS], this.tz, this.temps) };
+    return { days, segments: strategyTimeline(this.strategy, this.schedule, days[0], days[PREVIEW_DAYS], this.tz, this.temps, this.outdoor) };
   }
 
   protected render() {

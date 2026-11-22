@@ -1,12 +1,10 @@
-"""Run the real blueprints in a test hass against fixtures/heating/strategy_cases.json."""
+"""Run the real preset blueprints (through run_rules) in a test hass against fixtures/heating/strategy_cases.json."""
 import json
 from datetime import datetime, timedelta
 from pathlib import Path
 from zoneinfo import ZoneInfo
 
 import pytest
-from homeassistant.core import SupportsResponse
-from homeassistant.exceptions import HomeAssistantError
 from homeassistant.setup import async_setup_component
 from pytest_homeassistant_custom_component.common import MockConfigEntry, async_mock_service
 
@@ -63,33 +61,6 @@ def planning_states(schedule, now: datetime, tz: ZoneInfo) -> dict:
     return {"on": on(cur), "next_on": next_on, "previous_off": prev_off}
 
 
-def fake_query_occupancy(hass, schedule, tz: ZoneInfo):
-    async def handler(call):
-        data = call.data
-        day = data.get("day", "today")
-        local = datetime.now(tz)
-        if day == "tomorrow":
-            local += timedelta(days=1)
-        elif day in WEEKDAYS:
-            local += timedelta(days=(WEEKDAYS.index(day) - local.weekday()) % 7)
-        ranges = schedule[WEEKDAYS[local.weekday()]]
-        matches = []
-        for window in data["windows"]:
-            start, end = _minutes(window["start"]), _minutes(window["end"])
-            matches.append(
-                any(
-                    start <= slot < end and any(_minutes(s) <= slot < _minutes(e) for s, e in ranges)
-                    for slot in range(0, 24 * 60, 30)
-                )
-            )
-        combine = any if data.get("match", "all") == "any" else all
-        return {"occupied": combine(matches), "matches": matches}
-
-    hass.services.async_register(
-        "share_space", "query_occupancy", handler, supports_response=SupportsResponse.ONLY
-    )
-
-
 async def setup_zone(hass, **extra):
     hass.states.async_set(CLIMATE, "heat", {"temperature": 20.0})
     calls = async_mock_service(hass, "climate", "set_temperature")
@@ -115,7 +86,8 @@ async def test_blueprint_matches_fixture(hass, freezer, case, check):
     await setup_zone(hass)
     area = case["area"]
     plan = planning_states(case["schedule"], now, tz)
-    hass.states.async_set(f"binary_sensor.share_space_{area}", "on" if plan["on"] else "off")
+    schedule = {day: case["schedule"].get(day, []) for day in WEEKDAYS}
+    hass.states.async_set(f"binary_sensor.share_space_{area}", "on" if plan["on"] else "off", {"schedule": schedule})
     for key in ("next_on", "previous_off"):
         value = plan[key]
         hass.states.async_set(
@@ -123,7 +95,6 @@ async def test_blueprint_matches_fixture(hass, freezer, case, check):
             value.isoformat() if value else "unknown",
             {"device_class": "timestamp"},
         )
-    fake_query_occupancy(hass, case["schedule"], tz)
 
     assert await async_setup_component(
         hass,
@@ -154,8 +125,21 @@ async def test_blueprint_matches_fixture(hass, freezer, case, check):
     assert state.attributes["mode"] == "automation"
 
 
+def _spy_base(hass, entry) -> list[dict]:
+    """Record the zone's set_base_target calls made by run_rules."""
+    zone = hass.data[DOMAIN]["zones"][entry.entry_id]
+    calls, original = [], zone.async_set_base_target
+
+    async def spy(**kwargs):
+        calls.append(kwargs)
+        await original(**kwargs)
+
+    zone.async_set_base_target = spy
+    return calls
+
+
 async def _setup_blueprint(hass, preset, inputs):
-    await setup_zone(hass)
+    entry, _ = await setup_zone(hass)
     assert await async_setup_component(
         hass,
         "automation",
@@ -172,7 +156,7 @@ async def _setup_blueprint(hass, preset, inputs):
         },
     )
     await hass.async_block_till_done()
-    base = async_mock_service(hass, "share_space_heating", "set_base_target")
+    base = _spy_base(hass, entry)
     await hass.services.async_call(
         "automation", "trigger", {"entity_id": "automation.strategy", "skip_condition": True}, blocking=True
     )
@@ -209,24 +193,27 @@ async def test_office_saver_waits_for_planning(hass, kwargs):
 async def test_office_saver_unknown_next_on_means_none(hass):
     _planning(hass, main="off")
     base = await _setup_blueprint(hass, "office_saver", {})
-    assert [c.data.get("reason") for c in base] == ["Away"]
+    assert [c["reason"] for c in base] == ["Away"]
 
 
-async def test_lunch_room_no_response_is_noop(hass, freezer):
+async def test_lunch_room_waits_for_planning(hass, freezer):
     freezer.move_to("2026-03-03T12:30:00+00:00")
     await hass.config.async_set_time_zone("UTC")
+    _planning(hass, main="unavailable")
+    assert await _setup_blueprint(hass, "lunch_room", {}) == []
 
-    async def boom(call):
-        raise HomeAssistantError("down")
 
-    hass.services.async_register("share_space", "query_occupancy", boom, supports_response=SupportsResponse.ONLY)
-    base = await _setup_blueprint(hass, "lunch_room", {})
-    assert base == []
+async def test_preset_inputs_and_defaults(hass, freezer):
+    freezer.move_to("2026-03-03T12:30:00+00:00")
+    await hass.config.async_set_time_zone("UTC")
+    _planning(hass, main="on", next_on="2026-03-04T09:00:00+00:00")
+    base = await _setup_blueprint(hass, "office_saver", {"comfort_temp": 19.5})
+    assert [(c["temperature"], c["reason"]) for c in base] == [(19.5, "Occupied")]
 
 
 def test_blueprints_queued_and_versioned():
     for name in ("office_saver", "lunch_room"):
         path = Path(__file__).parents[1] / "custom_components/share_space_heating/blueprints/automation/share_space" / f"{name}.yaml"
         text = path.read_text()
-        assert text.startswith("# share_space_blueprint_version: 1\n")
+        assert text.startswith("# share_space_blueprint_version: 2\n")
         assert "mode: queued\nmax: 5\nmax_exceeded: silent" in text

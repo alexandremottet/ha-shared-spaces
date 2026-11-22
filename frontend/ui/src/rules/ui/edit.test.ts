@@ -3,7 +3,7 @@ import { WEEK_DAYS } from "../../types";
 import { lunchRoomRules } from "../templates";
 import { validateStrategy } from "../validate";
 import type { ConditionType } from "../types";
-import { blankRule, changeActionType, changeConditionType, defaultAction, defaultCondition, moveItem, parseNumber, removeAt, replaceAt, scopeErrors, toggleDay } from "./edit";
+import { blankRule, changeActionType, changeConditionType, defaultAction, defaultCondition, defaultOutdoorHours, moveItem, parseNumber, removeAt, replaceAt, scopeErrors, toggleDay } from "./edit";
 
 describe("list helpers", () => {
   it("moves, clamps and no-ops", () => {
@@ -26,6 +26,11 @@ describe("list helpers", () => {
 });
 
 describe("defaults", () => {
+  it("default outdoor lead time validates once a sensor is set", () => {
+    const rule = (sensor: string) => ({ version: 1, rules: [{ label: "x", when: [{ type: "occupied_within", hours: defaultOutdoorHours(sensor) }], then: { type: "off" } }], fallback: { label: "y", then: { type: "off" } } });
+    expect(validateStrategy(rule("sensor.out")).ok).toBe(true);
+    expect(validateStrategy(rule("")).ok).toBe(false);
+  });
   it("every default condition and action validates", () => {
     const types: ConditionType[] = ["occupied", "occupied_within", "between_days", "weekday", "time", "planned"];
     const strategy = {

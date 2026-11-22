@@ -1,4 +1,4 @@
-# share_space_blueprint_version: 1
+# share_space_blueprint_version: 2
 blueprint:
   name: Share Space - Lunch room
   description: >
@@ -69,76 +69,41 @@ mode: queued
 max: 5
 max_exceeded: silent
 
+# Rules come from presets.py and are evaluated by share_space_heating.run_rules; this only decides when.
 trigger_variables:
   area: !input area
 
-variables:
-  area: !input area
-  morning_start: !input morning_start
-  morning_end: !input morning_end
-  afternoon_start: !input afternoon_start
-  afternoon_end: !input afternoon_end
-  match: !input match
-
 triggers:
-  - trigger: time
-    at: !input heat_start
-  - trigger: time
-    at: !input heat_end
   - trigger: event
     event_type: state_changed
     event_data:
       entity_id: "{{ 'binary_sensor.share_space_' ~ area }}"
+  - trigger: event
+    event_type: state_changed
+    event_data:
+      entity_id: "{{ 'sensor.share_space_' ~ area ~ '_next_on' }}"
+  - trigger: event
+    event_type: state_changed
+    event_data:
+      entity_id: "{{ 'sensor.share_space_' ~ area ~ '_previous_off' }}"
+  # Time and preheat edges are picked up within a minute.
   - trigger: time_pattern
-    minutes: "/5"
+    minutes: "*"
   - trigger: homeassistant
     event: start
 
 actions:
-  - choose:
-      - alias: Outside lunch hours
-        conditions:
-          - condition: not
-            conditions:
-              - condition: time
-                after: !input heat_start
-                before: !input heat_end
-        sequence:
-          - action: share_space_heating.set_base_target
-            data:
-              entity_id: !input zone
-              "off": true
-              reason: Outside lunch hours
-    default:
-      - action: share_space.query_occupancy
-        data:
-          area: "{{ area }}"
-          windows:
-            - start: "{{ morning_start[:5] }}"
-              end: "{{ morning_end[:5] }}"
-            - start: "{{ afternoon_start[:5] }}"
-              end: "{{ afternoon_end[:5] }}"
-          match: "{{ match }}"
-          day: today
-        response_variable: occupancy
-        continue_on_error: true
-      - alias: No occupancy response
-        condition: template
-        value_template: "{{ occupancy is defined and occupancy.occupied is defined }}"
-      - choose:
-          - alias: Lunch
-            conditions:
-              - condition: template
-                value_template: "{{ occupancy.occupied }}"
-            sequence:
-              - action: share_space_heating.set_base_target
-                data:
-                  entity_id: !input zone
-                  temperature: !input temperature
-                  reason: Lunch
-        default:
-          - action: share_space_heating.set_base_target
-            data:
-              entity_id: !input zone
-              "off": true
-              reason: No lunch today
+  - action: share_space_heating.run_rules
+    data:
+      entity_id: !input zone
+      area: !input area
+      preset: lunch_room
+      inputs:
+        morning_start: !input morning_start
+        morning_end: !input morning_end
+        afternoon_start: !input afternoon_start
+        afternoon_end: !input afternoon_end
+        heat_start: !input heat_start
+        heat_end: !input heat_end
+        temperature: !input temperature
+        match: !input match

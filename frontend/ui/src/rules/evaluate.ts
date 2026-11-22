@@ -6,6 +6,8 @@ import { wallTime } from "../heating/tz";
 import type { Action, Condition, PresetTemps, RuleStrategy, TimeWindow } from "./types";
 import { DEFAULT_PRESET_TEMPS } from "./types";
 import { once } from "./once";
+import type { OutdoorTemps } from "./outdoor";
+import { leadHours } from "./outdoor";
 
 const HOUR = 3600000;
 
@@ -14,17 +16,19 @@ export interface RuleFacts {
   now: number;
   schedule: ScheduleRanges;
   tz: string;
+  outdoor?: OutdoorTemps;
   occupied(): boolean;
   nextOn(): number | null;
   previousOff(): number | null;
   wall(): WallTime;
 }
 
-export function factsAt(schedule: ScheduleRanges, now: number, tz: string): RuleFacts {
+export function factsAt(schedule: ScheduleRanges, now: number, tz: string, outdoor?: OutdoorTemps): RuleFacts {
   return {
     now,
     schedule,
     tz,
+    outdoor,
     occupied: once(() => occupiedAt(schedule, now, tz)),
     nextOn: once(() => nextOn(schedule, now, tz)),
     previousOff: once(() => previousOff(schedule, now, tz)),
@@ -38,7 +42,7 @@ function holds(c: Condition, f: RuleFacts): boolean {
       return f.occupied();
     case "occupied_within": {
       const on = f.nextOn();
-      return on !== null && f.now >= on - c.hours * HOUR;
+      return on !== null && f.now >= on - leadHours(c.hours, f.outdoor) * HOUR;
     }
     case "between_days": {
       const gap = c.gap_hours * HOUR;
@@ -91,6 +95,7 @@ export function evaluateRules(
   now: number,
   tz: string,
   temps: PresetTemps = DEFAULT_PRESET_TEMPS,
+  outdoor?: OutdoorTemps,
 ): StrategyEvaluation {
-  return evaluateFacts(strategy, factsAt(schedule, now, tz), temps);
+  return evaluateFacts(strategy, factsAt(schedule, now, tz, outdoor), temps);
 }

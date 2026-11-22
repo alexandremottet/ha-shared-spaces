@@ -11,10 +11,23 @@ export interface OccupiedCondition extends ConditionBase {
   type: "occupied";
 }
 
-/** next_on exists and now >= next_on - hours. */
+/** Lead time at one outdoor temperature. */
+export interface OutdoorPoint {
+  temp: number;
+  hours: number;
+}
+
+/** Lead time interpolated linearly between cold and warm (clamped); cold hours when the sensor has no number. */
+export interface OutdoorHours {
+  sensor: string;
+  cold: OutdoorPoint;
+  warm: OutdoorPoint;
+}
+
+/** next_on exists and now >= next_on - hours (fixed, or from the outdoor temperature). */
 export interface OccupiedWithinCondition extends ConditionBase {
   type: "occupied_within";
-  hours: number;
+  hours: number | OutdoorHours;
 }
 
 /** previous_off at most gap_hours ago and next_on at most gap_hours ahead. */

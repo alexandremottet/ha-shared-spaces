@@ -51,7 +51,7 @@ describe("rule cases", () => {
     it(c.name, () => {
       expect(validateStrategy(c.strategy).ok).toBe(true);
       for (const check of c.checks) {
-        const got = evaluateRules(c.strategy, c.schedule, Date.parse(check.now), c.tz, c.temps);
+        const got = evaluateRules(c.strategy, c.schedule, Date.parse(check.now), c.tz, c.temps, check.outdoor);
         expect(flat(got), check.now).toEqual({ ...check.expected, reason: check.reason });
       }
     });

@@ -1,97 +1,68 @@
 """Heating zone controller: effective target, timed overrides, external-change detection."""
 from __future__ import annotations
 
-import logging
-import math
-import time
-from collections import deque
 from collections.abc import Callable
 from datetime import datetime, timedelta
 
 from homeassistant.config_entries import ConfigEntry
-from homeassistant.const import STATE_OFF, STATE_ON, STATE_UNAVAILABLE, STATE_UNKNOWN
-from homeassistant.core import Context, Event, HomeAssistant, callback
+from homeassistant.const import STATE_OFF, STATE_ON
+from homeassistant.core import Event, HomeAssistant, callback
 from homeassistant.helpers import entity_registry as er
-from homeassistant.helpers.event import (
-    TrackTemplate,
-    async_track_point_in_utc_time,
-    async_track_state_change_event,
-    async_track_template_result,
-)
-from homeassistant.helpers.template import Template
+from homeassistant.helpers.event import async_track_point_in_utc_time, async_track_state_change_event
 from homeassistant.util import dt as dt_util
 from homeassistant.util import slugify
 
+from .climate import BAD_STATES, ClimateDriver, matches_requested
 from .const import (
     CONF_CLIMATE_ENTITY,
     CONF_COMFORT_TEMP,
     CONF_DEFAULT_OVERRIDE_HOURS,
     CONF_ECO_TEMP,
     CONF_FROST_TEMP,
-    CONF_OFF_MODE,
     CONF_MAX_OVERRIDE_HOURS,
+    CONF_OFF_MODE,
     CONF_PRESENCE_ENTITY,
     CONF_TARGET_TEMPLATE,
     DEFAULT_COMFORT_TEMP,
     DEFAULT_ECO_TEMP,
     DEFAULT_FROST_TEMP,
-    DEFAULT_OFF_MODE,
     DEFAULT_MAX_OVERRIDE_HOURS,
+    DEFAULT_OFF_MODE,
     DEFAULT_OVERRIDE_HOURS,
     DOMAIN,
     MODE_AUTOMATION,
     MODE_MANUAL_ONLY,
-    OFF_MODE_HVAC_OFF,
     MODE_OVERRIDE,
     MODE_SCHEDULE,
     MODE_TEMPLATE,
+    OFF_MODE_HVAC_OFF,
     TEMPLATE_RULE,
 )
 from .store import OverrideStore
-
-_BAD_STATES = (STATE_UNAVAILABLE, STATE_UNKNOWN)
-_ECHO_TOL = 0.05
-_ECHO_WINDOW = 60.0
-_TEMPLATE_WORDS = ("comfort", "eco", "off")
-
-_LOGGER = logging.getLogger(__name__)
-
-
-def _as_float(value) -> float | None:
-    try:
-        return float(value)
-    except (TypeError, ValueError):
-        return None
+from .target import BaseTarget, Temps, as_float, mode_target, schedule_target
+from .template_hook import TargetTemplate
 
 
 class Zone:
+    """Priority: manual override > target template > base target / presence (zone mode)."""
+
     def __init__(self, hass: HomeAssistant, entry: ConfigEntry, store: OverrideStore) -> None:
         self.hass = hass
         self.entry = entry
         self._store = store
+        self.climate = ClimateDriver(hass, self.climate_entity)
+        self.base = BaseTarget()
         self.override_temp: float | None = None
         self.override_until: datetime | None = None
         self.previous_temp: float | None = None
-        self._last_applied: float | None = None
         self._last_presence: bool | None = None
-        self.base_temp: float | None = None
-        self.base_preset: str | None = None
-        self.base_off = False
-        self.base_reason: str | None = None
-        self._hvac_off_applied = False
-        self._applied: deque[tuple[float, float]] = deque(maxlen=5)
+        self._hook: TargetTemplate | None = None
         self._ready = False
-        self._own_contexts: deque[str] = deque(maxlen=50)
         self._unsubs: list[Callable[[], None]] = []
         self._expiry_unsub: Callable[[], None] | None = None
         self._listeners: list[Callable[[], None]] = []
-        self.template_result: str | None = None
-        self.template_error: str | None = None
-        self._template_value: float | str | None = None
-        self._template: Template | None = None
-        self._template_vars: dict = {}
-        self._template_tracker = None
-        self._logged_errors: set[str] = set()
+
+    # --- configuration
 
     @property
     def _conf(self) -> dict:
@@ -134,18 +105,32 @@ class Zone:
         return self._conf.get(CONF_TARGET_TEMPLATE) or None
 
     @property
-    def template_active(self) -> bool:
-        return self._template_value is not None
+    def _temps(self) -> Temps:
+        return Temps(self.comfort_temp, self.eco_temp, self.frost_temp)
+
+    # --- state shown on the sensor
 
     @property
-    def base_active(self) -> bool:
-        return self.base_off or self.base_temp is not None or self.base_preset is not None
+    def template_result(self) -> str | None:
+        return self._hook.result if self._hook else None
+
+    @property
+    def template_error(self) -> str | None:
+        return self._hook.error if self._hook else None
+
+    @property
+    def _template_value(self) -> float | str | None:
+        return self._hook.value if self._hook else None
+
+    @property
+    def template_active(self) -> bool:
+        return self._template_value is not None
 
     @property
     def active_rule(self) -> str | None:
         if self.template_active:
             return TEMPLATE_RULE
-        return self.base_reason if self.base_active else None
+        return self.base.reason if self.base.active else None
 
     @property
     def presence(self) -> bool | None:
@@ -166,7 +151,7 @@ class Zone:
     @property
     def current_temperature(self) -> float | None:
         state = self.hass.states.get(self.climate_entity)
-        return _as_float(state.attributes.get("current_temperature")) if state else None
+        return as_float(state.attributes.get("current_temperature")) if state else None
 
     @property
     def override_active(self) -> bool:
@@ -178,51 +163,37 @@ class Zone:
             return MODE_OVERRIDE
         if self.template_active:
             return MODE_TEMPLATE
-        if self.base_active:
+        if self.base.active:
             return MODE_AUTOMATION
         return MODE_MANUAL_ONLY if self.presence_entity is None else MODE_SCHEDULE
 
-    @property
-    def _off_requested(self) -> bool:
-        return self._template_value == "off" if self.template_active else self.base_off
+    # --- target resolution
 
     @property
-    def _schedule_target(self) -> float | None:
-        value = self._template_value
-        if value is None:
-            return self._mode_target
-        if value == "off":
-            return self.frost_temp
-        if value == "comfort":
-            return self.comfort_temp
-        if value == "eco":
-            return self.eco_temp
-        return value
+    def _off_requested(self) -> bool:
+        return self._template_value == "off" if self.template_active else self.base.off
 
     @property
     def _mode_target(self) -> float | None:
-        if self.base_off:
-            return self.frost_temp
-        if self.base_temp is not None:
-            return self.base_temp
-        if self.base_preset is not None:
-            return self.comfort_temp if self.base_preset == "comfort" else self.eco_temp
-        if self.presence_entity is None:
-            return self.comfort_temp
-        if self.presence is None:
-            return None
-        return self.comfort_temp if self.presence else self.eco_temp
+        return mode_target(self.base, self.presence_entity is not None, self.presence, self._temps)
+
+    @property
+    def _schedule_target(self) -> float | None:
+        return schedule_target(self._template_value, self._mode_target, self._temps)
 
     @property
     def schedule_target(self) -> float:
         target = self._schedule_target
         if target is None:
-            return self._last_applied if self._last_applied is not None else self.comfort_temp
+            last = self.climate.last_applied
+            return last if last is not None else self.comfort_temp
         return target
 
     @property
     def target(self) -> float:
         return self.override_temp if self.override_active else self.schedule_target
+
+    # --- listeners and persistence
 
     @callback
     def async_add_listener(self, listener: Callable[[], None]) -> Callable[[], None]:
@@ -235,16 +206,11 @@ class Zone:
             listener()
 
     def _record(self) -> dict:
-        record: dict = {"last_applied": self._last_applied}
-        if self._hvac_off_applied:
+        record: dict = {"last_applied": self.climate.last_applied}
+        if self.climate.hvac_off_applied:
             record["hvac_off"] = True
-        if self.base_active:
-            record["base"] = {
-                "temp": self.base_temp,
-                "preset": self.base_preset,
-                "off": self.base_off,
-                "reason": self.base_reason,
-            }
+        if self.base.active:
+            record["base"] = self.base.record()
         if self.override_active:
             record.update(
                 temp=self.override_temp,
@@ -256,123 +222,39 @@ class Zone:
     async def _async_persist(self) -> None:
         await self._store.async_set(self.entry.entry_id, self._record())
 
-    def _device_state(self):
-        state = self.hass.states.get(self.climate_entity)
-        if state is None or state.state in _BAD_STATES:
-            return None
-        return state
-
-    def _device_setpoint(self) -> float | None:
-        state = self._device_state()
-        return _as_float(state.attributes.get("temperature")) if state else None
-
-    def _matches_requested(self, temp: float, state, ref: float | None) -> bool:
-        if ref is None:
-            return False
-        candidates = {ref}
-        lo, hi = _as_float(state.attributes.get("min_temp")), _as_float(state.attributes.get("max_temp"))
-        clamped = ref
-        if lo is not None:
-            clamped = max(clamped, lo)
-        if hi is not None:
-            clamped = min(clamped, hi)
-        candidates.add(clamped)
-        step = _as_float(state.attributes.get("target_temp_step"))
-        if step:
-            for value in list(candidates):
-                ratio = value / step
-                candidates.update(
-                    {round(ratio) * step, math.floor(ratio + 1e-9) * step, math.ceil(ratio - 1e-9) * step}
-                )
-        return any(abs(temp - c) <= _ECHO_TOL for c in candidates)
-
-    def _is_echo(self, temp: float, state) -> bool:
-        now = time.monotonic()
-        return any(
-            now - at <= _ECHO_WINDOW and self._matches_requested(temp, state, value)
-            for value, at in self._applied
-        )
+    # --- template hook
 
     def _zone_entity_id(self) -> str:
         entity_id = er.async_get(self.hass).async_get_entity_id("sensor", DOMAIN, self.entry.entry_id)
         return entity_id or f"sensor.{DOMAIN}_{slugify(self.entry.title)}"
 
-    def _parse_template(self, raw: str) -> float | str | None:
-        text = raw.strip()
-        word = text.lower()
-        if word in ("", "none"):
-            return None
-        if word in _TEMPLATE_WORDS:
-            return word
-        value = _as_float(text)
-        if value is not None and math.isfinite(value) and (5 <= value <= 35 or value == self.frost_temp):
-            return value
-        raise ValueError(f"Invalid result {raw!r}: expected 5-35, comfort, eco, off or none")
-
-    @callback
-    def _evaluate_template(self) -> bool:
-        """Render the zone target template; return True if its effective value changed."""
-        if self._template is None:
-            return False
-        before = self._template_value
-        self._template_vars["base"] = self._mode_target
-        self.template_result = None
-        self._template_value = None
-        try:
-            self.template_result = str(
-                self._template.async_render(self._template_vars, parse_result=False, strict=True)
-            )
-            self._template_value = self._parse_template(self.template_result)
-            self.template_error = None
-        except Exception as err:  # noqa: BLE001
-            self.template_error = str(err) or type(err).__name__
-            if self.template_error not in self._logged_errors:
-                self._logged_errors.add(self.template_error)
-                _LOGGER.warning(
-                    "Zone %s target template failed, using the zone mode: %s",
-                    self.entry.title,
-                    self.template_error,
-                )
-        return self._template_value != before
-
     def _start_template(self) -> None:
         source = self.target_template
         if source is None:
             return
-        self._template = Template(source, self.hass)
-        self._template_vars = {
-            "zone": self._zone_entity_id(),
-            "comfort": self.comfort_temp,
-            "eco": self.eco_temp,
-            "base": self._mode_target,
-        }
-        # tracker re-renders on referenced entity changes and every minute when now() is used
-        self._template_tracker = async_track_template_result(
+        self._hook = TargetTemplate(
             self.hass,
-            [TrackTemplate(self._template, self._template_vars)],
-            self._handle_template_update,
-            strict=True,
-            log_fn=lambda _level, _msg: None,
+            source,
+            self.entry.title,
+            {"zone": self._zone_entity_id(), "comfort": self.comfort_temp, "eco": self.eco_temp},
+            self.frost_temp,
+            base=lambda: self._mode_target,
+            on_update=self._handle_template_update,
         )
-        self._unsubs.append(self._template_tracker.async_remove)
-        self._evaluate_template()
+        self._unsubs.append(self._hook.stop)
+        self._hook.start()
 
     @callback
     def _sync_template_base(self) -> None:
-        if self._template_tracker is None:
-            return
-        if self._template_vars.get("base") != self._mode_target:
-            self._template_vars["base"] = self._mode_target
-            self._template_tracker.async_refresh()
-        self._evaluate_template()
+        if self._hook is not None:
+            self._hook.sync_base()
 
-    async def _handle_template_update(self, _event, _updates) -> None:
-        if not self._ready or not self._evaluate_template():
-            self._notify()
-            return
-        if not self.override_active:
+    async def _handle_template_update(self, changed: bool) -> None:
+        if self._ready and changed and not self.override_active:
             await self._async_apply()
         self._notify()
+
+    # --- lifecycle
 
     async def async_start(self) -> None:
         self._ready = False
@@ -380,53 +262,47 @@ class Zone:
         watched = [self.climate_entity]
         if self.presence_entity:
             watched.append(self.presence_entity)
-        self._unsubs.append(
-            async_track_state_change_event(self.hass, watched, self._handle_state_event)
-        )
+        self._unsubs.append(async_track_state_change_event(self.hass, watched, self._handle_state_event))
         saved = self._store.get(self.entry.entry_id) or {}
-        self._last_applied = _as_float(saved.get("last_applied"))
-        self._hvac_off_applied = bool(saved.get("hvac_off"))
-        base = saved.get("base") or {}
-        self.base_temp = _as_float(base.get("temp"))
-        self.base_preset = base.get("preset")
-        self.base_off = bool(base.get("off"))
-        self.base_reason = base.get("reason")
+        self.climate.last_applied = as_float(saved.get("last_applied"))
+        self.climate.hvac_off_applied = bool(saved.get("hvac_off"))
+        self.base = BaseTarget.from_record(saved.get("base"))
         self._start_template()
-        previous = _as_float(saved.get("previous_temp"))
+        await self._async_restore(saved)
+        self._ready = True
+        self._notify()
+
+    async def _async_restore(self, saved: dict) -> None:
+        """Resume a saved override, end an expired one, or adopt a setpoint changed while HA was down."""
         until = dt_util.parse_datetime(saved["until"]) if saved.get("until") else None
-        temp = _as_float(saved.get("temp"))
+        temp = as_float(saved.get("temp"))
+        previous = as_float(saved.get("previous_temp"))
         now = dt_util.utcnow()
         if until and temp is not None and until > now:
             self.override_temp = temp
             self.override_until = min(until, now + timedelta(hours=self.max_hours))
             self.previous_temp = previous
             self._schedule_expiry()
-            await self._async_set_climate(temp)
+            await self.climate.async_set(temp)
             await self._async_persist()
+            return
+        self.previous_temp = None
+        expired = until is not None and temp is not None
+        last = self.climate.last_applied
+        state = self.climate.state()
+        device_temp = as_float(state.attributes.get("temperature")) if state else None
+        if expired and self.mode == MODE_MANUAL_ONLY:
+            await self._async_restore_manual(previous)
+        elif (
+            last is not None
+            and not self.climate.hvac_off_applied
+            and device_temp is not None
+            and not matches_requested(device_temp, state, last)
+        ):
+            await self._async_start_override(device_temp, self.default_hours, apply=False, previous=last)
         else:
-            expired = until is not None and temp is not None
-            self.previous_temp = None
-            state = self._device_state()
-            device_temp = _as_float(state.attributes.get("temperature")) if state else None
-            if expired and self.mode == MODE_MANUAL_ONLY:
-                if previous is not None:
-                    await self._async_set_climate(previous)
-                else:
-                    self._last_applied = None
-            elif (
-                self._last_applied is not None
-                and not self._hvac_off_applied
-                and device_temp is not None
-                and not self._matches_requested(device_temp, state, self._last_applied)
-            ):
-                await self._async_start_override(
-                    device_temp, self.default_hours, apply=False, previous=self._last_applied
-                )
-            else:
-                await self._async_apply()
-            await self._async_persist()
-        self._ready = True
-        self._notify()
+            await self._async_apply()
+        await self._async_persist()
 
     @callback
     def async_stop(self) -> None:
@@ -437,102 +313,63 @@ class Zone:
         if self._expiry_unsub:
             self._expiry_unsub()
             self._expiry_unsub = None
-        self._template_tracker = None
-        self._template = None
+        self._hook = None
 
-    def _schedule_expiry(self) -> None:
-        if self._expiry_unsub:
-            self._expiry_unsub()
-            self._expiry_unsub = None
-        if self.override_until:
-            self._expiry_unsub = async_track_point_in_utc_time(
-                self.hass, self._handle_expiry, self.override_until
-            )
-
-    async def _handle_expiry(self, _now: datetime) -> None:
-        self._expiry_unsub = None
-        await self.async_clear_override()
+    # --- applying the target
 
     async def _async_apply(self, force: bool = False) -> None:
         if self.mode == MODE_MANUAL_ONLY:
             return
         if not self.override_active and self._off_requested and self.off_mode == OFF_MODE_HVAC_OFF:
-            await self._async_hvac_off(force)
+            if await self.climate.async_off(force):
+                await self._async_persist()
             return
         target = self.override_temp if self.override_active else self._schedule_target
         if target is None:
             return
-        if not force and target == self._last_applied and not self._hvac_off_applied:
+        if not force and target == self.climate.last_applied and not self.climate.hvac_off_applied:
             return
-        await self._async_set_climate(target)
+        await self.climate.async_set(target)
         await self._async_persist()
 
-    async def _async_hvac_off(self, force: bool) -> None:
-        if self._hvac_off_applied and not force:
-            return
-        context = Context()
-        self._own_contexts.append(context.id)
-        await self.hass.services.async_call(
-            "climate",
-            "set_hvac_mode",
-            {"entity_id": self.climate_entity, "hvac_mode": "off"},
-            blocking=True,
-            context=context,
-        )
-        self._hvac_off_applied = True
-        await self._async_persist()
-
-    async def _async_set_climate(self, temperature: float) -> None:
-        context = Context()
-        self._own_contexts.append(context.id)
-        state = self._device_state()
-        if state is not None and state.state == "off" and self._hvac_off_applied:
-            await self.hass.services.async_call(
-                "climate",
-                "set_hvac_mode",
-                {"entity_id": self.climate_entity, "hvac_mode": "heat"},
-                blocking=True,
-                context=context,
-            )
-        self._hvac_off_applied = False
-        self._applied.append((temperature, time.monotonic()))
-        await self.hass.services.async_call(
-            "climate",
-            "set_temperature",
-            {"entity_id": self.climate_entity, "temperature": temperature},
-            blocking=True,
-            context=context,
-        )
-        self._last_applied = temperature
+    async def _async_restore_manual(self, previous: float | None) -> None:
+        """Manual-only zones go back to the setpoint from before the override."""
+        if previous is not None:
+            await self.climate.async_set(previous)
+        else:
+            self.climate.last_applied = None
 
     async def _handle_state_event(self, event: Event) -> None:
         if not self._ready:
             return
-        entity_id = event.data["entity_id"]
-        if entity_id == self.presence_entity:
+        if event.data["entity_id"] == self.presence_entity:
             self._refresh_presence()
             self._sync_template_base()
             await self._async_apply()
             self._notify()
             return
         old, new = event.data["old_state"], event.data["new_state"]
-        if old is None or new is None or old.state in _BAD_STATES or new.state in _BAD_STATES:
+        if old is None or new is None or old.state in BAD_STATES or new.state in BAD_STATES:
             self._notify()
             return
-        new_temp = _as_float(new.attributes.get("temperature"))
-        old_temp = _as_float(old.attributes.get("temperature"))
-        if (
-            new_temp is not None
-            and old_temp is not None
-            and new_temp != old_temp
-            and not self._is_echo(new_temp, new)
-            and new.context.id not in self._own_contexts
-            and new.context.parent_id not in self._own_contexts
-        ):
-            await self._async_start_override(
-                new_temp, self.default_hours, apply=False, previous=old_temp
-            )
+        new_temp = as_float(new.attributes.get("temperature"))
+        old_temp = as_float(old.attributes.get("temperature"))
+        if new_temp is not None and old_temp is not None and new_temp != old_temp and self.climate.is_external(new_temp, new):
+            await self._async_start_override(new_temp, self.default_hours, apply=False, previous=old_temp)
         self._notify()
+
+    # --- overrides
+
+    def _schedule_expiry(self) -> None:
+        if self._expiry_unsub:
+            self._expiry_unsub()
+            self._expiry_unsub = None
+        if self.override_until:
+            self._expiry_unsub = async_track_point_in_utc_time(self.hass, self._handle_expiry, self.override_until)
+
+    async def _handle_expiry(self, _now: datetime) -> None:
+        self._expiry_unsub = None
+        await self.async_clear_override()
 
     def _clamp(self, hours: float) -> float:
         return min(max(hours, 0.0), self.max_hours)
@@ -544,11 +381,11 @@ class Zone:
         if self.override_active:
             previous = self.previous_temp
         elif previous is None:
-            previous = self._device_setpoint()
+            previous = self.climate.setpoint()
         if apply:
-            await self._async_set_climate(temp)
+            await self.climate.async_set(temp)
         else:
-            self._last_applied = temp
+            self.climate.last_applied = temp
         self.override_temp = temp
         self.override_until = until
         self.previous_temp = previous
@@ -565,9 +402,7 @@ class Zone:
             return
         now = dt_util.utcnow()
         current = self.override_until
-        self.override_until = max(
-            current, min(current + timedelta(hours=hours), now + timedelta(hours=self.max_hours))
-        )
+        self.override_until = max(current, min(current + timedelta(hours=hours), now + timedelta(hours=self.max_hours)))
         self._schedule_expiry()
         await self._async_persist()
         self._notify()
@@ -583,15 +418,15 @@ class Zone:
             self._expiry_unsub = None
         await self._async_persist()
         self._notify()
-        if had_override:
-            if self.mode == MODE_MANUAL_ONLY:
-                if previous is not None:
-                    await self._async_set_climate(previous)
-                else:
-                    self._last_applied = None
-                await self._async_persist()
-            else:
-                await self._async_apply(force=True)
+        if not had_override:
+            return
+        if self.mode == MODE_MANUAL_ONLY:
+            await self._async_restore_manual(previous)
+            await self._async_persist()
+        else:
+            await self._async_apply(force=True)
+
+    # --- base target (automations)
 
     async def async_set_base_target(
         self,
@@ -600,11 +435,9 @@ class Zone:
         off: bool = False,
         reason: str | None = None,
     ) -> None:
-        changed = (self.base_temp, self.base_preset, self.base_off) != (temperature, preset, off)
-        self.base_temp = temperature
-        self.base_preset = preset
-        self.base_off = off
-        self.base_reason = reason if self.base_active else None
+        changed = (self.base.temp, self.base.preset, self.base.off) != (temperature, preset, off)
+        base = BaseTarget(temperature, preset, off)
+        self.base = BaseTarget(temperature, preset, off, reason if base.active else None)
         self._sync_template_base()
         await self._async_persist()
         self._notify()

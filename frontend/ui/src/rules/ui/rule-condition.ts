@@ -4,9 +4,9 @@ import { property } from "lit/decorators.js";
 import { safeCustomElement } from "../../define";
 import { WEEK_DAYS } from "../../types";
 import type { WeekDay } from "../../types";
-import type { Condition, ConditionType, TimeWindow } from "../types";
+import type { Condition, ConditionType, OutdoorHours, OutdoorPoint, TimeWindow } from "../types";
 import type { RuleError } from "../validate";
-import { CONDITION_LABELS, changeConditionType, parseNumber, removeAt, replaceAt, toggleDay } from "./edit";
+import { CONDITION_LABELS, changeConditionType, defaultOutdoorHours, parseNumber, removeAt, replaceAt, toggleDay } from "./edit";
 import { ruleStyles } from "./styles";
 
 const TYPES = Object.keys(CONDITION_LABELS) as ConditionType[];
@@ -47,8 +47,8 @@ export class ShareSpaceRuleCondition extends LitElement {
     return html`<input class="time" type="text" inputmode="numeric" placeholder="HH:MM" maxlength="5" aria-label=${label} .value=${value} @change=${(e: Event) => onChange((e.target as HTMLInputElement).value.trim())} />`;
   }
 
-  private _number(label: string, value: number, unit: string, onChange: (n: number) => void): TemplateResult {
-    return html`<input type="number" min="0" step="any" aria-label=${label} .value=${num(value)} @change=${(e: Event) => onChange(parseNumber((e.target as HTMLInputElement).value) ?? NaN)} /><span>${unit}</span>`;
+  private _number(label: string, value: number, unit: string, onChange: (n: number) => void, min: number | undefined = 0): TemplateResult {
+    return html`<input type="number" min=${min ?? nothing} step="any" aria-label=${label} .value=${num(value)} @change=${(e: Event) => onChange(parseNumber((e.target as HTMLInputElement).value) ?? NaN)} /><span>${unit}</span>`;
   }
 
   private _fields(c: Condition): TemplateResult | typeof nothing {
@@ -56,7 +56,7 @@ export class ShareSpaceRuleCondition extends LitElement {
       case "occupied":
         return nothing;
       case "occupied_within":
-        return html`<div class="row">${this._number("Hours", c.hours, "hours", (hours) => this._patch({ hours }))}</div>`;
+        return this._lead(c.hours);
       case "between_days":
         return html`<div class="row"><span>gap of at most</span>${this._number("Gap in hours", c.gap_hours, "hours", (gap_hours) => this._patch({ gap_hours }))}</div>`;
       case "weekday":
@@ -71,6 +71,30 @@ export class ShareSpaceRuleCondition extends LitElement {
       case "planned":
         return this._planned(c.windows, c.match);
     }
+  }
+
+  private _lead(hours: number | OutdoorHours): TemplateResult {
+    const outdoor = typeof hours === "object";
+    const mode = html`<select aria-label="Lead time" @change=${(e: Event) =>
+      this._patch({ hours: (e.target as HTMLSelectElement).value === "outdoor" ? defaultOutdoorHours() : outdoor ? hours.cold.hours : hours })}>
+      <option value="fixed" ?selected=${!outdoor}>fixed</option>
+      <option value="outdoor" ?selected=${outdoor}>by outdoor temp</option>
+    </select>`;
+    if (!outdoor) return html`<div class="row">${mode}${this._number("Hours", hours, "hours", (h) => this._patch({ hours: h }))}</div>`;
+    const point = (key: "cold" | "warm", p: OutdoorPoint) =>
+      html`<div class="row">
+        <span>at</span>${this._number(`${key} temperature`, p.temp, "°C", (temp) => this._patch({ hours: { ...hours, [key]: { ...p, temp } } }), undefined)}
+        <span>→</span>${this._number(`${key} hours`, p.hours, "hours", (h) => this._patch({ hours: { ...hours, [key]: { ...p, hours: h } } }))}
+      </div>`;
+    return html`<div class="windows">
+      <div class="row">${mode}</div>
+      <div class="row">
+        <span>sensor</span>
+        <input type="text" placeholder="sensor.outdoor_temperature" aria-label="Outdoor sensor" .value=${hours.sensor} @change=${(e: Event) => this._patch({ hours: { ...hours, sensor: (e.target as HTMLInputElement).value.trim() } })} />
+      </div>
+      ${point("cold", hours.cold)} ${point("warm", hours.warm)}
+      <div class="muted">Linear in between, clamped outside. No reading: cold hours.</div>
+    </div>`;
   }
 
   private _planned(windows: TimeWindow[], match: "all" | "any"): TemplateResult {

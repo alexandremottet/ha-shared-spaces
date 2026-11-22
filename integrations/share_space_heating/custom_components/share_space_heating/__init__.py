@@ -5,6 +5,8 @@ import re
 import shutil
 from pathlib import Path
 
+import logging
+
 import voluptuous as vol
 
 from homeassistant.config_entries import ConfigEntry
@@ -22,10 +24,14 @@ from .const import (
     DOMAIN,
     SERVICE_CLEAR_OVERRIDE,
     SERVICE_EXTEND_OVERRIDE,
+    SERVICE_RUN_RULES,
     SERVICE_SET_BASE_TARGET,
     SERVICE_SET_OVERRIDE,
 )
+from .presets import PRESETS
+from .rules import decide, planning_facts
 from .store import OverrideStore
+from .target import BaseTarget
 from .zone import Zone
 
 PLATFORMS = ["sensor"]
@@ -62,6 +68,20 @@ BASE_SCHEMA = vol.All(
     ),
     cv.has_at_most_one_key("temperature", "preset", "off"),
 )
+RUN_RULES_SCHEMA = vol.All(
+    vol.Schema(
+        {
+            vol.Required(ATTR_ENTITY_ID): cv.entity_id,
+            vol.Required("area"): cv.string,
+            vol.Optional("rules"): dict,
+            vol.Optional("preset"): vol.In(list(PRESETS)),
+            vol.Optional("inputs", default={}): dict,
+        }
+    ),
+    cv.has_at_least_one_key("rules", "preset"),
+    cv.has_at_most_one_key("rules", "preset"),
+)
+_LOGGER = logging.getLogger(__name__)
 BLUEPRINTS_SRC = Path(__file__).parent / "blueprints" / "automation" / "share_space"
 
 
@@ -131,6 +151,24 @@ def _register_services(hass: HomeAssistant) -> None:
             reason=data.get("reason"),
         )
 
+    async def run_rules(call: ServiceCall) -> None:
+        zone = _zone_for(hass, call.data[ATTR_ENTITY_ID])
+        facts = planning_facts(hass, call.data["area"])
+        if facts is None:
+            _LOGGER.debug("Planning for area %s not loaded, rules skipped", call.data["area"])
+            return
+        try:
+            preset = call.data.get("preset")
+            rules = PRESETS[preset](call.data["inputs"]) if preset else call.data["rules"]
+            d = decide(rules, facts)
+        except (KeyError, TypeError, ValueError, AttributeError, IndexError) as err:
+            raise ServiceValidationError(f"Invalid rules: {err!r}") from err
+        # every-minute runs: skip unchanged decisions so the store is not rewritten
+        if zone.base == BaseTarget(d.temperature, d.preset, d.off, d.label):
+            return
+        await zone.async_set_base_target(temperature=d.temperature, preset=d.preset, off=d.off, reason=d.label)
+
+    hass.services.async_register(DOMAIN, SERVICE_RUN_RULES, run_rules, RUN_RULES_SCHEMA)
     hass.services.async_register(DOMAIN, SERVICE_SET_BASE_TARGET, set_base_target, BASE_SCHEMA)
     hass.services.async_register(DOMAIN, SERVICE_SET_OVERRIDE, set_override, SET_SCHEMA)
     hass.services.async_register(DOMAIN, SERVICE_EXTEND_OVERRIDE, extend_override, EXTEND_SCHEMA)
