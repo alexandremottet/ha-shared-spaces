@@ -6,8 +6,7 @@ import { ComponentsPage } from "./pages/ComponentsPage";
 import { CardsPage } from "./pages/CardsPage";
 import { DashboardPage } from "./pages/DashboardPage";
 import { PanelPage } from "./pages/PanelPage";
-import { THEMES, applyTheme, initialTheme } from "./stubs";
-import type { ThemeName } from "./stubs";
+import { ThemePicker } from "./ThemePicker";
 
 interface Route {
   path: string;
@@ -37,7 +36,6 @@ function useHashRoute(): string {
 
 function Nav({ path }: { path: string }) {
   const { mode, setMode, liveStatus } = useHassContext();
-  const [theme, setTheme] = useState<ThemeName>(initialTheme);
   return (
     <nav className="nav">
       <strong className="brand">Share Space Playground</strong>
@@ -56,23 +54,7 @@ function Nav({ path }: { path: string }) {
         </select>
       </label>
       {mode === "live" && <span className="badge">{liveStatus.state}</span>}
-      <label>
-        Theme
-        <select
-          value={theme}
-          onChange={(e) => {
-            const t = e.target.value as ThemeName;
-            setTheme(t);
-            applyTheme(t);
-          }}
-        >
-          {THEMES.map((t) => (
-            <option key={t} value={t}>
-              {t}
-            </option>
-          ))}
-        </select>
-      </label>
+      <ThemePicker />
     </nav>
   );
 }

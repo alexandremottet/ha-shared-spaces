@@ -1,5 +1,6 @@
+/* HA default theme; extra themes come from share-space-themes YAML */
 :root,
-html[data-theme="light"] {
+html[data-theme="default"] {
   color-scheme: light;
   --primary-color: #03a9f4;
   --dark-primary-color: #0288d1;
@@ -23,12 +24,10 @@ html[data-theme="light"] {
   --ha-card-backdrop-filter: none;
   --ha-dialog-surface-backdrop-filter: none;
   --mdc-theme-surface: #ffffff;
-  --app-bg: var(--primary-background-color);
-  --app-bg-image: none;
-  --nav-bg: #ffffff;
+  --sidebar-background-color: #ffffff;
 }
 
-html[data-theme="dark"] {
+html[data-theme="default"][data-mode="dark"] {
   color-scheme: dark;
   --primary-color: #03a9f4;
   --primary-text-color: #e1e1e1;
@@ -39,29 +38,7 @@ html[data-theme="dark"] {
   --secondary-background-color: #202020;
   --card-background-color: #1c1c1c;
   --mdc-theme-surface: #1c1c1c;
-  --nav-bg: #1c1c1c;
-}
-
-html[data-theme="frosted"] {
-  color-scheme: dark;
-  --primary-color: #4fc3f7;
-  --primary-text-color: #ffffff;
-  --secondary-text-color: rgba(255, 255, 255, 0.72);
-  --disabled-text-color: rgba(255, 255, 255, 0.4);
-  --divider-color: rgba(255, 255, 255, 0.2);
-  --primary-background-color: #1a2a44;
-  --secondary-background-color: rgba(255, 255, 255, 0.1);
-  --card-background-color: rgba(255, 255, 255, 0.12);
-  --ha-card-background: transparent;
-  --ha-card-border-width: 1px;
-  --ha-card-border-color: rgba(255, 255, 255, 0.25);
-  --ha-card-backdrop-filter: blur(16px) saturate(1.4);
-  --ha-dialog-surface-backdrop-filter: blur(24px);
-  --mdc-theme-surface: rgba(30, 40, 70, 0.55);
-  --app-bg: #1a2a44;
-  --app-bg-image: linear-gradient(135deg, #1f4068 0%, #6a3d7a 50%, #e07a5f 100%);
-  --lovelace-background: var(--app-bg-image);
-  --nav-bg: rgba(0, 0, 0, 0.25);
+  --sidebar-background-color: #1c1c1c;
 }
 
 html,
@@ -70,7 +47,5 @@ body {
   min-height: 100vh;
   font-family: Roboto, system-ui, -apple-system, "Segoe UI", sans-serif;
   color: var(--primary-text-color);
-  background-color: var(--app-bg);
-  background-image: var(--app-bg-image);
-  background-attachment: fixed;
+  background: var(--lovelace-background, var(--primary-background-color));
 }

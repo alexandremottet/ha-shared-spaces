@@ -1,6 +1,5 @@
 import { useState } from "react";
-import { THEMES, applyTheme, initialTheme } from "../../stubs";
-import type { ThemeName } from "../../stubs";
+import { ThemePicker } from "../../ThemePicker";
 import type { MockHassController } from "../../mock/mock-hass";
 import { RoleSwitch } from "../RoleSwitch";
 import { HaAutomationControls } from "./HaAutomationControls";
@@ -24,7 +23,6 @@ interface Props {
 }
 
 export function Toolbar({ controller, edit, setEdit, narrow, setNarrow, viewport, setViewport }: Props) {
-  const [theme, setTheme] = useState<ThemeName>(initialTheme);
   const userId = controller?.state.currentUserId;
   const isAdmin = controller?.state.persons.find((p) => p.userId === userId)?.isAdmin ?? true;
   return (
@@ -63,23 +61,7 @@ export function Toolbar({ controller, edit, setEdit, narrow, setNarrow, viewport
           ))}
         </select>
       </label>
-      <label>
-        Theme
-        <select
-          value={theme}
-          onChange={(e) => {
-            const t = e.target.value as ThemeName;
-            setTheme(t);
-            applyTheme(t);
-          }}
-        >
-          {THEMES.map((t) => (
-            <option key={t} value={t}>
-              {t}
-            </option>
-          ))}
-        </select>
-      </label>
+      <ThemePicker />
     </div>
   );
 }

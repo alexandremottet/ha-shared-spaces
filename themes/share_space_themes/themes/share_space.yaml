@@ -1,0 +1,107 @@
+# Share Space themes for Home Assistant (each has light + dark modes).
+Share Space Frosted:
+  # Optional: with card-mod installed, core HA cards get the glass blur too.
+  card-mod-theme: Share Space Frosted
+  card-mod-card: |
+    ha-card {
+      backdrop-filter: var(--ha-card-backdrop-filter);
+      -webkit-backdrop-filter: var(--ha-card-backdrop-filter);
+    }
+  ha-card-border-width: "1px"
+  ha-card-backdrop-filter: "blur(16px) saturate(1.4)"
+  ha-dialog-surface-backdrop-filter: "blur(24px)"
+  modes:
+    light:
+      primary-color: "#0288d1"
+      primary-text-color: "#1d2433"
+      secondary-text-color: "rgba(29, 36, 51, 0.68)"
+      disabled-text-color: "rgba(29, 36, 51, 0.38)"
+      divider-color: "rgba(29, 36, 51, 0.14)"
+      primary-background-color: "#eef1f7"
+      secondary-background-color: "rgba(255, 255, 255, 0.45)"
+      card-background-color: "rgba(255, 255, 255, 0.5)"
+      ha-card-background: "rgba(255, 255, 255, 0.4)"
+      ha-card-border-color: "rgba(255, 255, 255, 0.7)"
+      ha-card-box-shadow: "0 8px 32px rgba(31, 64, 104, 0.12)"
+      mdc-theme-surface: "rgba(255, 255, 255, 0.85)"
+      sidebar-background-color: "rgba(255, 255, 255, 0.4)"
+      lovelace-background: "linear-gradient(135deg, #b9d3f0 0%, #d9c6ea 50%, #f6cdb8 100%) fixed"
+    dark:
+      primary-color: "#4fc3f7"
+      primary-text-color: "#ffffff"
+      secondary-text-color: "rgba(255, 255, 255, 0.72)"
+      disabled-text-color: "rgba(255, 255, 255, 0.4)"
+      divider-color: "rgba(255, 255, 255, 0.2)"
+      primary-background-color: "#1a2a44"
+      secondary-background-color: "rgba(255, 255, 255, 0.1)"
+      card-background-color: "rgba(255, 255, 255, 0.12)"
+      ha-card-background: "transparent"
+      ha-card-border-color: "rgba(255, 255, 255, 0.25)"
+      mdc-theme-surface: "rgba(30, 40, 70, 0.55)"
+      sidebar-background-color: "rgba(0, 0, 0, 0.25)"
+      lovelace-background: "linear-gradient(135deg, #1f4068 0%, #6a3d7a 50%, #e07a5f 100%) fixed"
+
+# Blue #3256a2 + gold #bb8c41 on glass.
+Le Portemine:
+  # Optional: with card-mod installed, core HA cards get the glass blur too.
+  card-mod-theme: Le Portemine
+  card-mod-card: |
+    ha-card {
+      backdrop-filter: var(--ha-card-backdrop-filter);
+      -webkit-backdrop-filter: var(--ha-card-backdrop-filter);
+    }
+  ha-card-border-width: "1px"
+  ha-card-backdrop-filter: "blur(18px) saturate(1.5)"
+  ha-dialog-surface-backdrop-filter: "blur(24px)"
+  modes:
+    light:
+      primary-color: "#2f5bc8"
+      dark-primary-color: "#2146a3"
+      light-primary-color: "#c9d5ee"
+      accent-color: "#e8a317"
+      primary-text-color: "#14224a"
+      secondary-text-color: "rgba(20, 34, 74, 0.68)"
+      disabled-text-color: "rgba(20, 34, 74, 0.38)"
+      text-primary-color: "#ffffff"
+      divider-color: "rgba(50, 86, 162, 0.18)"
+      warning-color: "#e8a317"
+      success-color: "#3f9d7a"
+      primary-background-color: "#eef1f8"
+      secondary-background-color: "rgba(255, 255, 255, 0.45)"
+      card-background-color: "rgba(255, 255, 255, 0.55)"
+      ha-card-background: "rgba(255, 255, 255, 0.5)"
+      ha-card-border-color: "rgba(255, 255, 255, 0.75)"
+      ha-card-box-shadow: "0 8px 32px rgba(50, 86, 162, 0.12)"
+      mdc-theme-surface: "rgba(255, 255, 255, 0.85)"
+      sidebar-background-color: "rgba(255, 255, 255, 0.45)"
+      lovelace-background: >-
+        radial-gradient(circle at 10% 15%, rgba(40, 90, 210, 0.75) 0, transparent 48%),
+        radial-gradient(circle at 90% 88%, rgba(242, 176, 40, 0.8) 0, transparent 48%),
+        radial-gradient(circle at 78% 8%, rgba(40, 90, 210, 0.4) 0, transparent 38%),
+        radial-gradient(circle at 15% 92%, rgba(242, 176, 40, 0.35) 0, transparent 35%),
+        linear-gradient(135deg, #cfdcfa 0%, #f5f3ee 55%, #fbe2aa 100%) fixed
+    dark:
+      primary-color: "#6f95f5"
+      dark-primary-color: "#2f5bc8"
+      light-primary-color: "#2a3f73"
+      accent-color: "#f2b33a"
+      primary-text-color: "#f4f6fc"
+      secondary-text-color: "rgba(244, 246, 252, 0.7)"
+      disabled-text-color: "rgba(244, 246, 252, 0.4)"
+      text-primary-color: "#0d1630"
+      divider-color: "rgba(255, 255, 255, 0.16)"
+      warning-color: "#f2b33a"
+      success-color: "#4cc497"
+      primary-background-color: "#0d1630"
+      secondary-background-color: "rgba(255, 255, 255, 0.08)"
+      card-background-color: "rgba(255, 255, 255, 0.1)"
+      ha-card-background: "rgba(13, 22, 48, 0.35)"
+      ha-card-border-color: "rgba(255, 255, 255, 0.18)"
+      ha-card-box-shadow: "0 8px 32px rgba(0, 0, 0, 0.3)"
+      mdc-theme-surface: "rgba(20, 32, 66, 0.9)"
+      sidebar-background-color: "rgba(13, 22, 48, 0.5)"
+      lovelace-background: >-
+        radial-gradient(circle at 10% 15%, rgba(47, 91, 200, 0.85) 0, transparent 48%),
+        radial-gradient(circle at 90% 88%, rgba(232, 163, 23, 0.7) 0, transparent 45%),
+        radial-gradient(circle at 80% 8%, rgba(47, 91, 200, 0.45) 0, transparent 38%),
+        linear-gradient(135deg, #10204d 0%, #0d1630 55%, #2a2110 100%) fixed
