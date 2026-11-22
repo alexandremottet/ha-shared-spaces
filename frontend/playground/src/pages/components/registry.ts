@@ -1,6 +1,7 @@
 import type { CSSProperties } from "react";
-import { WEEK_DAYS, ZONE_TARGET_HOOK, lunchRoomRules, officeSaverRules } from "ha-share-space-ui";
-import type { Calendar, Condition, ScheduleRanges, TimeRange } from "ha-share-space-ui";
+import { WEEK_DAYS, ZONE_TARGET_HOOK } from "ha-share-space-ui";
+import { starterRules } from "../../mock/seed";
+import type { Calendar, Condition, RuleStrategy, ScheduleRanges, TimeRange } from "ha-share-space-ui";
 
 export type PropKind = "text" | "number" | "boolean" | "select" | "json";
 
@@ -94,9 +95,21 @@ const officeSchedule: ScheduleRanges = Object.fromEntries(
   ["monday", "tuesday", "wednesday", "thursday", "friday"].map((d) => [d, [["08:00", "12:00"], ["14:00", "18:00"]]]),
 );
 
-const sampleStrategy = officeSaverRules();
-const sampleLunch = lunchRoomRules();
+const sampleStrategy = starterRules("office_saver");
+const sampleLunch = starterRules("lunch_room");
 const sampleCondition: Condition = { type: "occupied_within", hours: 2 };
+const OUTDOOR = "sensor.outdoor_temperature";
+const outdoorCurve = (points: Array<[number, number]>, fallback: number) => ({ type: "curve" as const, entity: OUTDOOR, default: fallback, points: points.map(([at, value]) => ({ at, value })) });
+const sampleOldBuilding: RuleStrategy = {
+  version: 1,
+  rules: [
+    { label: "Cold day", when: [{ type: "sensor", entity: OUTDOOR, op: "below", than: 0 }, { type: "occupied" }], then: { type: "temperature", value: 22 } },
+    { label: "Occupied", when: [{ type: "occupied" }], then: { type: "temperature", value: outdoorCurve([[-5, 22], [15, 19]], 10) } },
+    { label: "Preheat", when: [{ type: "occupied_within", hours: outdoorCurve([[-10, 9], [0, 5], [10, 2], [18, 1]], 0) }], then: { type: "temperature", value: 21 } },
+    { label: "Between working days", when: [{ type: "between_days", gap_hours: 24 }], then: { type: "eco" } },
+  ],
+  fallback: { label: "Away", then: { type: "off" } },
+};
 
 export const COMPONENTS: ComponentDef[] = [
   {
@@ -298,7 +311,7 @@ export const COMPONENTS: ComponentDef[] = [
     id: "rule-list-office",
     tag: "share-space-rule-list",
     group: "Rules",
-    description: "Office saver as a rule list. Edit the strategy JSON to see inline validation errors.",
+    description: "Office saver starter as a rule list. Edit the strategy JSON to see inline validation errors.",
     props: [{ name: "strategy", kind: "json", value: sampleStrategy }],
     events: ["strategy-change"],
     stage: { maxWidth: 560 },
@@ -307,9 +320,32 @@ export const COMPONENTS: ComponentDef[] = [
     id: "rule-list-lunch",
     tag: "share-space-rule-list",
     group: "Rules",
-    description: "Lunch room as a rule list (Planned during with several windows).",
+    description: "Lunch room starter as a rule list (Planned during with several windows).",
     props: [{ name: "strategy", kind: "json", value: sampleLunch }],
     events: ["strategy-change"],
+    stage: { maxWidth: 560 },
+  },
+  {
+    id: "rule-list-old-building",
+    tag: "share-space-rule-list",
+    group: "Rules",
+    description: "Old building: preheat hours and comfort temperature follow the outdoor sensor (curves), extra heat below 0 °C.",
+    props: [{ name: "strategy", kind: "json", value: sampleOldBuilding }],
+    events: ["strategy-change"],
+    stage: { maxWidth: 760 },
+  },
+  {
+    id: "rule-value",
+    tag: "share-space-rule-value",
+    group: "Rules",
+    description: "A fixed number or Follow a sensor: points mapped linearly, flat outside, with a mini plot.",
+    props: [
+      { name: "value", kind: "json", value: outdoorCurve([[-10, 9], [0, 5], [10, 2], [18, 1]], 0) },
+      { name: "unit", kind: "text", value: "h" },
+      { name: "label", kind: "text", value: "Hours" },
+      { name: "errors", kind: "json", value: [] },
+    ],
+    events: ["value-change"],
     stage: { maxWidth: 560 },
   },
   {

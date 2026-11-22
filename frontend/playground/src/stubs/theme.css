@@ -60,6 +60,7 @@ html[data-theme="frosted"] {
   --mdc-theme-surface: rgba(30, 40, 70, 0.55);
   --app-bg: #1a2a44;
   --app-bg-image: linear-gradient(135deg, #1f4068 0%, #6a3d7a 50%, #e07a5f 100%);
+  --lovelace-background: var(--app-bg-image);
   --nav-bg: rgba(0, 0, 0, 0.25);
 }
 

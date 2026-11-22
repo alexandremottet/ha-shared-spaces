@@ -20,7 +20,7 @@ export function WidthFrame({ header, footer, children }: { header?: ReactNode; f
           </button>
         ))}
       </div>
-      <div className="card-frame" data-full={width === "100%" || undefined} style={{ width }}>
+      <div className="card-frame real" data-full={width === "100%" || undefined} style={{ width }}>
         {children}
       </div>
       {footer}
