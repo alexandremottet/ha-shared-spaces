@@ -1,5 +1,6 @@
 import { LitElement, html, css } from "lit";
-import { customElement, property, state } from "lit/decorators.js";
+import { property, state } from "lit/decorators.js";
+import { safeCustomElement } from "ha-share-space-ui";
 import type { PropertyValues } from "lit";
 import {
   haTheme,
@@ -19,7 +20,7 @@ interface CardConfig {
   areas?: string[];
 }
 
-@customElement("share-space-work-area-card")
+@safeCustomElement("share-space-work-area-card")
 export class ShareSpaceWorkAreaCard extends LitElement {
   static styles = [
     haTheme,

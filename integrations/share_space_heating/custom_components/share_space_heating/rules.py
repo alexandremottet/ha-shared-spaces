@@ -10,6 +10,8 @@ from homeassistant.const import STATE_ON, STATE_UNAVAILABLE, STATE_UNKNOWN
 from homeassistant.core import HomeAssistant
 from homeassistant.util import dt as dt_util
 
+from .const import DATA_SETTINGS, DOMAIN, OUTDOOR_ALIAS
+
 WEEKDAYS = ("monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday")
 _SLOT = 30
 
@@ -125,8 +127,17 @@ def decide(strategy: dict, facts: Facts) -> Decision:
     return _decision(fallback["label"], fallback["then"], facts.read)
 
 
+def outdoor_entity(hass: HomeAssistant) -> str | None:
+    settings = hass.data.get(DOMAIN, {}).get(DATA_SETTINGS)
+    return settings.outdoor_entity if settings else None
+
+
 def sensor_reading(hass: HomeAssistant, entity_id: str) -> float | None:
-    """Sensor state, or attribute temperature for a weather entity."""
+    """Sensor state, or attribute temperature for a weather entity; `outdoor` reads the Settings sensor."""
+    if entity_id == OUTDOOR_ALIAS:
+        entity_id = outdoor_entity(hass)
+        if entity_id is None:
+            return None
     state = hass.states.get(entity_id)
     if state is None:
         return None

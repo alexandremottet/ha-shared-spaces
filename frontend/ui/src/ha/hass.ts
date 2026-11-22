@@ -9,6 +9,8 @@ export interface HassEntity {
 export interface HomeAssistant {
   states: Record<string, HassEntity>;
   areas?: Record<string, { area_id: string; name: string }>;
+  entities?: Record<string, { entity_id: string; area_id?: string | null; device_id?: string | null }>;
+  devices?: Record<string, { id: string; area_id?: string | null }>;
   user?: { id: string; name: string; is_admin: boolean } | null;
   callWS<T>(msg: Record<string, unknown>): Promise<T>;
   callService(domain: string, service: string, serviceData?: Record<string, unknown>): Promise<unknown>;
@@ -18,9 +20,10 @@ export interface HomeAssistant {
     subscribeEvents<T>(callback: (event: T) => void, eventType?: string): Promise<() => void>;
     subscribeMessage?<T>(callback: (message: T) => void, subscribeMessage: Record<string, unknown>): Promise<() => void>;
   };
-  themes?: Record<string, unknown>;
+  themes?: Record<string, unknown> & { themes?: Record<string, { modes?: unknown }>; default_theme?: string };
+  selectedTheme?: { theme?: string; dark?: boolean } | null;
   language?: string;
-  config?: { unit_system?: { temperature?: string }; time_zone?: string };
+  config?: { location_name?: string; unit_system?: { temperature?: string }; time_zone?: string };
 }
 
 export const hassNow = (hass: HomeAssistant): number => hass.now?.() ?? Date.now();

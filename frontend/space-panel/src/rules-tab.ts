@@ -48,7 +48,7 @@ export class ShareSpaceRulesTab extends LitElement {
   static styles = css`
     :host {
       display: block;
-      padding: 16px 24px 0;
+      padding: 8px 0 0;
       color: var(--primary-text-color);
       box-sizing: border-box;
       container-type: inline-size;

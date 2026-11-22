@@ -10,15 +10,18 @@ const ROLE_LABEL: Record<SpaceRole, string> = {
   technical_admin: "Technical admin",
 };
 
-// Settings page: shows the role; technical admins get the `extension-points` slot; emits `technical-change` (detail = boolean).
+// Settings page: role, admin switches, outdoor sensor; emits `technical-change` / `full-ha-change` (boolean), `outdoor-change` (entity id or null).
 @customElement("share-space-settings")
 export class ShareSpaceSettings extends LitElement {
   @property() role: SpaceRole = "user";
+  @property({ type: Boolean }) fullHa = false;
+  @property() outdoorEntity: string | null = null;
+  @property({ attribute: false }) outdoorOptions: Array<{ id: string; name: string }> = [];
 
   static styles = css`
     :host {
       display: block;
-      padding: 16px 24px;
+      padding: 8px 24px 16px;
       color: var(--primary-text-color);
     }
     h3 {
@@ -35,6 +38,24 @@ export class ShareSpaceSettings extends LitElement {
     .muted {
       color: var(--secondary-text-color);
     }
+    h4 {
+      margin: 0 0 8px;
+    }
+    .field {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 8px 12px;
+    }
+    select {
+      min-height: 36px;
+      padding: 0 8px;
+      border-radius: 8px;
+      border: 1px solid var(--divider-color);
+      background: var(--card-background-color);
+      color: var(--primary-text-color);
+      font: inherit;
+    }
     .switch {
       display: flex;
       align-items: center;
@@ -42,6 +63,26 @@ export class ShareSpaceSettings extends LitElement {
       margin: 8px 0 12px;
     }
   `;
+
+  private _renderHeating(): TemplateResult {
+    const current = this.outdoorEntity ?? "";
+    const known = this.outdoorOptions.some((o) => o.id === current);
+    return html`<section class="card">
+      <h4>Outdoor temperature</h4>
+      <label class="field">
+        Sensor
+        <select
+          @change=${(e: Event) =>
+            this.dispatchEvent(new CustomEvent("outdoor-change", { detail: (e.target as HTMLSelectElement).value || null }))}
+        >
+          <option value="" ?selected=${!current}>None</option>
+          ${current && !known ? html`<option value=${current} selected>${current} (unavailable)</option>` : nothing}
+          ${this.outdoorOptions.map((o) => html`<option value=${o.id} ?selected=${o.id === current}>${o.name}</option>`)}
+        </select>
+      </label>
+      <p class="muted">Rules that follow the outdoor temperature read this sensor (e.g. Old building's preheat). None: they use their default.</p>
+    </section>`;
+  }
 
   protected render(): TemplateResult {
     return html`
@@ -57,9 +98,20 @@ export class ShareSpaceSettings extends LitElement {
                 this.dispatchEvent(new CustomEvent("technical-change", { detail: (e.target as HTMLInputElement).checked }))}
             />
             Technical tools
-          </label>`
+          </label>
+          <label class="switch">
+            <input
+              type="checkbox"
+              .checked=${this.fullHa}
+              @change=${(e: Event) =>
+                this.dispatchEvent(new CustomEvent("full-ha-change", { detail: (e.target as HTMLInputElement).checked }))}
+            />
+            Full Home Assistant interface
+          </label>
+          <p class="muted">Off: Home Assistant opens on Share Space after login. On: its usual interface, with a Back button here.</p>`
         : nothing}
       </section>
+      ${this.role !== "user" ? html`<slot name="zones"></slot>${this._renderHeating()}<slot name="users"></slot>` : nothing}
       ${this.role === "technical_admin" ? html`<slot name="extension-points"></slot>` : nothing}
     `;
   }

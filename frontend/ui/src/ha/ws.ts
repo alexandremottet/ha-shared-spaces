@@ -36,6 +36,12 @@ export interface HeatingZone {
   target_template?: string | null;
   template_result?: string | null;
   template_error?: string | null;
+  area_id?: string | null;
+  /** Set when Share Space built the thermostat from heater switches + a sensor. */
+  heaters?: string[] | null;
+  heater_switch?: string | null;
+  temperature_sensor?: string | null;
+  managed?: boolean;
 }
 
 export interface HeatingZoneAttributes {
@@ -52,6 +58,7 @@ export interface HeatingZoneAttributes {
   comfort_temp?: number;
   eco_temp?: number;
   frost_temp?: number;
+  outdoor_entity?: string | null;
 }
 
 export interface CreateZoneInput {
@@ -147,6 +154,37 @@ export const listZones = (hass: HomeAssistant) =>
 
 export const createZone = (hass: HomeAssistant, input: CreateZoneInput) =>
   hass.callWS<{ entry_id: string; entity_id: string }>({ type: "share_space_heating/create_zone", ...input });
+
+/** Zone for an area: an existing thermostat, or heater switches + a temperature sensor (Share Space builds the thermostat). */
+export type AreaZoneInput = { area_id: string } & (
+  | { climate_entity: string }
+  | { heaters: string[]; temperature_sensor: string }
+);
+
+export const createAreaZone = (hass: HomeAssistant, input: AreaZoneInput) =>
+  hass.callWS<{ entry_id: string; entity_id: string }>({ type: "share_space_heating/create_area_zone", ...input });
+
+/** Removes the zone and the helpers Share Space built for it. */
+export const deleteZone = (hass: HomeAssistant, entryId: string) =>
+  hass.callWS<Record<string, never>>({ type: "share_space_heating/delete_zone", entry_id: entryId });
+
+export interface HaUser {
+  id: string;
+  name: string;
+  username?: string | null;
+  is_owner: boolean;
+  is_active: boolean;
+  system_generated: boolean;
+  group_ids: string[];
+}
+
+export const ADMIN_GROUP = "system-admin";
+
+export const listUsers = (hass: HomeAssistant) => hass.callWS<HaUser[]>({ type: "config/auth/list" });
+
+/** Space Admin = HA administrator. */
+export const setSpaceAdmin = (hass: HomeAssistant, userId: string, admin: boolean) =>
+  hass.callWS<{ user: HaUser }>({ type: "config/auth/update", user_id: userId, group_ids: [admin ? ADMIN_GROUP : "system-users"] });
 
 export const updateZone = (hass: HomeAssistant, entryId: string, patch: ZoneUpdate) =>
   hass.callWS<HeatingZone>({ type: "share_space_heating/update_zone", entry_id: entryId, ...patch });
@@ -387,6 +425,17 @@ export interface SharedStrategy {
 export const nameTaken = (shared: Array<{ id: string; name: string }>, name: string, exceptId = ""): boolean =>
   shared.some((s) => s.id !== exceptId && s.name.trim().toLowerCase() === name.trim().toLowerCase());
 
+export interface HeatingSettings {
+  outdoor_entity: string | null;
+}
+
+export const getHeatingSettings = (hass: HomeAssistant) =>
+  hass.callWS<HeatingSettings>({ type: "share_space_heating/get_settings" });
+
+/** Admin only; `null` clears the outdoor sensor. */
+export const saveHeatingSettings = (hass: HomeAssistant, settings: HeatingSettings) =>
+  hass.callWS<HeatingSettings>({ type: "share_space_heating/save_settings", ...settings });
+
 export const listStrategies = (hass: HomeAssistant) =>
   hass.callWS<SharedStrategy[]>({ type: "share_space_heating/list_strategies" });
 
@@ -481,3 +530,21 @@ export const getSharePrefs = async (hass: HomeAssistant): Promise<SharePrefs | n
 
 export const setSharePrefs = (hass: HomeAssistant, prefs: SharePrefs): Promise<void> =>
   hass.callWS<void>({ type: "frontend/set_user_data", key: "share_space", value: prefs as Record<string, unknown> });
+
+export const SHARE_SPACE_PANEL = "share-space";
+
+type CoreData = Record<string, unknown> & { default_panel?: string };
+
+const getCoreData = async (hass: HomeAssistant, scope: "user" | "system"): Promise<CoreData> =>
+  (await hass.callWS<{ value: CoreData | null }>({ type: `frontend/get_${scope}_data`, key: "core" })).value ?? {};
+
+// Panel HA opens after login: the user's own choice, else the system-wide one.
+export async function getDefaultPanel(hass: HomeAssistant): Promise<string | undefined> {
+  const [user, system] = await Promise.all([getCoreData(hass, "user"), getCoreData(hass, "system")]);
+  return user.default_panel ?? system.default_panel;
+}
+
+export async function setMyDefaultPanel(hass: HomeAssistant, panel: string): Promise<void> {
+  const core = await getCoreData(hass, "user");
+  await hass.callWS<void>({ type: "frontend/set_user_data", key: "core", value: { ...core, default_panel: panel } });
+}

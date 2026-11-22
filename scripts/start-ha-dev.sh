@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Start a local Home Assistant Docker instance with this repo's three integrations
-# (share_space, share_space_heating, share_space_space) bind-mounted in, for visually testing cards/panel.
+# (share_space, share_space_heating, share_space_space) bind-mounted in, onboarded and pre-configured.
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -16,7 +16,13 @@ if ! command -v docker >/dev/null 2>&1; then
   exit 1
 fi
 
-mkdir -p "$HA_CONFIG_DIR"
+# Fresh config: seed base configuration.yaml and Lovelace resources/dashboards.
+if [ ! -d "$HA_CONFIG_DIR/.storage" ]; then
+  echo "Seeding fresh dev config in $HA_CONFIG_DIR..."
+  mkdir -p "$HA_CONFIG_DIR"
+  cp -R "$SCRIPT_DIR/ha-dev/seed/." "$HA_CONFIG_DIR/"
+fi
+mkdir -p "$HA_CONFIG_DIR/themes"
 
 if [ ! -d "$REPO_ROOT/node_modules" ]; then
   echo "Installing workspace dependencies..."
@@ -42,20 +48,21 @@ cp "$REPO_ROOT"/frontend/{planning-cards,heating-card,dashboard-strategy}/dist/*
 echo "Creating container..."
 docker run -d \
   --name "$CONTAINER_NAME" \
-  -p "${HA_PORT}:8123" \
+  -p "127.0.0.1:${HA_PORT}:8123" \
   -v "$HA_CONFIG_DIR:/config" \
+  -v "$REPO_ROOT/themes/share_space_themes/themes:/config/themes/share_space:ro" \
+  -v "$SCRIPT_DIR/ha-dev:/share_space_dev:ro" \
   -v "$REPO_ROOT/integrations/share_space/custom_components/share_space:/config/custom_components/share_space" \
   -v "$REPO_ROOT/integrations/share_space_heating/custom_components/share_space_heating:/config/custom_components/share_space_heating" \
   -v "$REPO_ROOT/integrations/share_space_space/custom_components/share_space_space:/config/custom_components/share_space_space" \
   "$HA_IMAGE" >/dev/null
 
+echo "Waiting for Home Assistant, then onboarding and adding integrations..."
+docker exec "$CONTAINER_NAME" python3 /share_space_dev/bootstrap.py "http://localhost:8123"
+
 echo ""
 echo "Home Assistant dev instance: http://localhost:${HA_PORT}"
-echo "First run needs onboarding. Then: Settings > Devices & Services > Add Integration > Share Space, Share Space Heating, Share Space Space."
-echo "Add Lovelace resources (module):"
-echo "  /local/share_space/share-space-planning-cards.js"
-echo "  /local/share_space/share-space-heating-card.js"
-echo "  /local/share_space/share-space-dashboard.js  (then new dashboard, raw config: strategy: {type: custom:share-space})"
-echo "The Space panel (/share-space) needs no resource."
+echo "Logins: dev/dev (Space Admin), admin/admin (Technical Admin), user1/user1 and user2/user2 (users)."
+echo "8 areas (2 bureaux, 3 cabanes, impression, visio, cuisine), each with simulated radiator plugs (2 in Bureau 1), a temperature sensor and a heating zone; everyone but admin opens on the Share Space panel."
 echo "Rerun this script after JS or Python changes (it rebuilds and recreates the container)."
-echo "Your HA config/onboarding in $HA_CONFIG_DIR persists across recreation."
+echo "Reset to a fresh instance: rm -rf $HA_CONFIG_DIR"

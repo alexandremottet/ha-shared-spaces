@@ -8,6 +8,7 @@ import type { Condition, ConditionType, TimeWindow, Value } from "../types";
 import type { RuleError } from "../validate";
 import { CONDITION_LABELS, changeConditionType, parseNumber, removeAt, replaceAt, scopeErrors, toggleDay } from "./edit";
 import "./rule-value";
+import { sensorField } from "./sensor-field";
 import { ruleStyles } from "./styles";
 
 const TYPES = Object.keys(CONDITION_LABELS) as ConditionType[];
@@ -76,12 +77,12 @@ export class ShareSpaceRuleCondition extends LitElement {
         return this._planned(c.windows, c.match);
       case "sensor":
         return html`<div class="row">
-          <input type="text" placeholder="sensor.outdoor_temperature" aria-label="Sensor entity" .value=${c.entity} @change=${(e: Event) => this._patch({ entity: (e.target as HTMLInputElement).value.trim() })} />
+          ${sensorField(c.entity, (entity) => this._patch({ entity }))}
           <select aria-label="Comparison" @change=${(e: Event) => this._patch({ op: (e.target as HTMLSelectElement).value })}>
             <option value="below" ?selected=${c.op === "below"}>below</option>
             <option value="above" ?selected=${c.op === "above"}>above</option>
           </select>
-          ${this._number("Threshold", c.than, "", (than) => this._patch({ than }), undefined)}
+          ${this._number("Threshold", c.than, "°C", (than) => this._patch({ than }), undefined)}
         </div>
         <div class="muted">No reading: the condition does not hold.</div>`;
     }

@@ -1,0 +1,6 @@
+{
+  "version": 1,
+  "minor_version": 1,
+  "key": "lovelace.share_space_demo",
+  "data": {"config": {"strategy": {"type": "custom:share-space"}}}
+}

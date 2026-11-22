@@ -371,7 +371,7 @@ export class ShareSpaceRulesPage extends LitElement {
       .draft=${this._draft}
       .saved=${this._saved}
       .schedule=${schedule}
-      .readings=${hass && this._draft ? sensorReadings(this._draft, hass.states) : undefined}
+      .readings=${hass && this._draft ? sensorReadings(this._draft, hass.states, (attrs?.outdoor_entity as string | null | undefined) ?? null) : undefined}
       .temps=${attrs ? { comfort: Number(attrs.comfort_temp ?? 21), eco: Number(attrs.eco_temp ?? 17) } : undefined}
       .now=${hass ? hassNow(hass) : Date.now()}
       .tz=${hass ? hassTimeZone(hass) : "UTC"}

@@ -319,6 +319,9 @@ importers:
       ha-share-space-heating-card:
         specifier: workspace:*
         version: link:../heating-card
+      ha-share-space-planning-cards:
+        specifier: workspace:*
+        version: link:../planning-cards
       ha-share-space-ui:
         specifier: workspace:*
         version: link:../ui

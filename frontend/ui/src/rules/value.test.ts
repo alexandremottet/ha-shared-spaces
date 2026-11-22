@@ -2,7 +2,8 @@ import { describe, expect, it } from "vitest";
 import { strategyTimeline } from "../heating/strategy-timeline";
 import { evaluateRules } from "./evaluate";
 import type { CurveValue, RuleStrategy } from "./types";
-import { evalValue, readingOf, sensorReadings, strategySensors, temperatureOf } from "./value";
+import { OUTDOOR, evalValue, readingOf, sensorReadings, strategySensors, temperatureOf } from "./value";
+import { validateStrategy } from "./validate";
 
 const curve: CurveValue = { type: "curve", entity: "sensor.out", default: 0, points: [{ at: -10, value: 9 }, { at: 0, value: 5 }, { at: 10, value: 2 }, { at: 18, value: 1 }] };
 const strategy: RuleStrategy = {
@@ -38,6 +39,14 @@ describe("curve values", () => {
     expect(readingOf("sensor.out")).toBeUndefined();
     expect(strategySensors(strategy).sort()).toEqual(["sensor.out", "weather.home"]);
     expect(sensorReadings(strategy, { "sensor.out": { state: "15" }, "sensor.other": { state: "1" } })).toEqual({ "sensor.out": 15 });
+  });
+
+  it("outdoor alias reads the Settings sensor, none set means no reading", () => {
+    const s = { version: 1, rules: [], fallback: { label: "x", then: { type: "temperature", value: { type: "curve", entity: OUTDOOR, default: 10, points: [{ at: 0, value: 20 }, { at: 20, value: 10 }] } } } } as never;
+    const states = { "weather.home": { state: "sunny", attributes: { temperature: 4 } } };
+    expect(sensorReadings(s, states, "weather.home")).toEqual({ outdoor: 4 });
+    expect(sensorReadings(s, states)).toEqual({});
+    expect(validateStrategy(s).ok).toBe(true);
   });
 
   it("timeline starts preheat at the curve lead", () => {

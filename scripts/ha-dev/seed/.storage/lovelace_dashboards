@@ -1,0 +1,27 @@
+{
+  "version": 1,
+  "minor_version": 1,
+  "key": "lovelace_dashboards",
+  "data": {
+    "items": [
+      {
+        "id": "share_space_demo",
+        "url_path": "share-space-demo",
+        "title": "Share Space Demo",
+        "icon": "mdi:home-group",
+        "show_in_sidebar": true,
+        "require_admin": true,
+        "mode": "storage"
+      },
+      {
+        "id": "card_test",
+        "url_path": "card-test",
+        "title": "Card Test",
+        "icon": "mdi:test-tube",
+        "show_in_sidebar": true,
+        "require_admin": true,
+        "mode": "storage"
+      }
+    ]
+  }
+}

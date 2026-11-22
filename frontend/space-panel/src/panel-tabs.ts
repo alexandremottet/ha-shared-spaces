@@ -12,13 +12,18 @@ export interface PanelTab {
 export class ShareSpacePanelTabs extends LitElement {
   @property({ attribute: false }) tabs: PanelTab[] = [];
   @property() active = "";
+  // Leaves room for the panel's Back button.
+  @property({ type: Boolean, reflect: true }) inset = false;
 
   static styles = css`
     :host {
       display: flex;
       gap: 6px;
-      padding: 8px 12px 8px 72px;
+      padding: 8px 0;
       overflow-x: auto;
+    }
+    :host([inset]) {
+      padding-left: 56px;
     }
     button {
       min-height: 40px;
