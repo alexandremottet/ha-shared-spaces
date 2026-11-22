@@ -111,7 +111,7 @@ export class ShareSpaceSettings extends LitElement {
           <p class="muted">Off: Home Assistant opens on Share Space after login. On: its usual interface, with a Back button here.</p>`
         : nothing}
       </section>
-      ${this.role !== "user" ? html`<slot name="zones"></slot>${this._renderHeating()}<slot name="users"></slot>` : nothing}
+      ${this.role !== "user" ? html`<slot name="zones"></slot><slot name="dashboards"></slot>${this._renderHeating()}<slot name="users"></slot>` : nothing}
       ${this.role === "technical_admin" ? html`<slot name="extension-points"></slot>` : nothing}
     `;
   }

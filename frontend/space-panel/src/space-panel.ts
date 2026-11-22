@@ -11,12 +11,15 @@ import {
   getSharePrefs,
   setSharePrefs,
   getDefaultPanel,
+  getSpaceDashboards,
+  dashboardsForUser,
+  loadCardHelpers,
   getHeatingSettings,
   saveHeatingSettings,
   setMyDefaultPanel,
   SHARE_SPACE_PANEL,
 } from "ha-share-space-ui/ha";
-import type { SharePrefs, HomeAssistant, Floorplan, Hotspot, AreaInfo } from "ha-share-space-ui/ha";
+import type { SharePrefs, HomeAssistant, Floorplan, Hotspot, AreaInfo, SpaceDashboard } from "ha-share-space-ui/ha";
 import { zoneViewModel } from "ha-share-space-heating-card/view-model";
 import "./panel-tabs";
 import "./settings-tab";
@@ -26,6 +29,8 @@ import "./overview-page";
 import "./theme-picker";
 import "./zones-settings";
 import "./users-settings";
+import "./dashboard-tab";
+import "./dashboards-settings";
 import { renderHeatingControl } from "./heating";
 import { PLACEHOLDER_SIZE, PLACEHOLDER_URL } from "./placeholder";
 
@@ -79,6 +84,7 @@ export class ShareSpaceSpace extends LitElement {
   // Admins only: null until known; false = Share Space is their home page.
   @state() private _fullHa: boolean | null = null;
   @state() private _outdoor: string | null = null;
+  @state() private _dashboards: SpaceDashboard[] = [];
 @state() private _prefs: SharePrefs | null = null;
 private _prefsFor = "";
 @state() private _plans: Floorplan[] | null = null;
@@ -129,6 +135,9 @@ private _prefsFor = "";
     } catch {
       this._prefs = null;
     }
+    this._dashboards = await getSpaceDashboards(this.hass)
+      .then((d) => dashboardsForUser(this.hass!, d))
+      .catch(() => []);
     if (this._isAdmin) {
       try {
         this._fullHa = (await getDefaultPanel(this.hass)) !== SHARE_SPACE_PANEL;
@@ -191,15 +200,11 @@ private _prefsFor = "";
 
   private get _tabs() {
     const overview = { id: "overview", label: "Overview" };
+    const dashboards = this._dashboards.map((d) => ({ id: `dash:${d.url_path ?? "lovelace"}`, label: d.title }));
     if (this._role === "user") {
-      return this._plans?.length ? [overview, { id: "space", label: "Space" }] : [overview];
+      return [overview, ...(this._plans?.length ? [{ id: "space", label: "Space" }] : []), ...dashboards];
     }
-    return [
-      overview,
-      { id: "space", label: "Space" },
-      { id: "rules", label: "Rules" },
-      { id: "settings", label: "Settings" },
-    ];
+    return [overview, { id: "space", label: "Space" }, ...dashboards, { id: "rules", label: "Rules" }, { id: "settings", label: "Settings" }];
   }
 
   private get _activeTab(): string {
@@ -340,7 +345,7 @@ private _prefsFor = "";
     this._cardKey = key;
     this._cardError = "";
     try {
-      const helpers = await (window as unknown as { loadCardHelpers(): Promise<{ createCardElement(c: unknown): HTMLElement }> }).loadCardHelpers();
+      const helpers = await loadCardHelpers();
       if (this._cardKey !== key) return;
       const el = helpers.createCardElement(h.target.ref) as HTMLElement & { hass?: HomeAssistant };
       el.hass = this.hass;
@@ -504,6 +509,7 @@ private _prefsFor = "";
     }
     /* tab pages scroll inside the fixed host */
     share-space-overview,
+    share-space-dashboard,
     share-space-rules-page,
     share-space-settings {
       flex: 1;
@@ -513,6 +519,7 @@ private _prefsFor = "";
     /* every row is centered in the same 1500px column; scrollbars stay at the window edge */
     .top,
     share-space-overview,
+    share-space-dashboard,
     share-space-rules-page,
     share-space-settings {
       box-sizing: border-box;
@@ -809,6 +816,11 @@ private _prefsFor = "";
         ${this._renderPopover()}
       </div>
       ${tab === "overview" ? html`<share-space-overview .hass=${this.hass}></share-space-overview>` : nothing}
+      ${this._dashboards.map((d) =>
+        tab === `dash:${d.url_path ?? "lovelace"}`
+          ? html`<share-space-dashboard .hass=${this.hass} .urlPath=${d.url_path}></share-space-dashboard>`
+          : nothing,
+      )}
       ${tab === "rules" ? html`<share-space-rules-page .hass=${this.hass}></share-space-rules-page>` : nothing}
       ${tab === "settings"
         ? html`<share-space-settings
@@ -822,7 +834,14 @@ private _prefsFor = "";
           >
             ${this._isAdmin
               ? html`<share-space-zones-settings slot="zones" .hass=${this.hass}></share-space-zones-settings>
-                  <share-space-users-settings slot="users" .hass=${this.hass}></share-space-users-settings>`
+                  <share-space-users-settings slot="users" .hass=${this.hass}></share-space-users-settings>
+                  <share-space-dashboards-settings
+                    slot="dashboards"
+                    .hass=${this.hass}
+                    @dashboards-change=${(e: CustomEvent<SpaceDashboard[]>) => {
+                      void dashboardsForUser(this.hass!, e.detail).then((d) => (this._dashboards = d));
+                    }}
+                  ></share-space-dashboards-settings>`
               : nothing}
             ${this._role === "technical_admin"
               ? html`<share-space-extension-points slot="extension-points" .hass=${this.hass}></share-space-extension-points>`

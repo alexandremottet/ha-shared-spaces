@@ -548,3 +548,73 @@ export async function setMyDefaultPanel(hass: HomeAssistant, panel: string): Pro
   const core = await getCoreData(hass, "user");
   await hass.callWS<void>({ type: "frontend/set_user_data", key: "core", value: { ...core, default_panel: panel } });
 }
+
+export interface SpaceDashboard {
+  url_path: string | null;
+  title: string;
+}
+
+export interface LovelaceView {
+  [key: string]: unknown;
+  title?: string;
+  path?: string;
+  type?: string;
+  subview?: boolean;
+  visible?: boolean | Array<{ user?: string }>;
+  cards?: unknown[];
+  sections?: Array<{ cards?: unknown[]; strategy?: unknown }>;
+  strategy?: unknown;
+}
+
+export interface LovelaceConfig {
+  [key: string]: unknown;
+  views?: LovelaceView[];
+  strategy?: unknown;
+  title?: string;
+}
+
+const DASHBOARDS_KEY = "share_space_dashboards";
+
+// HA dashboards shown as extra tabs, for everyone (system data, admin-writable).
+export const getSpaceDashboards = async (hass: HomeAssistant): Promise<SpaceDashboard[]> =>
+  (await hass.callWS<{ value: { dashboards?: SpaceDashboard[] } | null }>({ type: "frontend/get_system_data", key: DASHBOARDS_KEY })).value
+    ?.dashboards ?? [];
+
+export const setSpaceDashboards = (hass: HomeAssistant, dashboards: SpaceDashboard[]): Promise<void> =>
+  hass.callWS<void>({ type: "frontend/set_system_data", key: DASHBOARDS_KEY, value: { dashboards } });
+
+export interface HaDashboard extends SpaceDashboard {
+  mode?: "storage" | "yaml";
+}
+
+export const listHaDashboards = async (hass: HomeAssistant): Promise<HaDashboard[]> =>
+  (await hass.callWS<HaDashboard[]>({ type: "lovelace/dashboards/list" })).map((d) => ({
+    url_path: d.url_path,
+    title: d.title,
+    mode: d.mode,
+  }));
+
+export const saveLovelaceConfig = (hass: HomeAssistant, urlPath: string | null, config: LovelaceConfig): Promise<void> =>
+  hass.callWS<void>({ type: "lovelace/config/save", url_path: urlPath, config });
+
+export const getLovelaceConfig = (hass: HomeAssistant, urlPath: string | null): Promise<LovelaceConfig> =>
+  hass.callWS<LovelaceConfig>({ type: "lovelace/config", url_path: urlPath });
+
+// Views shown to this user, following HA's per-view visibility.
+export const visibleViews = (config: LovelaceConfig | null, userId: string | undefined): LovelaceView[] =>
+  (config?.views ?? []).filter(
+    (v) => !v.subview && (v.visible === undefined || v.visible === true || (Array.isArray(v.visible) && v.visible.some((s) => s.user === userId))),
+  );
+
+// Dashboards with at least one view visible to this user; unreadable ones stay so the tab shows the error.
+export async function dashboardsForUser(hass: HomeAssistant, dashboards: SpaceDashboard[]): Promise<SpaceDashboard[]> {
+  const shown = await Promise.all(
+    dashboards.map((d) =>
+      getLovelaceConfig(hass, d.url_path).then(
+        (c) => !c.views || visibleViews(c, hass.user?.id).length > 0,
+        () => true,
+      ),
+    ),
+  );
+  return dashboards.filter((_, i) => shown[i]);
+}
