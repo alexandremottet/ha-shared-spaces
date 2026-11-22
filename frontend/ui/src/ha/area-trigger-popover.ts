@@ -3,7 +3,7 @@ import type { PropertyValues } from "lit";
 import { property, state } from "lit/decorators.js";
 import { safeCustomElement } from "../define";
 import type { HomeAssistant } from "./hass";
-import { getAreaActions, isBackendMissing, listZones, listStrategyAutomations, loadZoneStrategy, setAreaActions, stopZoneStrategies, updateZone, STRATEGY_KIND_LABELS } from "./ws";
+import { getAreaActions, isBackendMissing, listZones, listStrategyAutomations, loadZoneStrategy, setAreaActions, stopZoneStrategies, updateZone } from "./ws";
 import type { AreaActions, HeatingZone, PlanningAction, ZoneStrategy } from "./ws";
 import { haTheme } from "./theme";
 import "../heating/strategy-editor";
@@ -447,7 +447,7 @@ export class ShareSpaceAreaTriggerPopover extends LitElement {
 
   private _zoneLink(z: HeatingZone): ZoneLink | null {
     const strategy = this._zoneStrategies[z.entity_id];
-    if (strategy) return { area: strategy.area, mode: "strategy", label: STRATEGY_KIND_LABELS[strategy.automation.kind] };
+    if (strategy) return { area: strategy.area, mode: "strategy", label: strategy.name };
     const area = z.presence_entity?.startsWith("binary_sensor.share_space_") ? z.presence_entity.slice("binary_sensor.share_space_".length) : null;
     return area ? { area, mode: "simple", label: "occupied / empty °C" } : null;
   }

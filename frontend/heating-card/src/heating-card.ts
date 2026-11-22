@@ -115,16 +115,11 @@ export class ShareSpaceHeatingCard extends ShareSpaceCardBase<CardConfig> {
     const bucket = Math.floor(now / 300000);
     const attrs = hass.states[this._config?.entity ?? ""]?.attributes;
     const temps = { comfort: Number(attrs?.comfort_temp ?? 21), eco: Number(attrs?.eco_temp ?? 17) };
-    const key = `${strategy.automation.id}|${JSON.stringify(strategy.rules ?? strategy.inputs)}|${JSON.stringify(temps)}|${bucket}|${JSON.stringify(schedule)}`;
+    const key = `${strategy.id}|${JSON.stringify(strategy.effective)}|${JSON.stringify(temps)}|${bucket}|${JSON.stringify(schedule)}`;
     if (this._nextMemo?.key !== key) {
       const from = bucket * 300000;
       const to = from + 7 * 86400000;
-      const kind = strategy.automation.kind;
-      const segments = strategy.rules
-        ? strategyTimeline(strategy.rules, schedule, from, to, tz, temps)
-        : kind !== "rules" && strategy.inputs
-          ? strategyTimeline(kind, strategy.inputs, schedule, from, to, tz)
-          : [];
+      const segments = strategy.effective ? strategyTimeline(strategy.effective, schedule, from, to, tz, temps) : [];
       this._nextMemo = { key, segments };
     }
     const next = this._nextMemo.segments.find((s) => s.start > now);

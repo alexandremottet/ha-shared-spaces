@@ -6,8 +6,8 @@ import { wallTime } from "../heating/tz";
 import type { Action, Condition, PresetTemps, RuleStrategy, TimeWindow } from "./types";
 import { DEFAULT_PRESET_TEMPS } from "./types";
 import { once } from "./once";
-import type { OutdoorTemps } from "./outdoor";
-import { leadHours } from "./outdoor";
+import type { SensorReadings } from "./value";
+import { evalValue, temperatureOf } from "./value";
 
 const HOUR = 3600000;
 
@@ -16,19 +16,19 @@ export interface RuleFacts {
   now: number;
   schedule: ScheduleRanges;
   tz: string;
-  outdoor?: OutdoorTemps;
+  readings?: SensorReadings;
   occupied(): boolean;
   nextOn(): number | null;
   previousOff(): number | null;
   wall(): WallTime;
 }
 
-export function factsAt(schedule: ScheduleRanges, now: number, tz: string, outdoor?: OutdoorTemps): RuleFacts {
+export function factsAt(schedule: ScheduleRanges, now: number, tz: string, readings?: SensorReadings): RuleFacts {
   return {
     now,
     schedule,
     tz,
-    outdoor,
+    readings,
     occupied: once(() => occupiedAt(schedule, now, tz)),
     nextOn: once(() => nextOn(schedule, now, tz)),
     previousOff: once(() => previousOff(schedule, now, tz)),
@@ -42,14 +42,12 @@ function holds(c: Condition, f: RuleFacts): boolean {
       return f.occupied();
     case "occupied_within": {
       const on = f.nextOn();
-      return on !== null && f.now >= on - leadHours(c.hours, f.outdoor) * HOUR;
+      return on !== null && f.now >= on - Math.max(0, evalValue(c.hours, f.readings)) * HOUR;
     }
     case "between_days": {
-      const gap = c.gap_hours * HOUR;
       const off = f.previousOff();
-      if (off === null || f.now - off > gap) return false;
       const on = f.nextOn();
-      return on !== null && on - f.now <= gap;
+      return !f.occupied() && off !== null && on !== null && on - off <= c.gap_hours * HOUR;
     }
     case "weekday":
       return c.days.includes(WEEK_DAYS[f.wall().weekday]);
@@ -65,17 +63,22 @@ function holds(c: Condition, f: RuleFacts): boolean {
       const hit = (w: TimeWindow) => windowMatches(f.schedule, day, w.start, w.end, f.tz);
       return c.match === "any" ? c.windows.some(hit) : c.windows.every(hit);
     }
+    case "sensor": {
+      const r = f.readings?.[c.entity];
+      if (r === undefined || !Number.isFinite(r)) return false;
+      return c.op === "below" ? r < c.than : r > c.than;
+    }
   }
 }
 
 export const conditionMatches = (c: Condition, f: RuleFacts): boolean => holds(c, f) !== !!c.negate;
 
-export function actionResult(a: Action, temps: PresetTemps): StrategyResult {
+export function actionResult(a: Action, temps: PresetTemps, readings?: SensorReadings): StrategyResult {
   switch (a.type) {
     case "off":
       return { off: true };
     case "temperature":
-      return { target: a.value };
+      return { target: temperatureOf(a.value, readings) };
     default:
       return { target: temps[a.type], preset: a.type };
   }
@@ -83,9 +86,9 @@ export function actionResult(a: Action, temps: PresetTemps): StrategyResult {
 
 export function evaluateFacts(strategy: RuleStrategy, f: RuleFacts, temps: PresetTemps = DEFAULT_PRESET_TEMPS): StrategyEvaluation {
   for (const rule of strategy.rules) {
-    if (rule.when.every((c) => conditionMatches(c, f))) return { result: actionResult(rule.then, temps), reason: rule.label };
+    if (rule.when.every((c) => conditionMatches(c, f))) return { result: actionResult(rule.then, temps, f.readings), reason: rule.label };
   }
-  return { result: actionResult(strategy.fallback.then, temps), reason: strategy.fallback.label };
+  return { result: actionResult(strategy.fallback.then, temps, f.readings), reason: strategy.fallback.label };
 }
 
 /** First matching rule wins, else the fallback; reason is the label. */
@@ -95,7 +98,7 @@ export function evaluateRules(
   now: number,
   tz: string,
   temps: PresetTemps = DEFAULT_PRESET_TEMPS,
-  outdoor?: OutdoorTemps,
+  readings?: SensorReadings,
 ): StrategyEvaluation {
-  return evaluateFacts(strategy, factsAt(schedule, now, tz, outdoor), temps);
+  return evaluateFacts(strategy, factsAt(schedule, now, tz, readings), temps);
 }

@@ -1,8 +1,7 @@
 import type { WeekDay } from "../types";
 import { WEEK_DAYS } from "../types";
-import { fromWall, wallTime } from "./tz";
+import { wallTime } from "./tz";
 
-export type StrategyPreset = "office_saver" | "lunch_room";
 export type ScheduleRanges = Partial<Record<WeekDay, Array<[string, string]>>>;
 export type StrategyResult = { off: true } | { target: number; preset?: "comfort" | "eco" };
 export interface StrategyEvaluation {
@@ -14,46 +13,8 @@ export interface StrategySegment extends StrategyEvaluation {
   end: number;
 }
 
-export interface OfficeSaverInputs {
-  comfort_temp: number;
-  setback_temp: number;
-  preheat_hours: number;
-  max_gap_hours: number;
-}
-
-export interface LunchRoomInputs {
-  morning_start: string;
-  morning_end: string;
-  afternoon_start: string;
-  afternoon_end: string;
-  heat_start: string;
-  heat_end: string;
-  temperature: number;
-  match: "all" | "any";
-}
-
-export type StrategyInputs = OfficeSaverInputs | LunchRoomInputs;
-
-export const DEFAULT_OFFICE_SAVER: OfficeSaverInputs = { comfort_temp: 21, setback_temp: 16, preheat_hours: 6, max_gap_hours: 24 };
-export const DEFAULT_LUNCH_ROOM: LunchRoomInputs = {
-  morning_start: "11:00",
-  morning_end: "12:00",
-  afternoon_start: "13:00",
-  afternoon_end: "14:00",
-  heat_start: "11:00",
-  heat_end: "14:00",
-  temperature: 20,
-  match: "all",
-};
-
-export const STRATEGY_LABELS: Record<StrategyPreset, string> = { office_saver: "Office saver", lunch_room: "Lunch room" };
-
-export const defaultInputs = (preset: StrategyPreset): StrategyInputs =>
-  preset === "office_saver" ? { ...DEFAULT_OFFICE_SAVER } : { ...DEFAULT_LUNCH_ROOM };
-
 const SLOT_MS = 30 * 60000;
 const SEARCH_SLOTS = 8 * 48;
-const HOUR = 3600000;
 
 export const toMinutes = (t: string): number => {
   const [h, m] = t.split(":", 2).map(Number);
@@ -142,63 +103,6 @@ export function windowMatches(schedule: ScheduleRanges, day: WeekDay, start: str
   return false;
 }
 
-function officeSaverRule(
-  inputs: OfficeSaverInputs,
-  now: number,
-  occupied: boolean,
-  nextOnAt: () => number | null,
-  previousOffAt: () => number | null,
-): StrategyEvaluation {
-  if (occupied) return { result: { target: inputs.comfort_temp }, reason: "Occupied" };
-  const on = nextOnAt();
-  if (on !== null && now >= on - inputs.preheat_hours * HOUR) return { result: { target: inputs.comfort_temp }, reason: "Preheat" };
-  const off = previousOffAt();
-  const gap = inputs.max_gap_hours * HOUR;
-  if (off !== null && now - off <= gap && on !== null && on - now <= gap) {
-    return { result: { target: inputs.setback_temp }, reason: "Between working days" };
-  }
-  return { result: { off: true }, reason: "Away" };
-}
-
-export function evaluateOfficeSaver(inputs: OfficeSaverInputs, schedule: ScheduleRanges, now: number, tz: string): StrategyEvaluation {
-  return officeSaverRule(
-    inputs,
-    now,
-    occupiedAt(schedule, now, tz),
-    () => nextOn(schedule, now, tz),
-    () => previousOff(schedule, now, tz),
-  );
-}
-
-export function evaluateLunchRoom(inputs: LunchRoomInputs, schedule: ScheduleRanges, now: number, tz: string): StrategyEvaluation {
-  const w = wallTime(now, tz);
-  const minute = w.hour * 60 + w.minute;
-  if (minute < toMinutes(inputs.heat_start) || minute >= toMinutes(inputs.heat_end)) {
-    return { result: { off: true }, reason: "Outside lunch hours" };
-  }
-  const day = WEEK_DAYS[w.weekday];
-  const matches = [
-    windowMatches(schedule, day, inputs.morning_start, inputs.morning_end, tz),
-    windowMatches(schedule, day, inputs.afternoon_start, inputs.afternoon_end, tz),
-  ];
-  const occupied = inputs.match === "any" ? matches.some(Boolean) : matches.every(Boolean);
-  return occupied
-    ? { result: { target: inputs.temperature }, reason: "Lunch" }
-    : { result: { off: true }, reason: "No lunch today" };
-}
-
-export function evaluate(
-  preset: StrategyPreset,
-  inputs: StrategyInputs,
-  schedule: ScheduleRanges,
-  now: number,
-  tz: string,
-): StrategyEvaluation {
-  return preset === "office_saver"
-    ? evaluateOfficeSaver(inputs as OfficeSaverInputs, schedule, now, tz)
-    : evaluateLunchRoom(inputs as LunchRoomInputs, schedule, now, tz);
-}
-
 export const sameResult = (a: StrategyEvaluation, b: StrategyEvaluation): boolean =>
   a.reason === b.reason && ("off" in a.result ? "off" in b.result : "target" in b.result && a.result.target === b.result.target && a.result.preset === b.result.preset);
 
@@ -250,48 +154,6 @@ export function occupancyTrack(schedule: ScheduleRanges, start: number, end: num
       };
     },
   };
-}
-
-function officeSaverTimeline(inputs: OfficeSaverInputs, schedule: ScheduleRanges, start: number, end: number, tz: string): Timeline {
-  const track = occupancyTrack(schedule, start, end, tz);
-  const cuts = [...track.slots];
-  for (const f of track.flips) {
-    if (f.on) cuts.push(f.t - inputs.preheat_hours * HOUR, f.t - inputs.max_gap_hours * HOUR);
-    else cuts.push(f.t + inputs.max_gap_hours * HOUR);
-  }
-  return {
-    cuts,
-    at(t) {
-      const f = track.at(t);
-      return officeSaverRule(inputs, t, f.occupied, f.nextOn, f.previousOff);
-    },
-  };
-}
-
-function lunchRoomTimeline(inputs: LunchRoomInputs, schedule: ScheduleRanges, start: number, end: number, tz: string): Timeline {
-  const cuts: number[] = [];
-  const w = wallTime(start, tz);
-  const days = Math.ceil((end - start) / (24 * HOUR)) + 1;
-  for (let i = 0; i <= days; i++) {
-    for (const hm of ["00:00", inputs.heat_start, inputs.heat_end]) {
-      const m = toMinutes(hm);
-      cuts.push(fromWall(tz, w.year, w.month, w.day + i, Math.floor(m / 60), m % 60));
-    }
-  }
-  return { cuts, at: (t) => evaluateLunchRoom(inputs, schedule, t, tz) };
-}
-
-export function presetTimeline(
-  preset: StrategyPreset,
-  inputs: StrategyInputs,
-  schedule: ScheduleRanges,
-  start: number,
-  end: number,
-  tz: string,
-): Timeline {
-  return preset === "office_saver"
-    ? officeSaverTimeline(inputs as OfficeSaverInputs, schedule, start, end, tz)
-    : lunchRoomTimeline(inputs as LunchRoomInputs, schedule, start, end, tz);
 }
 
 /** Segments over [start, end): one evaluation per interval between cuts, equal neighbours merged. */

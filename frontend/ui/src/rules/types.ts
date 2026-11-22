@@ -11,23 +11,26 @@ export interface OccupiedCondition extends ConditionBase {
   type: "occupied";
 }
 
-/** Lead time at one outdoor temperature. */
-export interface OutdoorPoint {
-  temp: number;
-  hours: number;
+export interface CurvePoint {
+  at: number;
+  value: number;
 }
 
-/** Lead time interpolated linearly between cold and warm (clamped); cold hours when the sensor has no number. */
-export interface OutdoorHours {
-  sensor: string;
-  cold: OutdoorPoint;
-  warm: OutdoorPoint;
+/** "Follow a sensor": reading (or default) mapped through 2-5 points, linear between, flat outside. */
+export interface CurveValue {
+  type: "curve";
+  entity: string;
+  default: number;
+  points: CurvePoint[];
 }
 
-/** next_on exists and now >= next_on - hours (fixed, or from the outdoor temperature). */
+/** A fixed number or a sensor curve. */
+export type Value = number | CurveValue;
+
+/** next_on exists and now >= next_on - hours (negative hours count as 0). */
 export interface OccupiedWithinCondition extends ConditionBase {
   type: "occupied_within";
-  hours: number | OutdoorHours;
+  hours: Value;
 }
 
 /** previous_off at most gap_hours ago and next_on at most gap_hours ahead. */
@@ -60,17 +63,26 @@ export interface PlannedCondition extends ConditionBase {
   match: "all" | "any";
 }
 
+/** Numeric reading strictly below / above a threshold; no reading = does not hold. */
+export interface SensorCondition extends ConditionBase {
+  type: "sensor";
+  entity: string;
+  op: "below" | "above";
+  than: number;
+}
+
 export type Condition =
   | OccupiedCondition
   | OccupiedWithinCondition
   | BetweenDaysCondition
   | WeekdayCondition
   | TimeCondition
-  | PlannedCondition;
+  | PlannedCondition
+  | SensorCondition;
 
 export type ConditionType = Condition["type"];
 
-export type Action = { type: "comfort" } | { type: "eco" } | { type: "off" } | { type: "temperature"; value: number };
+export type Action = { type: "comfort" } | { type: "eco" } | { type: "off" } | { type: "temperature"; value: Value };
 
 export type ActionType = Action["type"];
 

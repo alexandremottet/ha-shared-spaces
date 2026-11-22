@@ -1,4 +1,4 @@
-import type { Action, ActionType, Condition, ConditionType, OutdoorHours, Rule, RuleStrategy } from "../types";
+import type { Action, ActionType, Condition, ConditionType, CurveValue, Rule, RuleStrategy, Value } from "../types";
 import type { RuleError } from "../validate";
 
 /** Beginner-facing names, in the order of the type select. */
@@ -9,6 +9,7 @@ export const CONDITION_LABELS: Record<ConditionType, string> = {
   weekday: "Day of week",
   time: "Time between",
   planned: "Planned during",
+  sensor: "Sensor below / above",
 };
 
 export const ACTION_LABELS: Record<ActionType, string> = {
@@ -34,12 +35,58 @@ export function defaultCondition(type: ConditionType): Condition {
       return { type, start: "08:00", end: "18:00" };
     case "planned":
       return { type, windows: [{ start: "08:00", end: "12:00" }], match: "any" };
+    case "sensor":
+      return { type, entity: "", op: "below", than: 5 };
   }
 }
 
-/** Starting point when a lead time switches to outdoor-based: 6 h at 10 °C down to 1 h at 20 °C. */
-export function defaultOutdoorHours(sensor = ""): OutdoorHours {
-  return { sensor, cold: { temp: 10, hours: 6 }, warm: { temp: 20, hours: 1 } };
+export type ValueUnit = "h" | "°C";
+
+/** Starting curve when a value switches to "Follow a sensor", around the current fixed value. */
+export function defaultCurve(unit: ValueUnit, fixed: number): CurveValue {
+  const points =
+    unit === "h"
+      ? [{ at: 0, value: Math.max(fixed, 1) * 2 }, { at: 15, value: Math.max(fixed, 1) }]
+      : [{ at: -5, value: Math.min(fixed + 2, 35) }, { at: 15, value: fixed }];
+  return { type: "curve", entity: "", default: 10, points };
+}
+
+/** Value back to a fixed number: the curve's last point. */
+export const fixedOf = (v: Value): number => (typeof v === "number" ? v : v.points[v.points.length - 1]?.value ?? 0);
+
+const fmt = (n: number) => (Number.isFinite(n) ? String(Math.round(n * 10) / 10) : "?");
+const shortEntity = (id: string) => (id ? id.split(".").pop()!.replace(/_/g, " ") : "sensor");
+
+/** "3 h", or "9 → 1 h (outdoor temp)" for a curve. */
+export function describeValue(v: Value, unit: ValueUnit): string {
+  if (typeof v === "number") return `${fmt(v)} ${unit}`;
+  const vals = v.points.map((p) => p.value);
+  return `${fmt(vals[0])} → ${fmt(vals[vals.length - 1])} ${unit} (${shortEntity(v.entity)})`;
+}
+
+/** One-line node text for the graph. */
+export function describeCondition(c: Condition): string {
+  const not = c.negate ? "not " : "";
+  switch (c.type) {
+    case "occupied":
+      return `${not}occupied`;
+    case "occupied_within":
+      return `${not}occupied within ${describeValue(c.hours, "h")}`;
+    case "between_days":
+      return `${not}between days (≤ ${fmt(c.gap_hours)} h)`;
+    case "weekday":
+      return `${not}${c.days.length === 7 ? "every day" : c.days.map((d) => d.slice(0, 3)).join(", ")}`;
+    case "time":
+      return `${not}${c.start}–${c.end}`;
+    case "planned":
+      return `${not}planned ${c.windows.map((w) => `${w.start}–${w.end}`).join(c.match === "any" ? " or " : " and ")}`;
+    case "sensor":
+      return `${not}${shortEntity(c.entity)} ${c.op === "below" ? "<" : ">"} ${fmt(c.than)}`;
+  }
+}
+
+export function describeAction(a: Action): string {
+  return a.type === "temperature" ? describeValue(a.value, "°C") : ACTION_LABELS[a.type];
 }
 
 export function defaultAction(type: ActionType): Action {

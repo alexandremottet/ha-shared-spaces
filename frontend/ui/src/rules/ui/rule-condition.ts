@@ -4,9 +4,10 @@ import { property } from "lit/decorators.js";
 import { safeCustomElement } from "../../define";
 import { WEEK_DAYS } from "../../types";
 import type { WeekDay } from "../../types";
-import type { Condition, ConditionType, OutdoorHours, OutdoorPoint, TimeWindow } from "../types";
+import type { Condition, ConditionType, TimeWindow, Value } from "../types";
 import type { RuleError } from "../validate";
-import { CONDITION_LABELS, changeConditionType, defaultOutdoorHours, parseNumber, removeAt, replaceAt, toggleDay } from "./edit";
+import { CONDITION_LABELS, changeConditionType, parseNumber, removeAt, replaceAt, scopeErrors, toggleDay } from "./edit";
+import "./rule-value";
 import { ruleStyles } from "./styles";
 
 const TYPES = Object.keys(CONDITION_LABELS) as ConditionType[];
@@ -56,7 +57,10 @@ export class ShareSpaceRuleCondition extends LitElement {
       case "occupied":
         return nothing;
       case "occupied_within":
-        return this._lead(c.hours);
+        return html`<share-space-rule-value .value=${c.hours} unit="h" label="Hours" .errors=${scopeErrors(this.errors, ".hours")} @value-change=${(e: CustomEvent<{ value: Value }>) => {
+          e.stopPropagation();
+          this._patch({ hours: e.detail.value });
+        }}></share-space-rule-value>`;
       case "between_days":
         return html`<div class="row"><span>gap of at most</span>${this._number("Gap in hours", c.gap_hours, "hours", (gap_hours) => this._patch({ gap_hours }))}</div>`;
       case "weekday":
@@ -70,31 +74,17 @@ export class ShareSpaceRuleCondition extends LitElement {
         return html`<div class="row">${this._time("From", c.start, (start) => this._patch({ start }))}<span>to</span>${this._time("To", c.end, (end) => this._patch({ end }))}</div>`;
       case "planned":
         return this._planned(c.windows, c.match);
+      case "sensor":
+        return html`<div class="row">
+          <input type="text" placeholder="sensor.outdoor_temperature" aria-label="Sensor entity" .value=${c.entity} @change=${(e: Event) => this._patch({ entity: (e.target as HTMLInputElement).value.trim() })} />
+          <select aria-label="Comparison" @change=${(e: Event) => this._patch({ op: (e.target as HTMLSelectElement).value })}>
+            <option value="below" ?selected=${c.op === "below"}>below</option>
+            <option value="above" ?selected=${c.op === "above"}>above</option>
+          </select>
+          ${this._number("Threshold", c.than, "", (than) => this._patch({ than }), undefined)}
+        </div>
+        <div class="muted">No reading: the condition does not hold.</div>`;
     }
-  }
-
-  private _lead(hours: number | OutdoorHours): TemplateResult {
-    const outdoor = typeof hours === "object";
-    const mode = html`<select aria-label="Lead time" @change=${(e: Event) =>
-      this._patch({ hours: (e.target as HTMLSelectElement).value === "outdoor" ? defaultOutdoorHours() : outdoor ? hours.cold.hours : hours })}>
-      <option value="fixed" ?selected=${!outdoor}>fixed</option>
-      <option value="outdoor" ?selected=${outdoor}>by outdoor temp</option>
-    </select>`;
-    if (!outdoor) return html`<div class="row">${mode}${this._number("Hours", hours, "hours", (h) => this._patch({ hours: h }))}</div>`;
-    const point = (key: "cold" | "warm", p: OutdoorPoint) =>
-      html`<div class="row">
-        <span>at</span>${this._number(`${key} temperature`, p.temp, "°C", (temp) => this._patch({ hours: { ...hours, [key]: { ...p, temp } } }), undefined)}
-        <span>→</span>${this._number(`${key} hours`, p.hours, "hours", (h) => this._patch({ hours: { ...hours, [key]: { ...p, hours: h } } }))}
-      </div>`;
-    return html`<div class="windows">
-      <div class="row">${mode}</div>
-      <div class="row">
-        <span>sensor</span>
-        <input type="text" placeholder="sensor.outdoor_temperature" aria-label="Outdoor sensor" .value=${hours.sensor} @change=${(e: Event) => this._patch({ hours: { ...hours, sensor: (e.target as HTMLInputElement).value.trim() } })} />
-      </div>
-      ${point("cold", hours.cold)} ${point("warm", hours.warm)}
-      <div class="muted">Linear in between, clamped outside. No reading: cold hours.</div>
-    </div>`;
   }
 
   private _planned(windows: TimeWindow[], match: "all" | "any"): TemplateResult {

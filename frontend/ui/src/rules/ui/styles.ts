@@ -1,5 +1,15 @@
 import { css } from "lit";
 
+/** Same surface as HA's ha-card (theme background, border, radius, frosted blur). */
+export const haCardSurface = css`
+  background: var(--ha-card-background, var(--card-background-color, #fff));
+  border: var(--ha-card-border-width, 1px) solid var(--ha-card-border-color, var(--divider-color));
+  border-radius: var(--ha-card-border-radius, 12px);
+  box-shadow: var(--ha-card-box-shadow, none);
+  backdrop-filter: var(--ha-card-backdrop-filter, none);
+  -webkit-backdrop-filter: var(--ha-card-backdrop-filter, none);
+`;
+
 export const ruleStyles = css`
   :host {
     display: block;

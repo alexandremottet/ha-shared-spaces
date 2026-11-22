@@ -33,6 +33,7 @@ const FIELDS: Record<string, string[]> = {
   weekday: ["days"],
   time: ["start", "end"],
   planned: ["windows", "match"],
+  sensor: ["entity", "op", "than"],
 };
 
 type Obj = Record<string, unknown>;
@@ -89,7 +90,7 @@ class Checker {
     const kind = v.type;
     if (kind === "temperature") {
       this.obj(v, path, ["type", "value"]);
-      if (this.has(v, "value", path)) this.number(v.value, `${path}.value`, ...TEMP_RANGE);
+      if (this.has(v, "value", path)) this.value(v.value, `${path}.value`, ...TEMP_RANGE);
     } else if (kind === "comfort" || kind === "eco" || kind === "off") {
       this.obj(v, path, ["type"]);
     } else if (this.has(v, "type", path)) {
@@ -109,13 +110,17 @@ class Checker {
     for (const f of FIELDS[kind]) if (!this.has(v, f, path)) return;
     switch (kind as Condition["type"]) {
       case "occupied_within":
-        return isObj(v.hours) ? this.outdoorHours(v.hours, `${path}.hours`) : this.number(v.hours, `${path}.hours`, 0);
+        return this.value(v.hours, `${path}.hours`, 0);
       case "between_days":
         return this.number(v.gap_hours, `${path}.gap_hours`, 0);
       case "weekday":
         return this.days(v.days, `${path}.days`);
       case "time":
         return this.window(v, path, true);
+      case "sensor":
+        this.entity(v.entity, `${path}.entity`);
+        if (v.op !== "below" && v.op !== "above") this.err(`${path}.op`, "unknown_kind", 'must be "below" or "above"');
+        return this.number(v.than, `${path}.than`, -Infinity);
       case "planned":
         if (v.match !== "all" && v.match !== "any") this.err(`${path}.match`, "unknown_kind", 'must be "all" or "any"');
         if (!Array.isArray(v.windows)) return void this.err(`${path}.windows`, "type", "must be a list");
@@ -127,19 +132,32 @@ class Checker {
     }
   }
 
-  outdoorHours(o: Obj, path: string): void {
-    this.obj(o, path, ["sensor", "cold", "warm"]);
-    if (this.has(o, "sensor", path) && (typeof o.sensor !== "string" || !ENTITY_RE.test(o.sensor))) this.err(`${path}.sensor`, "type", "must be an entity id");
-    const temps: number[] = [];
-    for (const k of ["cold", "warm"] as const) {
-      const p = `${path}.${k}`;
-      if (!this.has(o, k, path) || !this.obj(o[k], p, ["temp", "hours"])) continue;
-      const pt = o[k] as Obj;
-      if (this.has(pt, "temp", p)) this.number(pt.temp, `${p}.temp`, -50, 50);
-      if (this.has(pt, "hours", p)) this.number(pt.hours, `${p}.hours`, 0);
-      if (typeof pt.temp === "number") temps.push(pt.temp);
-    }
-    if (temps.length === 2 && temps[0] >= temps[1]) this.err(`${path}.warm.temp`, "range", "must be warmer than the cold temperature");
+  entity(v: unknown, path: string): void {
+    if (typeof v !== "string" || !ENTITY_RE.test(v)) this.err(path, "type", "must be an entity id");
+  }
+
+  /** Fixed number in [min, max], or a sensor curve whose point values are in [min, max]. */
+  value(v: unknown, path: string, min: number, max = Infinity): void {
+    if (!isObj(v)) return this.number(v, path, min, max);
+    if (v.type !== "curve") return void this.err(`${path}.type`, "unknown_kind", `unknown value "${String(v.type)}"`);
+    this.obj(v, path, ["type", "entity", "default", "points"]);
+    if (this.has(v, "entity", path)) this.entity(v.entity, `${path}.entity`);
+    if (this.has(v, "default", path)) this.number(v.default, `${path}.default`, -Infinity);
+    if (!this.has(v, "points", path)) return;
+    const pts = v.points;
+    if (!Array.isArray(pts)) return void this.err(`${path}.points`, "type", "must be a list");
+    if (pts.length < 2 || pts.length > 5) this.err(`${path}.points`, "range", "needs 2 to 5 points");
+    let prev: number | null = null;
+    pts.forEach((p, i) => {
+      const pp = `${path}.points[${i}]`;
+      if (!this.obj(p, pp, ["at", "value"])) return;
+      if (this.has(p, "at", pp)) this.number(p.at, `${pp}.at`, -Infinity);
+      if (this.has(p, "value", pp)) this.number(p.value, `${pp}.value`, min, max);
+      if (typeof p.at === "number" && Number.isFinite(p.at)) {
+        if (prev !== null && p.at <= prev) this.err(`${pp}.at`, "time_order", "must be above the previous point");
+        prev = p.at;
+      }
+    });
   }
 
   days(v: unknown, path: string): void {

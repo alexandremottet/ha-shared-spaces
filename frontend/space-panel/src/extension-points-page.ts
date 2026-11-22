@@ -2,7 +2,7 @@ import { LitElement, html, css, nothing } from "lit";
 import type { PropertyValues, TemplateResult } from "lit";
 import { customElement, property, state } from "lit/decorators.js";
 import "ha-share-space-ui";
-import { ZONE_TARGET_HOOK, debounce } from "ha-share-space-ui";
+import { ZONE_TARGET_HOOK, debounce, haCardSurface } from "ha-share-space-ui";
 import type { TemplateEntity, TemplateResult as PreviewResult } from "ha-share-space-ui";
 import { isBackendMissing, listZones, subscribeTemplatePreview, updateZone } from "ha-share-space-ui/ha";
 import type { HeatingZone, HeatingZoneAttributes, HomeAssistant } from "ha-share-space-ui/ha";
@@ -31,7 +31,9 @@ export class ShareSpaceExtensionPoints extends LitElement {
 
   static styles = css`
     :host {
+      ${haCardSurface}
       display: block;
+      padding: 12px 16px;
       color: var(--primary-text-color);
     }
     h4 {

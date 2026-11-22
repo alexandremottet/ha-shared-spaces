@@ -1,47 +1,41 @@
 import { LitElement, css, html } from "lit";
 import { property } from "lit/decorators.js";
 import { safeCustomElement } from "../../define";
-import type { Action, Rule, RuleStrategy } from "../types";
+import type { Rule, RuleStrategy } from "../types";
 import { validateStrategy } from "../validate";
 import type { RuleError } from "../validate";
 import { blankRule, moveItem, removeAt, replaceAt, scopeErrors } from "./edit";
-import "./rule-action";
 import "./rule-row";
 import { ruleStyles } from "./styles";
 
 const EMPTY: RuleStrategy = { version: 1, rules: [], fallback: { label: "Otherwise", then: { type: "off" } } };
 
-/** Editable rule list plus the fixed fallback; emits the whole new strategy on every edit. */
+/** Rules as stacked cards (first match wins), ending with the fallback; emits the whole strategy on every edit, and `rule-hover` {label|null}. */
 @safeCustomElement("share-space-rule-list")
 export class ShareSpaceRuleList extends LitElement {
   static styles = [
     ruleStyles,
     css`
-      .list {
+      .flow {
         display: flex;
         flex-direction: column;
         gap: 10px;
       }
-      .fallback {
+      .legend {
+        margin-bottom: 8px;
+      }
+      .add-row {
         display: flex;
-        flex-direction: column;
-        gap: 8px;
-        padding: 12px;
-        border: 1px dashed var(--divider-color);
-        border-radius: 12px;
       }
-      .fallback input.label {
-        flex: 1;
-        min-width: 140px;
-      }
-      .kw {
-        font-weight: 600;
-        color: var(--secondary-text-color);
+      .add-row button {
+        border-style: dashed;
       }
     `,
   ];
 
   @property({ attribute: false }) strategy: RuleStrategy = EMPTY;
+  /** Label of the rule to highlight (from the preview). */
+  @property() highlight: string | null = null;
 
   private _errors(): RuleError[] {
     const r = validateStrategy(this.strategy);
@@ -52,6 +46,10 @@ export class ShareSpaceRuleList extends LitElement {
     this.dispatchEvent(new CustomEvent("strategy-change", { detail: { strategy }, bubbles: true, composed: true }));
   }
 
+  private _hover(label: string | null): void {
+    this.dispatchEvent(new CustomEvent("rule-hover", { detail: { label }, bubbles: true, composed: true }));
+  }
+
   private _setRules(rules: Rule[]): void {
     this._emit({ ...this.strategy, rules });
   }
@@ -59,46 +57,51 @@ export class ShareSpaceRuleList extends LitElement {
   protected render() {
     const s = this.strategy;
     const errors = this._errors();
-    const fb = scopeErrors(errors, "$.fallback");
-    return html`<div class="list">
-      ${s.rules.length === 0 ? html`<div class="muted">No rules yet. Without rules the fallback always applies.</div>` : null}
-      ${s.rules.map(
-        (rule, i) => html`<share-space-rule-row
-          .rule=${rule}
-          .index=${i}
-          .count=${s.rules.length}
-          .errors=${scopeErrors(errors, `$.rules[${i}]`)}
+    const hover = (label: string) => ({ enter: () => this._hover(label), leave: () => this._hover(null) });
+    const fb = hover(s.fallback.label);
+    return html`<div class="muted legend">First matching rule wins (top to bottom)</div>
+      <div class="flow">
+        ${s.rules.map(
+          (rule, i) => html`<share-space-rule-row
+              ?highlighted=${this.highlight !== null && this.highlight === rule.label}
+              @mouseenter=${() => this._hover(rule.label)}
+              @mouseleave=${() => this._hover(null)}
+              @focusin=${() => this._hover(rule.label)}
+              @focusout=${() => this._hover(null)}
+              .rule=${rule}
+              .index=${i}
+              .count=${s.rules.length}
+              .errors=${scopeErrors(errors, `$.rules[${i}]`)}
+              @rule-change=${(e: CustomEvent<{ rule: Rule }>) => {
+                e.stopPropagation();
+                this._setRules(replaceAt(s.rules, i, e.detail.rule));
+              }}
+              @rule-remove=${(e: Event) => {
+                e.stopPropagation();
+                this._setRules(removeAt(s.rules, i));
+              }}
+              @rule-move=${(e: CustomEvent<{ from: number; to: number }>) => {
+                e.stopPropagation();
+                this._setRules(moveItem(s.rules, e.detail.from, e.detail.to));
+              }}
+            ></share-space-rule-row>`,
+        )}
+        <div class="add-row"><button aria-label="Add rule" @click=${() => this._setRules([...s.rules, blankRule()])}>+ Add rule</button></div>
+        <share-space-rule-row
+          fallback
+          ?highlighted=${this.highlight !== null && this.highlight === s.fallback.label}
+          @mouseenter=${fb.enter}
+          @mouseleave=${fb.leave}
+          @focusin=${fb.enter}
+          @focusout=${fb.leave}
+          .rule=${{ label: s.fallback.label, when: [], then: s.fallback.then }}
+          .errors=${scopeErrors(errors, "$.fallback")}
           @rule-change=${(e: CustomEvent<{ rule: Rule }>) => {
             e.stopPropagation();
-            this._setRules(replaceAt(s.rules, i, e.detail.rule));
+            this._emit({ ...s, fallback: { label: e.detail.rule.label, then: e.detail.rule.then } });
           }}
-          @rule-remove=${(e: Event) => {
-            e.stopPropagation();
-            this._setRules(removeAt(s.rules, i));
-          }}
-          @rule-move=${(e: CustomEvent<{ from: number; to: number }>) => {
-            e.stopPropagation();
-            this._setRules(moveItem(s.rules, e.detail.from, e.detail.to));
-          }}
-        ></share-space-rule-row>`,
-      )}
-      <div class="row"><button aria-label="Add rule" @click=${() => this._setRules([...s.rules, blankRule()])}>+ Add rule</button></div>
-      <div class="fallback" role="group" aria-label="Fallback rule">
-        <div class="row">
-          <span class="kw">Otherwise</span>
-          <input class="label ${scopeErrors(fb, ".label").length ? "invalid" : ""}" type="text" aria-label="Fallback name" .value=${s.fallback.label} @change=${(e: Event) => this._emit({ ...s, fallback: { ...s.fallback, label: (e.target as HTMLInputElement).value } })} />
-        </div>
-        ${scopeErrors(fb, ".label").map((e) => html`<div class="err" role="alert">${e.message}</div>`)}
-        <share-space-rule-action
-          .action=${s.fallback.then}
-          .errors=${scopeErrors(fb, ".then")}
-          @action-change=${(e: CustomEvent<{ action: Action }>) => {
-            e.stopPropagation();
-            this._emit({ ...s, fallback: { ...s.fallback, then: e.detail.action } });
-          }}
-        ></share-space-rule-action>
-      </div>
-    </div>`;
+        ></share-space-rule-row>
+      </div>`;
   }
 }
 

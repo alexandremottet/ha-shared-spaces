@@ -4,8 +4,8 @@ import { safeCustomElement } from "../../define";
 import type { ScheduleRanges } from "../../heating/strategy-sim";
 import { strategyTimeline } from "../../heating/strategy-timeline";
 import { fromWall, wallTime } from "../../heating/tz";
-import "../../heating/week-preview";
-import type { OutdoorTemps } from "../outdoor";
+import { plannedSpans } from "../../heating/week-preview";
+import type { SensorReadings } from "../value";
 import type { PresetTemps, RuleStrategy } from "../types";
 import { validateStrategy } from "../validate";
 
@@ -25,19 +25,21 @@ export class ShareSpaceRulePreview extends LitElement {
   @property({ type: Number }) now = Date.now();
   @property() tz = "UTC";
   @property({ attribute: false }) temps?: PresetTemps;
-  /** Current outdoor readings; outdoor lead times keep them for the whole week. */
-  @property({ attribute: false }) outdoor?: OutdoorTemps;
+  /** Current sensor readings, kept for the whole week. */
+  @property({ attribute: false }) readings?: SensorReadings;
+  /** Segment reason to emphasise; others are dimmed. */
+  @property() highlight: string | null = null;
 
   private _compute() {
     const days = previewDays(this.now, this.tz);
     if (!this.strategy || !validateStrategy(this.strategy).ok) return null;
-    return { days, segments: strategyTimeline(this.strategy, this.schedule, days[0], days[PREVIEW_DAYS], this.tz, this.temps, this.outdoor) };
+    return { days, planned: plannedSpans(this.schedule, days, this.tz), segments: strategyTimeline(this.strategy, this.schedule, days[0], days[PREVIEW_DAYS], this.tz, this.temps, this.readings) };
   }
 
   protected render() {
     const sim = this._compute();
     if (!sim) return html`<div style="color:var(--secondary-text-color);font-size:0.9em">Fix the errors above to see the preview.</div>`;
-    return html`<share-space-week-preview .segments=${sim.segments} .days=${sim.days} .now=${this.now} .tz=${this.tz}></share-space-week-preview>`;
+    return html`<share-space-week-preview .segments=${sim.segments} .planned=${sim.planned} .days=${sim.days} .now=${this.now} .tz=${this.tz} .highlight=${this.highlight}></share-space-week-preview>`;
   }
 }
 

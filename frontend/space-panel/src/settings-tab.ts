@@ -1,6 +1,7 @@
 import { LitElement, html, css, nothing } from "lit";
 import type { TemplateResult } from "lit";
 import { customElement, property } from "lit/decorators.js";
+import { haCardSurface } from "ha-share-space-ui";
 import type { SpaceRole } from "ha-share-space-ui/ha";
 
 const ROLE_LABEL: Record<SpaceRole, string> = {
@@ -23,6 +24,11 @@ export class ShareSpaceSettings extends LitElement {
     h3 {
       margin: 0 0 8px;
     }
+    .card {
+      ${haCardSurface}
+      padding: 12px 16px;
+      margin-bottom: 12px;
+    }
     p {
       margin: 4px 0 12px;
     }
@@ -40,6 +46,7 @@ export class ShareSpaceSettings extends LitElement {
   protected render(): TemplateResult {
     return html`
       <h3>Settings</h3>
+      <section class="card">
       <p>Your role: <strong>${ROLE_LABEL[this.role]}</strong></p>
       ${this.role !== "user"
         ? html`<label class="switch">
@@ -52,6 +59,7 @@ export class ShareSpaceSettings extends LitElement {
             Technical tools
           </label>`
         : nothing}
+      </section>
       ${this.role === "technical_admin" ? html`<slot name="extension-points"></slot>` : nothing}
     `;
   }

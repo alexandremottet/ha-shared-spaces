@@ -1,7 +1,4 @@
 import type { StrategyAutomationConfig } from "../ha/ws";
-import type { StrategyInputs, StrategyPreset } from "../heating/strategy-sim";
-import { defaultInputs } from "../heating/strategy-sim";
-import { presetRules } from "./templates";
 import type { RuleStrategy } from "./types";
 
 export const RULES_BLUEPRINT_PATH = "share_space/rules.yaml";
@@ -12,16 +9,28 @@ export interface SavedRules {
   previous: RuleStrategy | null;
 }
 
-/** HA automation config (blueprint inputs zone, area, rules, previous_rules) for a zone's rules. */
-export function rulesAutomationConfig(
-  zone: { entity_id: string; name: string },
-  area: string,
-  rules: RuleStrategy,
-  previous: RuleStrategy | null,
-): StrategyAutomationConfig {
+/** Where a zone's rules come from: inline (custom) or a shared strategy by id. */
+export type RulesSource = SavedRules | SharedSource;
+
+/** A shared strategy reference; the name only feeds the alias. */
+export interface SharedSource {
+  strategy: string;
+  name: string;
+}
+
+export const isSharedSource = (s: RulesSource): s is SharedSource => "strategy" in s;
+
+/** HA automation config (blueprint inputs zone, area, then rules + previous_rules or strategy) for a zone's rules. */
+export function rulesAutomationConfig(zone: { entity_id: string; name: string }, area: string, source: RulesSource): StrategyAutomationConfig {
+  if (isSharedSource(source)) {
+    return stampManaged({
+      alias: `Share Space · ${zone.name} · ${source.name}`,
+      use_blueprint: { path: RULES_BLUEPRINT_PATH, input: { zone: zone.entity_id, area, strategy: source.strategy } },
+    });
+  }
   return stampManaged({
     alias: `Share Space · ${zone.name} · Custom rules`,
-    use_blueprint: { path: RULES_BLUEPRINT_PATH, input: { zone: zone.entity_id, area, rules, previous_rules: previous } },
+    use_blueprint: { path: RULES_BLUEPRINT_PATH, input: { zone: zone.entity_id, area, rules: source.rules, previous_rules: source.previous } },
   });
 }
 
@@ -92,8 +101,3 @@ export const afterSave = (draft: RuleStrategy, saved: SavedRules | null): SavedR
 /** Undo swaps rules and previous (so a second undo redoes); null when nothing to undo. */
 export const undoRules = (saved: SavedRules): SavedRules | null => (saved.previous ? { rules: saved.previous, previous: saved.rules } : null);
 
-/** Template rules from the zone's current preset inputs when they match the kind, defaults otherwise. */
-export function templateRules(kind: StrategyPreset, current?: { kind: string; inputs: StrategyInputs | null } | null): RuleStrategy {
-  const inputs = current && current.kind === kind && current.inputs ? { ...defaultInputs(kind), ...current.inputs } : defaultInputs(kind);
-  return presetRules(kind, inputs);
-}

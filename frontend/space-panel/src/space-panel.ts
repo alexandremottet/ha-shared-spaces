@@ -161,6 +161,7 @@ private _prefsFor = "";
       void this._load();
       void listAreas(this.hass).then((a) => (this._areas = a)).catch(() => undefined);
       if (this._isAdmin && new URLSearchParams(location.search).get("edit") === "1") this._startEdit();
+      this._tab = new URLSearchParams(location.search).get("tab") ?? this._tab;
     }
   }
 
@@ -390,7 +391,7 @@ private _prefsFor = "";
       z-index: 10;
       display: flex;
       flex-direction: column;
-      background: var(--primary-background-color);
+      background: var(--lovelace-background, var(--primary-background-color));
       color: var(--primary-text-color);
       font-family: var(--paper-font-body1_-_font-family, inherit);
     }
