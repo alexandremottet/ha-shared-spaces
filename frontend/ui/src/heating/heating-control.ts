@@ -121,11 +121,22 @@ export class HeatingControl extends LitElement {
       outline: 2px solid var(--primary-color);
     }
     .round {
+      flex: none;
       width: 56px;
       height: 56px;
-      font-size: 1.8em;
+      padding: 0;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
       border-radius: 50%;
-      line-height: 1;
+    }
+    .round svg {
+      width: 24px;
+      height: 24px;
+      fill: none;
+      stroke: currentColor;
+      stroke-width: 2;
+      stroke-linecap: round;
     }
     .round:disabled {
       opacity: 0.35;
@@ -324,7 +335,7 @@ export class HeatingControl extends LitElement {
           ?disabled=${this._shown <= this.min}
           @click=${() => this._bump(-1)}
         >
-          −
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h14" /></svg>
         </button>
         <div class="value ${this._pending === null ? "" : "pending"}">${this._fmt(this._shown)}</div>
         <button
@@ -333,7 +344,7 @@ export class HeatingControl extends LitElement {
           ?disabled=${this._shown >= this.max}
           @click=${() => this._bump(1)}
         >
-          +
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h14M12 5v14" /></svg>
         </button>
       </div>
       ${this.presets.length
