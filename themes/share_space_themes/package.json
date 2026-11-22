@@ -1,0 +1,9 @@
+{
+  "name": "share-space-themes",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Home Assistant themes (HACS theme package). The YAML is also read by the playground.",
+  "exports": {
+    "./share_space.yaml": "./themes/share_space.yaml"
+  }
+}

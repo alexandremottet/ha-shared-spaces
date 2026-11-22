@@ -288,6 +288,12 @@ importers:
       react-dom:
         specifier: ^19.0.0
         version: 19.3.0(react@19.3.0)
+      share-space-themes:
+        specifier: workspace:*
+        version: link:../../themes/share_space_themes
+      yaml:
+        specifier: ^2.9.0
+        version: 2.9.0
     devDependencies:
       '@types/node':
         specifier: ^22.0.0
@@ -351,6 +357,8 @@ importers:
   integrations/share_space_heating: {}
 
   integrations/share_space_space: {}
+
+  themes/share_space_themes: {}
 
 packages:
 
