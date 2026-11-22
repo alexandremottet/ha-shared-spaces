@@ -18,7 +18,7 @@ export interface CustomCardInfo {
 
 export function registerCustomCard(info: CustomCardInfo): void {
   window.customCards = window.customCards || [];
-  window.customCards.push({ ...info });
+  if (!window.customCards.some((c) => c.type === info.type)) window.customCards.push({ ...info });
 }
 
 export abstract class ShareSpaceCardBase<C extends { type: string } = { type: string }> extends LitElement {

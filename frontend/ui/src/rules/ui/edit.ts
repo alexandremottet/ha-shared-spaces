@@ -1,5 +1,6 @@
 import type { Action, ActionType, Condition, ConditionType, CurveValue, Rule, RuleStrategy, Value } from "../types";
 import type { RuleError } from "../validate";
+import { OUTDOOR } from "../value";
 
 /** Beginner-facing names, in the order of the type select. */
 export const CONDITION_LABELS: Record<ConditionType, string> = {
@@ -9,7 +10,7 @@ export const CONDITION_LABELS: Record<ConditionType, string> = {
   weekday: "Day of week",
   time: "Time between",
   planned: "Planned during",
-  sensor: "Sensor below / above",
+  sensor: "Outdoor temperature",
 };
 
 export const ACTION_LABELS: Record<ActionType, string> = {
@@ -36,26 +37,26 @@ export function defaultCondition(type: ConditionType): Condition {
     case "planned":
       return { type, windows: [{ start: "08:00", end: "12:00" }], match: "any" };
     case "sensor":
-      return { type, entity: "", op: "below", than: 5 };
+      return { type, entity: OUTDOOR, op: "below", than: 5 };
   }
 }
 
 export type ValueUnit = "h" | "°C";
 
-/** Starting curve when a value switches to "Follow a sensor", around the current fixed value. */
+/** Starting curve when a value switches to "Follow outdoor temperature", around the current fixed value. */
 export function defaultCurve(unit: ValueUnit, fixed: number): CurveValue {
   const points =
     unit === "h"
       ? [{ at: 0, value: Math.max(fixed, 1) * 2 }, { at: 15, value: Math.max(fixed, 1) }]
       : [{ at: -5, value: Math.min(fixed + 2, 35) }, { at: 15, value: fixed }];
-  return { type: "curve", entity: "", default: 10, points };
+  return { type: "curve", entity: OUTDOOR, default: 10, points };
 }
 
 /** Value back to a fixed number: the curve's last point. */
 export const fixedOf = (v: Value): number => (typeof v === "number" ? v : v.points[v.points.length - 1]?.value ?? 0);
 
 const fmt = (n: number) => (Number.isFinite(n) ? String(Math.round(n * 10) / 10) : "?");
-const shortEntity = (id: string) => (id ? id.split(".").pop()!.replace(/_/g, " ") : "sensor");
+const shortEntity = (id: string) => (id === OUTDOOR ? "outdoor" : id ? id.split(".").pop()!.replace(/_/g, " ") : "sensor");
 
 /** "3 h", or "9 → 1 h (outdoor temp)" for a curve. */
 export function describeValue(v: Value, unit: ValueUnit): string {
@@ -81,7 +82,7 @@ export function describeCondition(c: Condition): string {
     case "planned":
       return `${not}planned ${c.windows.map((w) => `${w.start}–${w.end}`).join(c.match === "any" ? " or " : " and ")}`;
     case "sensor":
-      return `${not}${shortEntity(c.entity)} ${c.op === "below" ? "<" : ">"} ${fmt(c.than)}`;
+      return `${not}${c.entity === OUTDOOR ? "outdoor" : shortEntity(c.entity)} ${c.op === "below" ? "<" : ">"} ${fmt(c.than)}`;
   }
 }
 

@@ -6,12 +6,14 @@ import type { CurvePoint, CurveValue, Value } from "../types";
 import type { RuleError } from "../validate";
 import type { ValueUnit } from "./edit";
 import { defaultCurve, fixedOf, parseNumber, removeAt, replaceAt, scopeErrors } from "./edit";
+import { sensorField } from "./sensor-field";
+import { OUTDOOR } from "../value";
 import { ruleStyles } from "./styles";
 
 const MAX_POINTS = 5;
 const num = (v: number) => (Number.isFinite(v) ? String(v) : "");
 
-/** Fixed number or "Follow a sensor" curve. Errors have paths relative to the value ("", ".entity", ".points[0].value"). */
+/** Fixed number or "Follow outdoor temperature" curve. Errors have paths relative to the value ("", ".entity", ".points[0].value"). */
 @safeCustomElement("share-space-rule-value")
 export class ShareSpaceRuleValue extends LitElement {
   static styles = [
@@ -62,19 +64,19 @@ export class ShareSpaceRuleValue extends LitElement {
     };
     return html`<div class="curve">
       <div class="row">
-        <span>sensor</span>
-        <input class="entity ${this._bad(".entity") ? "invalid" : ""}" type="text" placeholder="sensor.outdoor_temperature" aria-label="Sensor entity" .value=${c.entity} @change=${(e: Event) => patch({ entity: (e.target as HTMLInputElement).value.trim() })} />
+        <span>${c.entity === OUTDOOR ? "outdoor temperature (Settings)" : "sensor"}</span>
+        ${sensorField(c.entity, (entity) => patch({ entity }), this._bad(".entity"))}
       </div>
       ${c.points.map(
         (p, i) => html`<div class="row">
-          <span>when it is</span>${this._number(`Point ${i + 1} sensor value`, p.at, (at) => setPoint(i, { at }), this._bad(`.points[${i}].at`))}
+          <span>when it is</span>${this._number(`Point ${i + 1} outdoor °C`, p.at, (at) => setPoint(i, { at }), this._bad(`.points[${i}].at`))}
           <span>→</span>${this._number(`Point ${i + 1} ${this.label}`, p.value, (value) => setPoint(i, { value }), this._bad(`.points[${i}].value`))}<span>${this.unit}</span>
           ${c.points.length > 2 ? html`<button class="danger" aria-label="Remove point ${i + 1}" @click=${() => patch({ points: removeAt(c.points, i) })}>✕</button>` : nothing}
         </div>`,
       )}
       <div class="row">
         ${c.points.length < MAX_POINTS ? html`<button aria-label="Add point" @click=${addPoint}>+ Add point</button>` : nothing}
-        <span>no reading: use</span>${this._number("Value when the sensor has no reading", c.default, (d) => patch({ default: d }), this._bad(".default"))}
+        <span>no reading: use</span>${this._number("Value when there is no outdoor reading", c.default, (d) => patch({ default: d }), this._bad(".default"))}
         ${this._spark(c.points)}
       </div>
       <div class="muted">Straight line between points, flat before the first and after the last.</div>
@@ -105,7 +107,7 @@ export class ShareSpaceRuleValue extends LitElement {
     return html`<div class="row">
         <select aria-label="${this.label} mode" @change=${(e: Event) => this._emit((e.target as HTMLSelectElement).value === "curve" ? defaultCurve(this.unit, fixedOf(v)) : fixedOf(v))}>
           <option value="fixed" ?selected=${!curve}>Fixed</option>
-          <option value="curve" ?selected=${curve}>Follow a sensor</option>
+          <option value="curve" ?selected=${curve}>Follow outdoor temperature</option>
         </select>
         ${curve ? nothing : html`${this._number(this.label, v, (n) => this._emit(n), this.errors.length > 0)}<span>${this.unit}</span>`}
       </div>

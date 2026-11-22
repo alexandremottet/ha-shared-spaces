@@ -1,0 +1,12 @@
+{
+  "version": 1,
+  "minor_version": 1,
+  "key": "lovelace_resources",
+  "data": {
+    "items": [
+      {"id": "share_space_planning_cards", "type": "module", "url": "/local/share_space/share-space-planning-cards.js"},
+      {"id": "share_space_heating_card", "type": "module", "url": "/local/share_space/share-space-heating-card.js"},
+      {"id": "share_space_dashboard", "type": "module", "url": "/local/share_space/share-space-dashboard.js"}
+    ]
+  }
+}

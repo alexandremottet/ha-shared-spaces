@@ -18,6 +18,7 @@ export const cardStyles = css`
     background: none;
     padding: 16px;
     box-sizing: border-box;
+    height: 100%;
   }
   .title {
     font-size: 1.1em;

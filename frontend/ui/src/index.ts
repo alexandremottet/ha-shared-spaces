@@ -17,3 +17,4 @@ export * from "./heating/week-preview";
 export * from "./rules";
 export * from "./template-hooks";
 export * from "./template-editor";
+export * from "./define";

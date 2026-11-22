@@ -338,7 +338,7 @@ export const COMPONENTS: ComponentDef[] = [
     id: "rule-value",
     tag: "share-space-rule-value",
     group: "Rules",
-    description: "A fixed number or Follow a sensor: points mapped linearly, flat outside, with a mini plot.",
+    description: "A fixed number or Follow outdoor temperature: points mapped linearly, flat outside, with a mini plot.",
     props: [
       { name: "value", kind: "json", value: outdoorCurve([[-10, 9], [0, 5], [10, 2], [18, 1]], 0) },
       { name: "unit", kind: "text", value: "h" },

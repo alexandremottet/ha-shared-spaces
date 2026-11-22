@@ -10,9 +10,11 @@ import {
   spaceRole,
   getSharePrefs,
   setSharePrefs,
-  setOverride,
-  extendOverride,
-  clearOverride,
+  getDefaultPanel,
+  getHeatingSettings,
+  saveHeatingSettings,
+  setMyDefaultPanel,
+  SHARE_SPACE_PANEL,
 } from "ha-share-space-ui/ha";
 import type { SharePrefs, HomeAssistant, Floorplan, Hotspot, AreaInfo } from "ha-share-space-ui/ha";
 import { zoneViewModel } from "ha-share-space-heating-card/view-model";
@@ -20,6 +22,11 @@ import "./panel-tabs";
 import "./settings-tab";
 import "./rules-page";
 import "./extension-points-page";
+import "./overview-page";
+import "./theme-picker";
+import "./zones-settings";
+import "./users-settings";
+import { renderHeatingControl } from "./heating";
 import { PLACEHOLDER_SIZE, PLACEHOLDER_URL } from "./placeholder";
 
 interface Box {
@@ -36,6 +43,7 @@ const KINDS: Array<Hotspot["target"]["kind"]> = ["heating", "area", "entity", "c
 const KIND_LABEL: Record<string, string> = { heating: "Heating", area: "Area", entity: "Entity", card: "Card" };
 
 const ICON_BACK = html`<svg viewBox="0 0 24 24" width="24" height="24"><path fill="currentColor" d="M20 11H7.83l5.59-5.59L12 4l-8 8 8 8 1.41-1.41L7.83 13H20v-2z"/></svg>`;
+const ICON_LOGOUT = html`<svg viewBox="0 0 24 24" width="22" height="22"><path fill="currentColor" d="M16 17v-3H9v-4h7V7l5 5-5 5M14 2a2 2 0 0 1 2 2v2h-2V4H5v16h9v-2h2v2a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9z"/></svg>`;
 const ICON_CLOSE = html`<svg viewBox="0 0 24 24" width="22" height="22"><path fill="currentColor" d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>`;
 
 const centroid = (pts: Pt[]): Pt => [
@@ -67,7 +75,10 @@ export class ShareSpaceSpace extends LitElement {
   @property({ attribute: false }) route?: unknown;
   @property({ attribute: false }) panel?: unknown;
 
-  @state() private _tab = "space";
+  @state() private _tab = "overview";
+  // Admins only: null until known; false = Share Space is their home page.
+  @state() private _fullHa: boolean | null = null;
+  @state() private _outdoor: string | null = null;
 @state() private _prefs: SharePrefs | null = null;
 private _prefsFor = "";
 @state() private _plans: Floorplan[] | null = null;
@@ -118,6 +129,49 @@ private _prefsFor = "";
     } catch {
       this._prefs = null;
     }
+    if (this._isAdmin) {
+      try {
+        this._fullHa = (await getDefaultPanel(this.hass)) !== SHARE_SPACE_PANEL;
+      } catch {
+        this._fullHa = true;
+      }
+      this._outdoor = await getHeatingSettings(this.hass)
+        .then((s) => s.outdoor_entity)
+        .catch(() => null);
+    }
+  }
+
+  private async _setOutdoor(entity: string | null): Promise<void> {
+    if (!this.hass) return;
+    const prev = this._outdoor;
+    this._outdoor = entity;
+    try {
+      this._outdoor = (await saveHeatingSettings(this.hass, { outdoor_entity: entity })).outdoor_entity;
+    } catch {
+      this._outdoor = prev;
+    }
+  }
+
+  // Temperature sensors and weather entities, by name.
+  private get _outdoorOptions(): Array<{ id: string; name: string }> {
+    const states = this.hass?.states ?? {};
+    return Object.values(states)
+      .filter((s) => s.entity_id.startsWith("weather.") || (s.entity_id.startsWith("sensor.") && s.attributes.device_class === "temperature"))
+      .filter((s) => !s.entity_id.startsWith("sensor.share_space_heating_"))
+      .map((s) => ({ id: s.entity_id, name: `${String(s.attributes.friendly_name ?? s.entity_id)} (${s.entity_id})` }))
+      .sort((a, b) => a.name.localeCompare(b.name));
+  }
+
+  // Full HA: HA opens on its default dashboard and the Back button returns there.
+  private async _setFullHa(fullHa: boolean): Promise<void> {
+    if (!this.hass) return;
+    const prev = this._fullHa;
+    this._fullHa = fullHa;
+    try {
+      await setMyDefaultPanel(this.hass, fullHa ? "lovelace" : SHARE_SPACE_PANEL);
+    } catch {
+      this._fullHa = prev;
+    }
   }
 
   private async _setTechnical(technical: boolean): Promise<void> {
@@ -136,17 +190,20 @@ private _prefsFor = "";
   }
 
   private get _tabs() {
-    return this._role === "user"
-      ? []
-      : [
-          { id: "space", label: "Space" },
-          { id: "rules", label: "Rules" },
-          { id: "settings", label: "Settings" },
-        ];
+    const overview = { id: "overview", label: "Overview" };
+    if (this._role === "user") {
+      return this._plans?.length ? [overview, { id: "space", label: "Space" }] : [overview];
+    }
+    return [
+      overview,
+      { id: "space", label: "Space" },
+      { id: "rules", label: "Rules" },
+      { id: "settings", label: "Settings" },
+    ];
   }
 
   private get _activeTab(): string {
-    return this._tabs.some((t) => t.id === this._tab) ? this._tab : "space";
+    return this._tabs.some((t) => t.id === this._tab) ? this._tab : "overview";
   }
 
   private get _plan(): Floorplan | null {
@@ -180,6 +237,11 @@ private _prefsFor = "";
   private _onKey = (e: KeyboardEvent): void => {
     if (e.key === "Escape" && this._openId) this._closePopover();
   };
+
+  // Handled by HA's root element, same as the profile page's log out.
+  private _logout(): void {
+    this.dispatchEvent(new CustomEvent("hass-logout", { bubbles: true, composed: true }));
+  }
 
   private _exit(): void {
     history.pushState(null, "", "/");
@@ -405,15 +467,63 @@ private _prefsFor = "";
     .space[hidden] {
       display: none;
     }
-    share-space-panel-tabs {
+    /* header: tabs | title | theme + log out, same max width as the overview */
+    .top {
       flex-shrink: 0;
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+      align-items: center;
+      gap: 12px;
+    }
+    .title {
+      margin: 0;
+      font-size: 1.4em;
+      font-weight: 500;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .actions {
+      display: flex;
+      align-items: center;
+      justify-content: flex-end;
+      gap: 8px;
+      padding: 8px 0;
+    }
+    .fab.logout {
+      position: static;
+      flex: none;
+    }
+    @media (max-width: 720px) {
+      .top {
+        grid-template-columns: minmax(0, 1fr) auto;
+      }
+      .title {
+        display: none;
+      }
     }
     /* tab pages scroll inside the fixed host */
+    share-space-overview,
     share-space-rules-page,
     share-space-settings {
       flex: 1;
       min-height: 0;
       overflow-y: auto;
+    }
+    /* every row is centered in the same 1500px column; scrollbars stay at the window edge */
+    .top,
+    share-space-overview,
+    share-space-rules-page,
+    share-space-settings {
+      box-sizing: border-box;
+      width: 100%;
+      padding-left: max(16px, calc((100% - 1500px) / 2));
+      padding-right: max(16px, calc((100% - 1500px) / 2));
+    }
+    .space {
+      width: 100%;
+      max-width: 1500px;
+      margin: 0 auto;
     }
     .page {
       padding: 16px 24px;
@@ -670,9 +780,11 @@ private _prefsFor = "";
     const plan = this._plan;
     const tab = this._activeTab;
     return html`
-      <button class="fab exit" aria-label="Back" @click=${this._exit}>${ICON_BACK}</button>
-      ${this._tabs.length
+      ${this._fullHa ? html`<button class="fab exit" aria-label="Back" @click=${this._exit}>${ICON_BACK}</button>` : nothing}
+      <div class="top">
+      ${this._tabs.length > 1
         ? html`<share-space-panel-tabs
+            ?inset=${!!this._fullHa}
             .tabs=${this._tabs}
             .active=${tab}
             @tab-change=${(e: CustomEvent<string>) => {
@@ -680,7 +792,15 @@ private _prefsFor = "";
               this._closePopover();
             }}
           ></share-space-panel-tabs>`
-        : nothing}
+        : html`<div></div>`}
+        <h1 class="title">${this.hass?.config?.location_name ?? "Share Space"}</h1>
+        <div class="actions">
+          <share-space-theme-picker .hass=${this.hass}></share-space-theme-picker>
+          ${this._fullHa
+            ? nothing
+            : html`<button class="fab logout" aria-label="Log out" title="Log out" @click=${this._logout}>${ICON_LOGOUT}</button>`}
+        </div>
+      </div>
       <div class="space" ?hidden=${tab !== "space"}>
         ${plans === null && !this._draft ? html`<div class="center muted">Loading…</div>` : nothing}
         ${plan ? this._renderStage(plan) : plans !== null ? this._renderEmpty() : nothing}
@@ -688,12 +808,22 @@ private _prefsFor = "";
         ${this._edit && this._draft ? this._renderEditor(this._draft) : nothing}
         ${this._renderPopover()}
       </div>
+      ${tab === "overview" ? html`<share-space-overview .hass=${this.hass}></share-space-overview>` : nothing}
       ${tab === "rules" ? html`<share-space-rules-page .hass=${this.hass}></share-space-rules-page>` : nothing}
       ${tab === "settings"
         ? html`<share-space-settings
             .role=${this._role}
+            .fullHa=${!!this._fullHa}
+            .outdoorEntity=${this._outdoor}
+            .outdoorOptions=${this._outdoorOptions}
+            @outdoor-change=${(e: CustomEvent<string | null>) => void this._setOutdoor(e.detail)}
             @technical-change=${(e: CustomEvent<boolean>) => void this._setTechnical(e.detail)}
+            @full-ha-change=${(e: CustomEvent<boolean>) => void this._setFullHa(e.detail)}
           >
+            ${this._isAdmin
+              ? html`<share-space-zones-settings slot="zones" .hass=${this.hass}></share-space-zones-settings>
+                  <share-space-users-settings slot="users" .hass=${this.hass}></share-space-users-settings>`
+              : nothing}
             ${this._role === "technical_admin"
               ? html`<share-space-extension-points slot="extension-points" .hass=${this.hass}></share-space-extension-points>`
               : nothing}
@@ -835,34 +965,7 @@ private _prefsFor = "";
       case "heating": {
         const vm = typeof ref === "string" ? zoneViewModel(hass, ref) : null;
         if (!vm) return html`<div class="error">Entity not found: ${String(ref)}</div>`;
-        const zone = vm.serviceEntityId;
-        return html`<share-space-heating-control
-          compact
-          .name=${vm.name}
-          .currentTemperature=${vm.currentTemperature}
-          .target=${vm.target}
-          .min=${vm.min}
-          .max=${vm.max}
-          .step=${vm.step}
-          .unit=${vm.unit}
-          .mode=${vm.mode}
-          .overrideUntil=${vm.overrideUntil}
-          .presence=${vm.presence}
-          .presets=${vm.presets}
-          @override-requested=${(e: CustomEvent<{ temperature: number; hours: number }>) =>
-            zone && this._run(() => setOverride(hass, zone, e.detail.temperature, e.detail.hours))}
-          @override-extended=${(e: CustomEvent<{ hours: number }>) =>
-            zone && this._run(() => extendOverride(hass, zone, e.detail.hours))}
-          @override-cleared=${() => zone && this._run(() => clearOverride(hass, zone))}
-          @target-set=${(e: CustomEvent<{ temperature: number }>) =>
-            vm.climateEntity &&
-            this._run(() =>
-              hass.callService("climate", "set_temperature", {
-                entity_id: vm.climateEntity,
-                temperature: e.detail.temperature,
-              }),
-            )}
-        ></share-space-heating-control>`;
+        return renderHeatingControl(hass, vm, (fn) => void this._run(fn), true);
       }
       case "area": {
         const id = String(ref);

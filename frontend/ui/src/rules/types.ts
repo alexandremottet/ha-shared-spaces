@@ -16,7 +16,7 @@ export interface CurvePoint {
   value: number;
 }
 
-/** "Follow a sensor": reading (or default) mapped through 2-5 points, linear between, flat outside. */
+/** "Follow outdoor temperature": reading (or default) mapped through 2-5 points, linear between, flat outside. */
 export interface CurveValue {
   type: "curve";
   entity: string;

@@ -19,6 +19,7 @@ from homeassistant.helpers import entity_registry as er
 from . import websocket_api
 from .const import (
     BLUEPRINT_DIR,
+    DATA_SETTINGS,
     DATA_STORE,
     DATA_STRATEGIES,
     DATA_ZONES,
@@ -30,7 +31,8 @@ from .const import (
     SERVICE_SET_OVERRIDE,
 )
 from .rules import decide, planning_facts
-from .store import OverrideStore, StrategyStore
+from .provision import async_remove_managed
+from .store import OverrideStore, SettingsStore, StrategyStore
 from .target import BaseTarget
 from .zone import Zone
 
@@ -118,7 +120,9 @@ async def async_setup(hass: HomeAssistant, config: dict) -> bool:
     await store.async_load()
     strategies = StrategyStore(hass)
     await strategies.async_load()
-    hass.data[DOMAIN] = {DATA_STORE: store, DATA_ZONES: {}, DATA_STRATEGIES: strategies}
+    settings = SettingsStore(hass)
+    await settings.async_load()
+    hass.data[DOMAIN] = {DATA_STORE: store, DATA_ZONES: {}, DATA_STRATEGIES: strategies, DATA_SETTINGS: settings}
     _register_services(hass)
     await hass.async_add_executor_job(
         _install_blueprints, Path(hass.config.path(BLUEPRINT_DIR))
@@ -223,3 +227,5 @@ async def async_remove_entry(hass: HomeAssistant, entry: ConfigEntry) -> None:
     if DOMAIN not in hass.data:
         await store.async_load()
     await store.async_delete(entry.entry_id)
+    # helpers built for this zone go with it (own task: not while this entry is being removed)
+    hass.async_create_task(async_remove_managed(hass, entry))

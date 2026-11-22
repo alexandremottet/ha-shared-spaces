@@ -26,12 +26,14 @@ describe("list helpers", () => {
 });
 
 describe("defaults", () => {
-  it("default curves validate once a sensor is set", () => {
+  it("default curves read the Settings outdoor sensor and validate; a blank sensor does not", () => {
     const rule = (hours: unknown, value: unknown) => ({ version: 1, rules: [{ label: "x", when: [{ type: "occupied_within", hours }], then: { type: "temperature", value } }], fallback: { label: "y", then: { type: "off" } } });
     const h = defaultCurve("h", 3);
     const t = defaultCurve("°C", 20);
     expect(validateStrategy(rule({ ...h, entity: "sensor.out" }, { ...t, entity: "sensor.out" })).ok).toBe(true);
-    expect(validateStrategy(rule(h, t)).ok).toBe(false);
+    expect(h.entity).toBe("outdoor");
+    expect(validateStrategy(rule(h, t)).ok).toBe(true);
+    expect(validateStrategy(rule({ ...h, entity: "" }, t)).ok).toBe(false);
     expect(fixedOf(t)).toBe(20);
     expect(fixedOf(4)).toBe(4);
     const sensor = defaultCondition("sensor");

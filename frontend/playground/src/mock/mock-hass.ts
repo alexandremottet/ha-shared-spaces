@@ -5,7 +5,7 @@ import { MockClock } from "./clock";
 import { HeatingZoneSim, templateSyntaxError } from "./heating";
 import type { ClimateInfo, ZoneConfig } from "./heating";
 import { DAYS, isOccupied, mergeCalendars, nextChange, scheduleToRanges, toIsoLocal, SLOT_MINUTES } from "./planning";
-import { DEFAULT_OUTDOOR, OUTDOOR_SENSOR, STARTERS, demoSeed, defaultStartTime, outdoorPreheatDemo } from "./seed";
+import { DEFAULT_OUTDOOR, OUTDOOR_SENSOR, STARTERS, demoSeed, defaultStartTime, starterRules } from "./seed";
 import type { ActionLogEntry, HeatingLogEntry, InstalledBackends, MockOptions, SeedData } from "./types";
 
 export type MockHassEvent = { event_type: string; data: Record<string, unknown> };
@@ -74,6 +74,8 @@ export class MockHassController {
   private _extraCache = new Map<string, { key: string; attrs: Record<string, string | boolean | null> }>();
   private _automations = new Map<string, StrategyAutomationRec>();
   private _strategies = new Map<string, { id: string; name: string; rules: RuleStrategy; previous: RuleStrategy | null }>();
+  // Settings outdoor sensor (rules alias "outdoor"); the demo has one.
+  private _outdoorEntity: string | null = OUTDOOR_SENSOR;
   private _autoLast = new Map<string, string>();
   private _planningVersion = 0;
   private _dirty = true;
@@ -200,7 +202,7 @@ export class MockHassController {
     this._settle(true);
   }
 
-  /** Outdoor reading used by "Follow a sensor" rules. */
+  /** Outdoor reading used by "Follow outdoor temperature" rules. */
   get outdoor(): number {
     return Number(this._entities.get(OUTDOOR_SENSOR)?.state ?? DEFAULT_OUTDOOR);
   }
@@ -214,7 +216,7 @@ export class MockHassController {
     this._setEntity(OUTDOOR_SENSOR, String(temp), { friendly_name: "Outdoor temperature", unit_of_measurement: "°C", device_class: "temperature" });
   }
 
-  /** Dev: (re)save the outdoor preheat demo as shared "Old building", used by Open space. */
+  /** Dev: restore the "Old building" starter and use it for Open space. */
   loadDemoRules(): void {
     this._seedDemoRules();
     this._settle(true);
@@ -225,8 +227,8 @@ export class MockHassController {
     const zone = [...this._zones.values()].find((z) => z.config.entry_id === "zone_open_space");
     if (!zone) return;
     const name = "Old building";
-    const sid = [...this._strategies.values()].find((x) => x.name.toLowerCase() === name.toLowerCase())?.id ?? "demo_old_building";
-    this._strategies.set(sid, { id: sid, name, rules: outdoorPreheatDemo(), previous: null });
+    const sid = "old_building";
+    this._strategies.set(sid, { id: sid, name, rules: starterRules(sid), previous: null });
     const entity = this._zoneEntityId(zone.config);
     const config = rulesAutomationConfig({ entity_id: entity, name: zone.config.name }, "open_space", { strategy: sid, name });
     const id = `share_space_${entity.slice(entity.indexOf(".") + 1)}_rules`;
@@ -502,6 +504,7 @@ export class MockHassController {
         template_error: null,
         climate_entity: zone.config.climate_entity,
         current_temperature: zone.currentTemperature,
+        outdoor_entity: this._outdoorEntity,
       });
     }
     this._commit(force);
@@ -581,7 +584,7 @@ export class MockHassController {
     if (!rules) return null;
     try {
       const cfg = this._zoneByEntity(input.zone).config;
-      return evaluateRules(rules, this._ranges(area), now, this.tz, { comfort: cfg.comfort_temp, eco: cfg.eco_temp }, sensorReadings(rules, Object.fromEntries(this._entities)));
+      return evaluateRules(rules, this._ranges(area), now, this.tz, { comfort: cfg.comfort_temp, eco: cfg.eco_temp }, sensorReadings(rules, Object.fromEntries(this._entities), this._outdoorEntity));
     } catch {
       return null;
     }
@@ -876,6 +879,19 @@ export class MockHassController {
       true
     );
 
+    ws("share_space_heating/get_settings", "heating", () => ({ outdoor_entity: this._outdoorEntity }));
+    ws(
+      "share_space_heating/save_settings",
+      "heating",
+      (m) => {
+        const id = typeof m.outdoor_entity === "string" && m.outdoor_entity.trim() ? m.outdoor_entity.trim() : null;
+        if (id && !/^(sensor|weather|input_number)\.[a-z0-9_]+$/.test(id)) throw HA_ERROR("invalid_format", "outdoor_entity must be a sensor, weather or input_number entity");
+        this._outdoorEntity = id;
+        this._settle(true);
+        return { outdoor_entity: id };
+      },
+      true
+    );
     ws("share_space_heating/list_strategies", "heating", () =>
       [...this._strategies.values()].sort((a, b) => a.name.localeCompare(b.name))
     );

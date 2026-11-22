@@ -1,5 +1,8 @@
 import type { RuleStrategy, Value } from "./types";
 
+/** Sensor alias in rules: the outdoor sensor picked in Settings. */
+export const OUTDOOR = "outdoor";
+
 /** Numeric readings by entity id; a missing entry means no reading. */
 export type SensorReadings = Record<string, number>;
 
@@ -48,11 +51,17 @@ export function readingOf(entityId: string, state?: { state: string; attributes?
   return Number.isFinite(n) ? n : undefined;
 }
 
-/** Current readings for every sensor the strategy uses. */
-export function sensorReadings(strategy: RuleStrategy, states: Record<string, { state: string; attributes?: Record<string, unknown> }>): SensorReadings {
+/** Current readings for every sensor the strategy uses; `outdoor` reads `outdoorEntity`. */
+export function sensorReadings(
+  strategy: RuleStrategy,
+  states: Record<string, { state: string; attributes?: Record<string, unknown> }>,
+  outdoorEntity?: string | null,
+): SensorReadings {
   const out: SensorReadings = {};
   for (const id of strategySensors(strategy)) {
-    const t = readingOf(id, states[id]);
+    const real = id === OUTDOOR ? outdoorEntity : id;
+    if (!real) continue;
+    const t = readingOf(real, states[real]);
     if (t !== undefined) out[id] = t;
   }
   return out;

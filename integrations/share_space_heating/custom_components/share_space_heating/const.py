@@ -23,10 +23,16 @@ DEFAULT_OFF_MODE = OFF_MODE_FROST
 
 STORAGE_KEY_OVERRIDES = "share_space_heating.overrides"
 STORAGE_KEY_STRATEGIES = "share_space_heating.strategies"
+STORAGE_KEY_STARTERS_OFFERED = "share_space_heating.starters_offered"
+STORAGE_KEY_SETTINGS = "share_space_heating.settings"
+
+# Rule sensor alias resolved to the outdoor sensor picked in Settings.
+OUTDOOR_ALIAS = "outdoor"
 STORAGE_VERSION = 1
 
 DATA_STORE = "store"
 DATA_STRATEGIES = "strategies"
+DATA_SETTINGS = "settings"
 DATA_ZONES = "zones"
 
 MODE_SCHEDULE = "schedule"

@@ -201,6 +201,10 @@ class Zone:
         return lambda: self._listeners.remove(listener)
 
     @callback
+    def async_notify(self) -> None:
+        self._notify()
+
+    @callback
     def _notify(self) -> None:
         for listener in list(self._listeners):
             listener()

@@ -8,7 +8,13 @@ from pathlib import Path
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.storage import Store
 
-from .const import STORAGE_KEY_OVERRIDES, STORAGE_KEY_STRATEGIES, STORAGE_VERSION
+from .const import (
+    STORAGE_KEY_OVERRIDES,
+    STORAGE_KEY_SETTINGS,
+    STORAGE_KEY_STARTERS_OFFERED,
+    STORAGE_KEY_STRATEGIES,
+    STORAGE_VERSION,
+)
 
 
 class OverrideStore:
@@ -34,6 +40,8 @@ class OverrideStore:
 
 
 STARTERS_FILE = Path(__file__).parent / "starters.json"
+# Starters shipped before offered ids were tracked: a store from then already had its chance at them.
+_LEGACY_STARTERS = ["office_saver", "lunch_room"]
 
 
 def _read_starters() -> list[dict]:
@@ -46,17 +54,25 @@ class StrategyStore:
     def __init__(self, hass: HomeAssistant) -> None:
         self._hass = hass
         self._store: Store[dict] = Store(hass, STORAGE_VERSION, STORAGE_KEY_STRATEGIES)
+        self._offered_store: Store[list] = Store(hass, STORAGE_VERSION, STORAGE_KEY_STARTERS_OFFERED)
         self._data: dict = {}
 
     async def async_load(self) -> None:
         stored = await self._store.async_load()
-        if stored is not None:
-            self._data = stored
-            return
-        # first run only: seed the starters, later deletions stay deleted
+        offered = await self._offered_store.async_load()
+        self._data = stored or {}
+        if offered is None:
+            offered = _LEGACY_STARTERS if stored is not None else []
+        # each starter is offered once: new ones reach existing installs, deleted ones stay deleted
         starters = await self._hass.async_add_executor_job(_read_starters)
-        self._data = {s["id"]: {"name": s["name"], "rules": s["rules"], "previous": None} for s in starters}
-        await self._store.async_save(self._data)
+        new = [s for s in starters if s["id"] not in offered and s["id"] not in self._data]
+        for s in new:
+            self._data[s["id"]] = {"name": s["name"], "rules": s["rules"], "previous": None}
+        if new or stored is None:
+            await self._store.async_save(self._data)
+        all_ids = sorted({*offered, *(s["id"] for s in starters)})
+        if all_ids != sorted(offered):
+            await self._offered_store.async_save(all_ids)
 
     def all(self) -> list[dict]:
         items = [{"id": key, **value} for key, value in self._data.items()]
@@ -77,3 +93,22 @@ class StrategyStore:
             return False
         await self._store.async_save(self._data)
         return True
+
+
+class SettingsStore:
+    """Space-wide heating settings: `{outdoor_entity}`."""
+
+    def __init__(self, hass: HomeAssistant) -> None:
+        self._store: Store[dict] = Store(hass, STORAGE_VERSION, STORAGE_KEY_SETTINGS)
+        self._data: dict = {}
+
+    async def async_load(self) -> None:
+        self._data = await self._store.async_load() or {}
+
+    @property
+    def outdoor_entity(self) -> str | None:
+        return self._data.get("outdoor_entity")
+
+    async def async_set_outdoor_entity(self, entity_id: str | None) -> None:
+        self._data["outdoor_entity"] = entity_id
+        await self._store.async_save(self._data)

@@ -1,5 +1,5 @@
 import { html, css } from "lit";
-import { customElement } from "lit/decorators.js";
+import { safeCustomElement } from "ha-share-space-ui";
 import {
   ShareSpaceScheduleView,
   haTheme,
@@ -17,7 +17,7 @@ interface CardConfig {
   show_area_picker?: boolean;
 }
 
-@customElement("share-space-my-planning-card")
+@safeCustomElement("share-space-my-planning-card")
 export class ShareSpaceMyPlanningCard extends ShareSpaceScheduleView {
   static styles = [
     haTheme,

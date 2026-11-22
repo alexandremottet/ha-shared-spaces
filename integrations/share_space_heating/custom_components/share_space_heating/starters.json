@@ -107,5 +107,126 @@
         }
       }
     }
+  },
+  {
+    "id": "old_building",
+    "name": "Old building",
+    "rules": {
+      "version": 1,
+      "rules": [
+        {
+          "label": "Occupied",
+          "when": [
+            {
+              "type": "occupied"
+            }
+          ],
+          "then": {
+            "type": "temperature",
+            "value": 20.0
+          }
+        },
+        {
+          "label": "Preheat",
+          "when": [
+            {
+              "type": "occupied_within",
+              "hours": {
+                "type": "curve",
+                "entity": "outdoor",
+                "default": 10.0,
+                "points": [
+                  {
+                    "at": 10.0,
+                    "value": 6.0
+                  },
+                  {
+                    "at": 20.0,
+                    "value": 1.0
+                  }
+                ]
+              }
+            }
+          ],
+          "then": {
+            "type": "temperature",
+            "value": 20.0
+          }
+        },
+        {
+          "label": "Setback overnight",
+          "when": [
+            {
+              "type": "between_days",
+              "gap_hours": 16.0
+            }
+          ],
+          "then": {
+            "type": "temperature",
+            "value": 15.0
+          }
+        }
+      ],
+      "fallback": {
+        "label": "Away",
+        "then": {
+          "type": "off"
+        }
+      }
+    }
+  },
+  {
+    "id": "well_insulated",
+    "name": "Well insulated",
+    "rules": {
+      "version": 1,
+      "rules": [
+        {
+          "label": "Occupied",
+          "when": [
+            {
+              "type": "occupied"
+            }
+          ],
+          "then": {
+            "type": "temperature",
+            "value": 20.0
+          }
+        },
+        {
+          "label": "Preheat",
+          "when": [
+            {
+              "type": "occupied_within",
+              "hours": 2.0
+            }
+          ],
+          "then": {
+            "type": "temperature",
+            "value": 20.0
+          }
+        },
+        {
+          "label": "Keep the heat overnight",
+          "when": [
+            {
+              "type": "between_days",
+              "gap_hours": 16.0
+            }
+          ],
+          "then": {
+            "type": "temperature",
+            "value": 18.0
+          }
+        }
+      ],
+      "fallback": {
+        "label": "Hold the heat",
+        "then": {
+          "type": "temperature",
+          "value": 16.0
+        }
+      }
+    }
   }
 ]

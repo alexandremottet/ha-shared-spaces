@@ -229,9 +229,11 @@ STARTERS = json.loads((Path(__file__).parents[1] / "custom_components/share_spac
 async def test_starters_seeded_on_first_load(hass, hass_storage):
     assert await async_setup_component(hass, DOMAIN, {})
     store = hass.data[DOMAIN][DATA_STRATEGIES]
-    assert [s["name"] for s in store.all()] == ["Lunch room", "Office saver"]
+    assert [s["name"] for s in store.all()] == ["Lunch room", "Office saver", "Old building", "Well insulated"]
     assert store.get("office_saver") == {"id": "office_saver", "name": "Office saver", "rules": STARTERS[0]["rules"], "previous": None}
-    assert set(hass_storage["share_space_heating.strategies"]["data"]) == {"office_saver", "lunch_room"}
+    ids = {s["id"] for s in STARTERS}
+    assert set(hass_storage["share_space_heating.strategies"]["data"]) == ids
+    assert set(hass_storage["share_space_heating.starters_offered"]["data"]) == ids
 
 
 async def test_starters_not_reseeded_when_store_exists(hass, hass_storage):
@@ -248,14 +250,19 @@ async def test_deleted_starter_stays_deleted(hass, hass_storage):
     assert await store.async_delete("lunch_room") is True
     reloaded = StrategyStore(hass)
     await reloaded.async_load()
-    assert [s["id"] for s in reloaded.all()] == ["office_saver"]
+    assert [s["id"] for s in reloaded.all()] == ["office_saver", "old_building", "well_insulated"]
 
 
-async def test_existing_empty_store_is_not_seeded(hass, hass_storage):
+async def test_legacy_store_gets_only_new_starters(hass, hass_storage):
+    # store from before offered ids were tracked: its user deleted both original starters
     hass_storage["share_space_heating.strategies"] = {"version": 1, "key": "share_space_heating.strategies", "data": {}}
     store = StrategyStore(hass)
     await store.async_load()
-    assert store.all() == []
+    assert [s["id"] for s in store.all()] == ["old_building", "well_insulated"]
+    assert await store.async_delete("old_building") is True
+    reloaded = StrategyStore(hass)
+    await reloaded.async_load()
+    assert [s["id"] for s in reloaded.all()] == ["well_insulated"]
 
 
 def test_fixture_starter_cases_use_starter_rules():

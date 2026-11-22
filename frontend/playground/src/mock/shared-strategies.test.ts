@@ -23,16 +23,16 @@ describe("shared strategies (mock)", () => {
   it("seeds the starters and Old building used by Open space", async () => {
     make();
     const list = await listStrategies(c.hass);
-    expect(list.map((s) => s.name)).toEqual(["Lunch room", "Office saver", "Old building"]);
+    expect(list.map((s) => s.name)).toEqual(["Lunch room", "Office saver", "Old building", "Well insulated"]);
     expect(list.find((s) => s.id === "office_saver")?.rules).toEqual(STARTERS[0].rules);
-    expect(strategyUsers(await loadStrategyUses(c.hass, zones), "demo_old_building")).toEqual(["Open space"]);
+    expect(strategyUsers(await loadStrategyUses(c.hass, zones), "old_building")).toEqual(["Open space"]);
   });
 
   it("seeds the starters without the demo; a deleted starter stays deleted", async () => {
     c = createMockHass({ startTime: at(16, 8, 45), timeZone: TZ, playing: false });
-    expect((await listStrategies(c.hass)).map((s) => s.id).sort()).toEqual(["lunch_room", "office_saver"]);
+    expect((await listStrategies(c.hass)).map((s) => s.id).sort()).toEqual(STARTERS.map((s) => s.id).sort());
     await deleteStrategy(c.hass, "lunch_room");
-    expect((await listStrategies(c.hass)).map((s) => s.id)).toEqual(["office_saver"]);
+    expect((await listStrategies(c.hass)).map((s) => s.id)).toEqual(["office_saver", "old_building", "well_insulated"]);
   });
 
   it("save creates, updates, rejects taken names and unknown ids; delete removes", async () => {
@@ -48,22 +48,23 @@ describe("shared strategies (mock)", () => {
       ["Office 2", true],
       ["Office saver", false],
       ["Old building", false],
+      ["Well insulated", false],
     ]);
     await deleteStrategy(c.hass, id);
-    expect((await listStrategies(c.hass)).map((s) => s.name)).toEqual(["Lunch room", "Office saver", "Old building"]);
+    expect((await listStrategies(c.hass)).map((s) => s.name)).toEqual(["Lunch room", "Office saver", "Old building", "Well insulated"]);
     await expect(deleteStrategy(c.hass, id)).rejects.toMatchObject({ code: "not_found" });
   });
 
   it("writes are admin only", async () => {
     c = createMockHass({ startTime: at(16, 8, 45), timeZone: TZ, playing: false, userId: "u2", demoRules: true });
     await expect(saveStrategy(c.hass, { name: "X", rules: starterRules("office_saver") })).rejects.toMatchObject({ code: "unauthorized" });
-    await expect(deleteStrategy(c.hass, "demo_old_building")).rejects.toMatchObject({ code: "unauthorized" });
-    expect(await listStrategies(c.hass)).toHaveLength(3);
+    await expect(deleteStrategy(c.hass, "old_building")).rejects.toMatchObject({ code: "unauthorized" });
+    expect(await listStrategies(c.hass)).toHaveLength(STARTERS.length);
   });
 
   it("an automation pointing at a strategy runs its rules; a missing id does nothing", async () => {
     make();
-    const old = (await listStrategies(c.hass)).find((s) => s.id === "demo_old_building")!;
+    const old = (await listStrategies(c.hass)).find((s) => s.id === "old_building")!;
     c.clock.set(at(16, 9, 0));
     const before = attrs(WORKSHOP).active_rule;
     await saveZoneRules(c.hass, zones[1], "open_space", { strategy: "missing", name: "Gone" });

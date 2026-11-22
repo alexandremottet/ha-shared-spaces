@@ -250,7 +250,7 @@ export class ShareSpaceStrategyEditor extends LitElement {
     const days = Array.from({ length: 8 }, (_, i) => fromWall(tz, w.year, w.month, w.day + i, 0, 0));
     const attrs = hass.states[this.zone]?.attributes;
     const temps = { comfort: Number(attrs?.comfort_temp ?? 21), eco: Number(attrs?.eco_temp ?? 17) };
-    const readings = sensorReadings(rules, hass.states);
+    const readings = sensorReadings(rules, hass.states, (attrs?.outdoor_entity as string | null | undefined) ?? null);
     const key = JSON.stringify([rules, schedule, days[0], temps, readings]);
     if (this._memo?.key !== key) {
       this._memo = { key, days, planned: plannedSpans(schedule, days, tz), segments: strategyTimeline(rules, schedule, days[0], days[7], tz, temps, readings) };

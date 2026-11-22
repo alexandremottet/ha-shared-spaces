@@ -94,7 +94,7 @@ export function HeatingSection({ hass, controller }: { hass: HomeAssistant; cont
             <b>{controller.outdoor} °C</b>
           </label>
           <button onClick={() => controller.loadDemoRules()}>Load outdoor preheat demo</button>
-          <span className="muted">Saves the demo as shared strategy "Old building" used by Open space: 20 °C; preheat 6 h at 10 °C outside down to 1 h at 20 °C; 15 °C setback on nights before a morning; off on weekends. See it in Panel → Rules → Open space, next to the seeded starters Office saver and Lunch room; pick any of them for Workshop or Kitchen.</span>
+          <span className="muted">Restores the "Old building" starter and uses it for Open space: 20 °C; preheat 6 h at 10 °C outside down to 1 h at 20 °C; 15 °C setback on nights before a morning; off on weekends. See it in Panel → Rules → Open space, next to the other starters (Office saver, Lunch room, Well insulated); pick any of them for Workshop or Kitchen.</span>
         </div>
       )}
       {ids.length === 0 && <div className="notice">No heating zones (Share Space Heating not installed or no zone).</div>}

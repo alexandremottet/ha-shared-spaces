@@ -161,25 +161,3 @@ export const DEFAULT_OUTDOOR = 4;
  * Demo rules for the Open space: 20 °C when occupied; preheat always (6 h at 10 °C outside down to 1 h at 20 °C);
  * 15 °C setback only when the whole empty gap is at most 16 h (a night before a morning); off otherwise (weekends, holidays).
  */
-export function outdoorPreheatDemo(): RuleStrategy {
-  const target = { type: "temperature", value: 20 } as const;
-  return {
-    version: 1,
-    rules: [
-      { label: "Occupied", when: [{ type: "occupied" }], then: target },
-      {
-        label: "Preheat",
-        when: [
-          {
-            type: "occupied_within",
-            hours: { type: "curve", entity: OUTDOOR_SENSOR, default: 10, points: [{ at: 10, value: 6 }, { at: 20, value: 1 }] },
-          },
-        ],
-        then: target,
-      },
-      { label: "Setback overnight", when: [{ type: "between_days", gap_hours: 16 }], then: { type: "temperature", value: 15 } },
-    ],
-    fallback: { label: "Away", then: { type: "off" } },
-  };
-}
-

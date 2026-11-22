@@ -1,6 +1,7 @@
 import { WEEK_DAYS } from "../types";
 import type { WeekDay } from "../types";
 import type { Condition, RuleStrategy } from "./types";
+import { OUTDOOR } from "./value";
 
 export type RuleErrorCode =
   | "type"
@@ -133,6 +134,7 @@ class Checker {
   }
 
   entity(v: unknown, path: string): void {
+    if (v === OUTDOOR) return;
     if (typeof v !== "string" || !ENTITY_RE.test(v)) this.err(path, "type", "must be an entity id");
   }
 

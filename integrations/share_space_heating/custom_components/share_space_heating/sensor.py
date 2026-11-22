@@ -8,6 +8,7 @@ from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.util import slugify
 
 from .const import DATA_ZONES, DOMAIN
+from .rules import outdoor_entity
 from .zone import Zone
 
 
@@ -52,4 +53,5 @@ class ZoneSensor(SensorEntity):
             "target_template": zone.target_template,
             "template_result": zone.template_result,
             "template_error": zone.template_error,
+            "outdoor_entity": outdoor_entity(self.hass),
         }

@@ -9,9 +9,11 @@ from homeassistant.components import websocket_api
 from homeassistant.core import HomeAssistant
 from homeassistant.exceptions import TemplateError
 from homeassistant.helpers import config_validation as cv
+from homeassistant.helpers import device_registry as dr
 from homeassistant.helpers import entity_registry as er
 from homeassistant.helpers.template import Template
 
+from .provision import CONF_AREA, CONF_HEATER_SWITCH, CONF_HEATERS, CONF_MANAGED_ENTRIES, CONF_TEMPERATURE_SENSOR, ProvisionError, async_create_area_zone
 from .const import (
     CONF_CLIMATE_ENTITY,
     CONF_COMFORT_TEMP,
@@ -22,6 +24,7 @@ from .const import (
     CONF_OFF_MODE,
     CONF_PRESENCE_ENTITY,
     CONF_TARGET_TEMPLATE,
+    DATA_SETTINGS,
     DATA_STRATEGIES,
     DATA_ZONES,
     DOMAIN,
@@ -36,6 +39,10 @@ def async_register(hass: HomeAssistant) -> None:
     websocket_api.async_register_command(hass, ws_list_strategies)
     websocket_api.async_register_command(hass, ws_save_strategy)
     websocket_api.async_register_command(hass, ws_delete_strategy)
+    websocket_api.async_register_command(hass, ws_create_area_zone)
+    websocket_api.async_register_command(hass, ws_delete_zone)
+    websocket_api.async_register_command(hass, ws_get_settings)
+    websocket_api.async_register_command(hass, ws_save_settings)
 
 
 def _presence_entity(value):
@@ -81,7 +88,22 @@ def _summary(hass: HomeAssistant, entry_id: str, zone) -> dict:
         "template_result": zone.template_result,
         "template_error": zone.template_error,
         "override_until": zone.override_until.isoformat() if zone.override_active else None,
+        "area_id": zone.entry.data.get(CONF_AREA) or _entity_area(hass, zone.climate_entity),
+        "heaters": zone.entry.data.get(CONF_HEATERS),
+        "heater_switch": zone.entry.data.get(CONF_HEATER_SWITCH),
+        "temperature_sensor": zone.entry.data.get(CONF_TEMPERATURE_SENSOR),
+        "managed": bool(zone.entry.data.get(CONF_MANAGED_ENTRIES)),
     }
+
+
+def _entity_area(hass: HomeAssistant, entity_id: str) -> str | None:
+    ent = er.async_get(hass).async_get(entity_id)
+    if ent is None:
+        return None
+    if ent.area_id or not ent.device_id:
+        return ent.area_id
+    device = dr.async_get(hass).async_get(ent.device_id)
+    return device.area_id if device else None
 
 
 def _zone_entity_id(hass: HomeAssistant, entry_id: str) -> str | None:
@@ -212,4 +234,85 @@ async def ws_delete_strategy(hass: HomeAssistant, connection, msg: dict) -> None
     if not await hass.data[DOMAIN][DATA_STRATEGIES].async_delete(msg["strategy_id"]):
         connection.send_error(msg["id"], websocket_api.ERR_NOT_FOUND, "Strategy not found")
         return
+    connection.send_result(msg["id"], {})
+
+
+@websocket_api.websocket_command({vol.Required("type"): f"{DOMAIN}/get_settings"})
+@websocket_api.async_response
+async def ws_get_settings(hass: HomeAssistant, connection, msg: dict) -> None:
+    connection.send_result(msg["id"], {"outdoor_entity": hass.data[DOMAIN][DATA_SETTINGS].outdoor_entity})
+
+
+def _outdoor_entity(value):
+    if value in (None, ""):
+        return None
+    value = cv.entity_id(value)
+    if value.split(".")[0] not in ("sensor", "weather", "input_number"):
+        raise vol.Invalid("outdoor_entity must be a sensor, weather or input_number entity")
+    return value
+
+
+@websocket_api.require_admin
+@websocket_api.websocket_command(
+    {vol.Required("type"): f"{DOMAIN}/save_settings", vol.Required("outdoor_entity"): vol.Any(None, str)}
+)
+@websocket_api.async_response
+async def ws_save_settings(hass: HomeAssistant, connection, msg: dict) -> None:
+    try:
+        entity_id = _outdoor_entity(msg["outdoor_entity"])
+    except vol.Invalid as err:
+        connection.send_error(msg["id"], websocket_api.ERR_INVALID_FORMAT, str(err))
+        return
+    await hass.data[DOMAIN][DATA_SETTINGS].async_set_outdoor_entity(entity_id)
+    # zone sensors expose the outdoor sensor; refresh them
+    for zone in hass.data[DOMAIN][DATA_ZONES].values():
+        zone.async_notify()
+    connection.send_result(msg["id"], {"outdoor_entity": entity_id})
+
+
+def _domain_entity(*domains: str):
+    def check(value):
+        value = cv.entity_id(value)
+        if value.split(".")[0] not in domains:
+            raise vol.Invalid(f"must be a {' or '.join(domains)} entity")
+        return value
+
+    return check
+
+
+@websocket_api.require_admin
+@websocket_api.websocket_command(
+    {
+        vol.Required("type"): f"{DOMAIN}/create_area_zone",
+        vol.Required("area_id"): str,
+        vol.Exclusive(CONF_CLIMATE_ENTITY, "source"): _domain_entity("climate"),
+        vol.Exclusive(CONF_HEATERS, "source"): vol.All([_domain_entity("switch")], vol.Length(min=1)),
+        vol.Optional(CONF_TEMPERATURE_SENSOR): _domain_entity("sensor"),
+    }
+)
+@websocket_api.async_response
+async def ws_create_area_zone(hass: HomeAssistant, connection, msg: dict) -> None:
+    try:
+        entry = await async_create_area_zone(
+            hass,
+            msg["area_id"],
+            climate_entity=msg.get(CONF_CLIMATE_ENTITY),
+            heaters=msg.get(CONF_HEATERS),
+            temperature_sensor=msg.get(CONF_TEMPERATURE_SENSOR),
+        )
+    except ProvisionError as err:
+        connection.send_error(msg["id"], err.code, str(err))
+        return
+    connection.send_result(msg["id"], {"entry_id": entry.entry_id, "entity_id": _zone_entity_id(hass, entry.entry_id)})
+
+
+@websocket_api.require_admin
+@websocket_api.websocket_command({vol.Required("type"): f"{DOMAIN}/delete_zone", vol.Required("entry_id"): str})
+@websocket_api.async_response
+async def ws_delete_zone(hass: HomeAssistant, connection, msg: dict) -> None:
+    entry = hass.config_entries.async_get_entry(msg["entry_id"])
+    if entry is None or entry.domain != DOMAIN:
+        connection.send_error(msg["id"], websocket_api.ERR_NOT_FOUND, "Zone not found")
+        return
+    await hass.config_entries.async_remove(entry.entry_id)
     connection.send_result(msg["id"], {})

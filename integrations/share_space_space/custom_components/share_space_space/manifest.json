@@ -1,13 +1,23 @@
 {
   "domain": "share_space_space",
   "name": "Share Space Space",
-  "codeowners": ["@alexandremottet"],
+  "codeowners": [
+    "@alexandremottet"
+  ],
   "config_flow": true,
-  "dependencies": ["http", "frontend", "websocket_api", "panel_custom"],
+  "dependencies": [
+    "http",
+    "frontend",
+    "websocket_api",
+    "panel_custom"
+  ],
   "documentation": "https://github.com/alexandremottet/ha-share-space",
   "issue_tracker": "https://github.com/alexandremottet/ha-share-space/issues",
   "iot_class": "local_push",
   "integration_type": "service",
   "requirements": [],
-  "version": "0.1.0"
+  "version": "0.1.0",
+  "after_dependencies": [
+    "share_space_heating"
+  ]
 }
