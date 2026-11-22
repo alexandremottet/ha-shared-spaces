@@ -3,8 +3,14 @@ import {
   detachAutomation,
   findZoneStrategies,
   listStrategyAutomations,
+  deleteStrategy,
+  listStrategies,
   loadRulesAutomation,
+  loadStrategyUses,
   loadZoneRules,
+  nameTaken,
+  saveStrategy,
+  strategyUsers,
   loadZoneStrategy,
   nextRulesId,
   rulesIdIndex,
@@ -15,7 +21,7 @@ import {
   zoneRulesIds,
 } from "./ws";
 import { rulesAutomationConfig } from "../rules/automation";
-import { officeSaverRules } from "../rules/templates";
+import { officeSaverRules } from "../rules/starters.fixture";
 
 const rules = officeSaverRules();
 const ents = (spec: Record<string, [string, string]>) =>
@@ -41,15 +47,12 @@ function fake(states: Record<string, unknown>, cfg: Record<string, unknown> = {}
 }
 
 describe("rules automations", () => {
-  it("builds the id", () => expect(strategyAutomationId("sensor.zone_a", "rules")).toBe("share_space_zone_a_rules"));
+  it("builds the id", () => expect(strategyAutomationId("sensor.zone_a")).toBe("share_space_zone_a_rules"));
 
-  it("recognises rules automations as kind rules", () => {
+  it("recognises rules automations only", () => {
     const { hass } = fake(ents({ "automation.r": ["share_space_zone_a_rules", "on"], "automation.o": ["share_space_zone_a_office_saver", "off"], "automation.x": ["other", "on"] }));
-    expect(listStrategyAutomations(hass).map((a) => [a.id, a.kind, a.enabled])).toEqual([
-      ["share_space_zone_a_rules", "rules", true],
-      ["share_space_zone_a_office_saver", "office_saver", false],
-    ]);
-    expect(findZoneStrategies(hass, "sensor.zone_a")).toHaveLength(2);
+    expect(listStrategyAutomations(hass).map((a) => [a.id, a.enabled])).toEqual([["share_space_zone_a_rules", true]]);
+    expect(findZoneStrategies(hass, "sensor.zone_a")).toHaveLength(1);
     expect(findZoneStrategies(hass, "sensor.zone_b")).toHaveLength(0);
   });
 
@@ -57,16 +60,14 @@ describe("rules automations", () => {
     const cfg = { share_space_zone_a_rules: { alias: "x", use_blueprint: { path: "share_space/rules.yaml", input: { zone: "sensor.zone_a", area: "office", rules, previous_rules: null } } } };
     const { hass } = fake(ents({ "automation.r": ["share_space_zone_a_rules", "on"] }), cfg);
     const s = await loadZoneStrategy(hass, "sensor.zone_a");
-    expect(s?.automation.kind).toBe("rules");
-    expect(s?.rules).toEqual(rules);
-    expect(s?.inputs).toBeNull();
+    expect(s).toMatchObject({ id: "share_space_zone_a_rules", rules, strategy: null });
     expect(await loadZoneRules(hass, "sensor.zone_a")).toMatchObject({ area: "office", enabled: true, previous: null });
     expect(await loadZoneRules(hass, "sensor.zone_b")).toBeNull();
   });
 
   it("saves the config with previous_rules", async () => {
     const { hass, calls } = fake({});
-    await saveZoneRules(hass, { entity_id: "sensor.zone_a", name: "Zone A" }, "office", rules, null);
+    await saveZoneRules(hass, { entity_id: "sensor.zone_a", name: "Zone A" }, "office", { rules, previous: null });
     expect(calls[0]).toEqual([
       "api",
       "POST",
@@ -81,7 +82,7 @@ describe("rules automations", () => {
 
   it("useZoneStrategy enables this one, disables others, clears presence", async () => {
     const { hass, calls } = fake(
-      ents({ "automation.r": ["share_space_zone_a_rules", "off"], "automation.o": ["share_space_zone_a_office_saver", "on"], "automation.z": ["share_space_zone_b_rules", "on"] }),
+      ents({ "automation.r": ["share_space_zone_a_rules", "off"], "automation.o": ["share_space_zone_a_rules_2", "on"], "automation.z": ["share_space_zone_b_rules", "on"] }),
     );
     await useZoneStrategy(hass, { entity_id: "sensor.zone_a", entry_id: "e1", presence_entity: "binary_sensor.p" }, "share_space_zone_a_rules");
     expect(calls).toEqual([
@@ -109,7 +110,7 @@ describe("rules automations", () => {
 
 describe("rules automations outside Share Space", () => {
   const Z = "sensor.zone_a";
-  const managedCfg = rulesAutomationConfig({ entity_id: Z, name: "Zone A" }, "office", rules, null);
+  const managedCfg = rulesAutomationConfig({ entity_id: Z, name: "Zone A" }, "office", { rules, previous: null });
 
   it("numbers extra rules automations _rules_2, _rules_3", () => {
     expect(rulesIdIndex(Z, "share_space_zone_a_rules")).toBe(1);
@@ -165,7 +166,84 @@ describe("rules automations outside Share Space", () => {
 
   it("saves to a given id", async () => {
     const { hass, calls } = fake({});
-    await saveZoneRules(hass, { entity_id: Z, name: "Zone A" }, "office", rules, null, "share_space_zone_a_rules_2");
+    await saveZoneRules(hass, { entity_id: Z, name: "Zone A" }, "office", { rules, previous: null }, "share_space_zone_a_rules_2");
     expect(calls[0]).toEqual(["api", "POST", "share_space_zone_a_rules_2", managedCfg]);
+  });
+});
+
+describe("shared strategies", () => {
+  const Z = "sensor.zone_a";
+  const shared = (zone: string, name: string, sid: string) => rulesAutomationConfig({ entity_id: zone, name }, "office", { strategy: sid, name: "Old building" });
+
+  it("reads the strategy input, empty or missing as null", async () => {
+    const custom = rulesAutomationConfig({ entity_id: Z, name: "Zone A" }, "office", { rules, previous: null });
+    const blank = { ...custom, use_blueprint: { ...custom.use_blueprint, input: { ...custom.use_blueprint.input, strategy: "" } } };
+    const { hass } = fake(ents({ "automation.r": ["share_space_zone_a_rules", "on"] }), {
+      share_space_zone_a_rules: shared(Z, "Zone A", "s1"),
+      share_space_zone_a_rules_2: custom,
+      share_space_zone_a_rules_3: blank,
+    });
+    expect(await loadRulesAutomation(hass, Z, "share_space_zone_a_rules")).toMatchObject({ strategy: "s1", rules: null, state: "managed", area: "office" });
+    expect(await loadRulesAutomation(hass, Z, "share_space_zone_a_rules_2")).toMatchObject({ strategy: null, rules });
+    expect(await loadRulesAutomation(hass, Z, "share_space_zone_a_rules_3")).toMatchObject({ strategy: null, rules });
+    expect(await loadZoneStrategy(hass, Z)).toMatchObject({ area: "office", rules: null });
+  });
+
+  it("saves the zone automation pointing at a strategy", async () => {
+    const { hass, calls } = fake({});
+    await saveZoneRules(hass, { entity_id: Z, name: "Zone A" }, "office", { strategy: "s1", name: "Old building" });
+    expect(calls[0]).toEqual(["api", "POST", "share_space_zone_a_rules", shared(Z, "Zone A", "s1")]);
+  });
+
+  it("sends the strategy WS commands with strategy_id", async () => {
+    const { hass, calls } = fake({});
+    await listStrategies(hass);
+    await saveStrategy(hass, { name: "Old building", rules });
+    await saveStrategy(hass, { id: "s1", name: "Old", rules, previous: null });
+    await deleteStrategy(hass, "s1");
+    expect(calls).toEqual([
+      ["ws", { type: "share_space_heating/list_strategies" }],
+      ["ws", { type: "share_space_heating/save_strategy", name: "Old building", rules }],
+      ["ws", { type: "share_space_heating/save_strategy", strategy_id: "s1", name: "Old", rules, previous: null }],
+      ["ws", { type: "share_space_heating/delete_strategy", strategy_id: "s1" }],
+    ]);
+  });
+
+  it("lists the zones using a strategy from their managed rules automations", async () => {
+    const zones = [
+      { entity_id: "sensor.zone_a", name: "Zone A" },
+      { entity_id: "sensor.zone_b", name: "Zone B" },
+      { entity_id: "sensor.zone_c", name: "Zone C" },
+      { entity_id: "sensor.zone_d", name: "Zone D" },
+    ];
+    const { hass } = fake(
+      ents({
+        "automation.a": ["share_space_zone_a_rules", "on"],
+        "automation.b": ["share_space_zone_b_rules", "off"],
+        "automation.c": ["share_space_zone_c_rules", "on"],
+        "automation.d": ["share_space_zone_d_rules", "on"],
+      }),
+      {
+        share_space_zone_a_rules: shared("sensor.zone_a", "Zone A", "s1"),
+        share_space_zone_b_rules: shared("sensor.zone_b", "Zone B", "s1"),
+        share_space_zone_c_rules: { ...shared("sensor.zone_c", "Zone C", "s1"), alias: "Renamed in HA" },
+        share_space_zone_d_rules: rulesAutomationConfig({ entity_id: "sensor.zone_d", name: "Zone D" }, "office", { rules, previous: null }),
+      },
+    );
+    const uses = await loadStrategyUses(hass, zones);
+    expect(uses.map((u) => [u.zoneName, u.automationId, u.strategy, u.enabled])).toEqual([
+      ["Zone A", "share_space_zone_a_rules", "s1", true],
+      ["Zone B", "share_space_zone_b_rules", "s1", false],
+    ]);
+    expect(strategyUsers(uses, "s1")).toEqual(["Zone A", "Zone B"]);
+    expect(strategyUsers(uses, "s1", "sensor.zone_a")).toEqual(["Zone B"]);
+    expect(strategyUsers(uses, "s2")).toEqual([]);
+  });
+
+  it("names compare case-insensitively, ignoring the renamed one", () => {
+    const list = [{ id: "s1", name: "Old building" }];
+    expect(nameTaken(list, " old BUILDING ")).toBe(true);
+    expect(nameTaken(list, "Old building", "s1")).toBe(false);
+    expect(nameTaken(list, "New")).toBe(false);
   });
 });

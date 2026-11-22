@@ -266,17 +266,17 @@ async def test_options_flow_accepts_new_options(hass, calls):
 async def test_blueprints_installed_not_overwritten(hass, calls):
     await _setup(hass, presence=None)
     dest = hass.config.path("blueprints/automation/share_space")
-    for name in ("office_saver.yaml", "lunch_room.yaml"):
-        assert (Path(dest) / name).exists()
-    custom = Path(dest) / "office_saver.yaml"
+    assert (Path(dest) / "rules.yaml").exists()
+    assert not (Path(dest) / "office_saver.yaml").exists()
+    custom = Path(dest) / "rules.yaml"
     custom.write_text("user edit")
     await hass.async_add_executor_job(_install_blueprints, Path(dest))
     assert custom.read_text() == "user edit"
 
-    custom.write_text("# share_space_blueprint_version: 0\nold")
+    custom.write_text("# share_space_blueprint_version: 0\nstale-copy")
     await hass.async_add_executor_job(_install_blueprints, Path(dest))
-    assert "share_space_blueprint_version: 2" in custom.read_text()
-    assert "old" not in custom.read_text()
+    assert "share_space_blueprint_version: 3" in custom.read_text()
+    assert "stale-copy" not in custom.read_text()
 
     custom.write_text("# share_space_blueprint_version: 9\nnewer")
     await hass.async_add_executor_job(_install_blueprints, Path(dest))

@@ -1,4 +1,4 @@
-"""Run blueprints/automation/share_space/rules.yaml against the rule and strategy fixtures."""
+"""Run blueprints/automation/share_space/rules.yaml against the rules fixtures."""
 import json
 from datetime import datetime, timedelta
 from pathlib import Path
@@ -9,20 +9,16 @@ from homeassistant.exceptions import ServiceValidationError
 from homeassistant.setup import async_setup_component
 from pytest_homeassistant_custom_component.common import async_fire_time_changed
 
-from custom_components.share_space_heating.presets import PRESETS
-
-from .test_blueprint_parity import SENSOR, _spy_base, WEEKDAYS, planning_states, setup_zone
+from .helpers import SENSOR, _spy_base, WEEKDAYS, planning_states, setup_zone
 
 FIXTURES = Path(__file__).parents[3] / "fixtures" / "heating"
 RULE_CASES = json.loads((FIXTURES / "rules_cases.json").read_text())
-STRATEGY_CASES = json.loads((FIXTURES / "strategy_cases.json").read_text())
 BLUEPRINT = (
     Path(__file__).parents[1] / "custom_components/share_space_heating/blueprints/automation/share_space/rules.yaml"
 )
 
 
-OUTDOOR_LEAD = {"sensor": "sensor.outdoor_temp", "cold": {"temp": 10, "hours": 6}, "warm": {"temp": 20, "hours": 1}}
-TEMPLATES = PRESETS
+OUTDOOR_LEAD = {"type": "curve", "entity": "sensor.outdoor_temp", "default": 10, "points": [{"at": 10, "value": 6}, {"at": 20, "value": 1}]}
 DEFAULT_TEMPS = {"comfort": 21, "eco": 17}
 
 RULE_PARAMS = [
@@ -31,14 +27,6 @@ RULE_PARAMS = [
         id=f"rules-{i}-{j}-{case['name'][:40]}",
     )
     for i, case in enumerate(RULE_CASES)
-    for j, check in enumerate(case["checks"])
-]
-STRATEGY_PARAMS = [
-    pytest.param(
-        case["schedule"], TEMPLATES[case["preset"]](case["inputs"]), DEFAULT_TEMPS, case["tz"], check,
-        id=f"template-{i}-{j}-{case['name'][:40]}",
-    )
-    for i, case in enumerate(STRATEGY_CASES)
     for j, check in enumerate(case["checks"])
 ]
 
@@ -79,7 +67,7 @@ async def _run_rules(hass, rules, area="oa"):
     await hass.async_block_till_done()
 
 
-@pytest.mark.parametrize(("schedule", "strategy", "temps", "tz_name", "check"), RULE_PARAMS + STRATEGY_PARAMS)
+@pytest.mark.parametrize(("schedule", "strategy", "temps", "tz_name", "check"), RULE_PARAMS)
 async def test_rules_blueprint_matches_fixture(hass, freezer, schedule, strategy, temps, tz_name, check):
     tz = ZoneInfo(tz_name)
     await hass.config.async_set_time_zone(tz_name)
@@ -88,7 +76,7 @@ async def test_rules_blueprint_matches_fixture(hass, freezer, schedule, strategy
 
     entry, _ = await setup_zone(hass, comfort_temp=temps["comfort"], eco_temp=temps["eco"])
     _set_planning(hass, "oa", schedule, now, tz)
-    for entity, temp in check.get("outdoor", {}).items():
+    for entity, temp in check.get("readings", {}).items():
         if entity.startswith("weather."):
             hass.states.async_set(entity, "sunny", {"temperature": temp})
         else:
@@ -174,7 +162,7 @@ async def test_rules_blueprint_ignores_previous_rules_and_missing_schedule(hass,
 
 def test_rules_blueprint_queued_and_versioned():
     text = BLUEPRINT.read_text()
-    assert text.startswith("# share_space_blueprint_version: 2\n")
+    assert text.startswith("# share_space_blueprint_version: 3\n")
     assert "mode: queued\nmax: 5\nmax_exceeded: silent" in text
 
 

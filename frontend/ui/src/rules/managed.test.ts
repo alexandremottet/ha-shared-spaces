@@ -1,8 +1,8 @@
 import { describe, expect, it } from "vitest";
 import { DETACHED_MARKER, detachedConfig, fnv1a, managedState, rulesAutomationConfig, rulesFingerprint, stampManaged } from "./automation";
-import { officeSaverRules } from "./templates";
+import { officeSaverRules } from "./starters.fixture";
 
-const cfg = rulesAutomationConfig({ entity_id: "sensor.z", name: "Z" }, "office", officeSaverRules(), null);
+const cfg = rulesAutomationConfig({ entity_id: "sensor.z", name: "Z" }, "office", { rules: officeSaverRules(), previous: null });
 
 describe("managed by Share Space marker", () => {
   it("fnv1a matches the reference vectors", () => {

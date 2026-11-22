@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { officeSaverRules } from "./templates";
+import { officeSaverRules } from "./starters.fixture";
 import { validateStrategy } from "./validate";
 import type { RuleError } from "./validate";
 
@@ -44,15 +44,27 @@ describe("validateStrategy", () => {
       "$.rules[0].when[0].match unknown_kind",
       "$.rules[0].when[0].windows[0].end time_order",
     ]);
+    const curve = (points: unknown, extra = {}) => ({ type: "curve", entity: "sensor.out", default: 0, points, ...extra });
     const lead = (hours: unknown) => rule({ type: "occupied_within", hours });
-    expect(codes(lead({ sensor: "sensor.out", cold: { temp: 10, hours: 6 }, warm: { temp: 20, hours: 1 } }))).toEqual([]);
-    expect(codes(lead({ sensor: "nope", cold: { temp: 20, hours: -1 }, warm: { temp: 20, hours: 1, x: 1 } }))).toEqual([
-      "$.rules[0].when[0].hours.sensor type",
-      "$.rules[0].when[0].hours.cold.hours range",
-      "$.rules[0].when[0].hours.warm.x unknown_field",
-      "$.rules[0].when[0].hours.warm.temp range",
+    const pts = [{ at: 0, value: 6 }, { at: 10, value: 1 }];
+    expect(codes(lead(curve(pts)))).toEqual([]);
+    expect(codes(lead(curve([{ at: 0, value: 6 }])))).toEqual(["$.rules[0].when[0].hours.points range"]);
+    expect(codes(lead(curve([{ at: 5, value: -1 }, { at: 5, value: 1, x: 1 }], { entity: "nope" })))).toEqual([
+      "$.rules[0].when[0].hours.entity type",
+      "$.rules[0].when[0].hours.points[0].value range",
+      "$.rules[0].when[0].hours.points[1].x unknown_field",
+      "$.rules[0].when[0].hours.points[1].at time_order",
     ]);
-    expect(codes(lead({ sensor: "sensor.out", cold: { temp: 10, hours: 6 } }))).toEqual(["$.rules[0].when[0].hours.warm required"]);
+    expect(codes(lead({ type: "formula" }))).toEqual(["$.rules[0].when[0].hours.type unknown_kind"]);
+    expect(codes(withRule({ label: "x", when: [], then: { type: "temperature", value: curve([{ at: 0, value: 40 }, { at: 1, value: 20 }]) } }))).toEqual([
+      "$.rules[0].then.value.points[0].value range",
+    ]);
+    expect(codes(rule({ type: "sensor", entity: "weather.home", op: "below", than: -3 }))).toEqual([]);
+    expect(codes(rule({ type: "sensor", entity: "x", op: "under", than: "1" }))).toEqual([
+      "$.rules[0].when[0].entity type",
+      "$.rules[0].when[0].op unknown_kind",
+      "$.rules[0].when[0].than type",
+    ]);
     expect(codes(rule({ type: "between_days", gap_hours: -1, negate: "yes" }))).toEqual([
       "$.rules[0].when[0].negate type",
       "$.rules[0].when[0].gap_hours range",

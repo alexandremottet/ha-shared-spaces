@@ -14,8 +14,8 @@ const make = (start: number, options = {}) => {
 const OPEN = "sensor.share_space_heating_open_space";
 const KITCHEN = "sensor.share_space_heating_kitchen";
 const attrs = (id: string) => c.hass.states[id].attributes as Record<string, any>;
-const officeId = `share_space_${OPEN.slice(7)}_office_saver`;
-const lunchId = `share_space_${KITCHEN.slice(7)}_lunch_room`;
+const officeId = `share_space_${OPEN.slice(7)}_rules`;
+const lunchId = `share_space_${KITCHEN.slice(7)}_rules`;
 
 const weekdays = (...ranges: Array<{ start: string; end: string }>) => ({
   monday: ranges,
@@ -29,7 +29,7 @@ const createOffice = () =>
   c.hass.callApi("POST", `config/automation/config/${officeId}`, {
     alias: "Share Space · Open space · Office saver",
     description: "",
-    use_blueprint: { path: "share_space/office_saver.yaml", input: { zone: OPEN, area: "open_space" } },
+    use_blueprint: { path: "share_space/rules.yaml", input: { zone: OPEN, area: "open_space", strategy: "office_saver" } },
   });
 
 afterEach(() => c?.dispose());
@@ -107,7 +107,7 @@ describe("automation config API and runner", () => {
     await expect(createOffice()).rejects.toMatchObject({ code: "unauthorized" });
   });
 
-  it("office saver: Friday 19:00 off, Monday 03:00 preheat", async () => {
+  it("office saver starter: Friday 19:00 off, Monday 03:00 preheat", async () => {
     make(at(20, 17));
     for (const person of ["person.alice", "person.chloe"]) {
       await c.hass.callService("share_space", "set_calendar", {
@@ -142,11 +142,11 @@ describe("automation config API and runner", () => {
     expect(attrs(OPEN).active_rule).toBe("Manual");
   });
 
-  it("lunch room on Kitchen follows the planning windows", async () => {
+  it("lunch room starter on Kitchen follows the planning windows", async () => {
     make(at(17, 10, 30)); // Tuesday
     await c.hass.callApi("POST", `config/automation/config/${lunchId}`, {
       alias: "Share Space · Kitchen · Lunch room",
-      use_blueprint: { path: "share_space/lunch_room.yaml", input: { zone: KITCHEN, area: "kitchen" } },
+      use_blueprint: { path: "share_space/rules.yaml", input: { zone: KITCHEN, area: "kitchen", strategy: "lunch_room" } },
     });
     expect(attrs(KITCHEN).active_rule).toBe("Outside lunch hours");
     c.clock.set(at(17, 11, 30));
