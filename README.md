@@ -7,3 +7,24 @@ Afin d'être clair : il s'agit d'un outil pensé et développé avec un avis tr�
 
 ## Les pré-requis
 
+### Pouvoir gérer plusieurs zones
+Un espace partagé n'est très rarement juste une seule pièce.
+
+Au minimum il peut y avoir un bureau et une cuisine. C'est pourquoi il est obligatoire de pouvoir gérer plusieurs pièces/zones au sein de cette intégration.
+
+### Pouvoir chacun être dans un bureau partagé ou un espace dédié
+
+Chaque personne et chaque activité à des besoins particuliers. Cette intégration peut gérer soit plusieurs personnes dans une seule salle avec plein de bureau ou avoir un espace dédié pour une personne si son activité le demande comme par exemple une activité de potier.ère/céramiste demandant du matériel.
+
+### Partagé ne veut pas dire travailler ensemble (pas toujours)
+
+Chaque personne doit avoir la possibilité de travailler quand elle le veut avec donc ses propres horaires.
+
+### S'adapter aux différents bâtiments
+
+Chauffer un très vieux bâtiment non isolé et un nouveau bâtiment sont des choses bien différentes.
+
+### Etre très simple d'utilisation
+
+Etre aussi simple que les applications que les personnes peuvent déjà utiliser comme Netatmo.
+Home Assistant est le projet le plus complet en terme de Home Automation, .... mais cela (je pense) contre une facilité d'utilisation.
