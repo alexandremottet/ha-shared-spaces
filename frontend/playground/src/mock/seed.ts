@@ -1,7 +1,12 @@
-import type { Calendar } from "ha-share-space-ui";
+import type { Calendar, RuleStrategy } from "ha-share-space-ui";
 import { PLACEHOLDER_URL } from "../../../space-panel/src/placeholder";
 import { wallTime } from "./planning";
 import type { SeedData } from "./types";
+import starters from "../../../../integrations/share_space_heating/custom_components/share_space_heating/starters.json";
+
+/** The integration's starter shared strategies (same file the backend seeds). */
+export const STARTERS = starters as unknown as Array<{ id: string; name: string; rules: RuleStrategy }>;
+export const starterRules = (id: string): RuleStrategy => structuredClone(STARTERS.find((s) => s.id === id)!.rules);
 
 const r = (start: string, end: string) => ({ start, end });
 
@@ -49,7 +54,7 @@ export function demoSeed(): SeedData {
       { slug: "alice", name: "Alice", userId: "u1", isAdmin: true },
       { slug: "bob", name: "Bob", userId: "u2", isAdmin: false },
       { slug: "chloe", name: "Chloé", userId: "u3", isAdmin: false },
-      { slug: "dana", name: "Dana", userId: "u4", isAdmin: false },
+      { slug: "dana", name: "Dana", userId: "u4", isAdmin: true, userData: { share_space: { technical: true } } },
     ],
     areas: [
       { area_id: "open_space", name: "Open space" },
@@ -148,3 +153,33 @@ export function demoSeed(): SeedData {
     ],
   };
 }
+
+export const OUTDOOR_SENSOR = "sensor.outdoor_temperature";
+export const DEFAULT_OUTDOOR = 4;
+
+/**
+ * Demo rules for the Open space: 20 °C when occupied; preheat always (6 h at 10 °C outside down to 1 h at 20 °C);
+ * 15 °C setback only when the whole empty gap is at most 16 h (a night before a morning); off otherwise (weekends, holidays).
+ */
+export function outdoorPreheatDemo(): RuleStrategy {
+  const target = { type: "temperature", value: 20 } as const;
+  return {
+    version: 1,
+    rules: [
+      { label: "Occupied", when: [{ type: "occupied" }], then: target },
+      {
+        label: "Preheat",
+        when: [
+          {
+            type: "occupied_within",
+            hours: { type: "curve", entity: OUTDOOR_SENSOR, default: 10, points: [{ at: 10, value: 6 }, { at: 20, value: 1 }] },
+          },
+        ],
+        then: target,
+      },
+      { label: "Setback overnight", when: [{ type: "between_days", gap_hours: 16 }], then: { type: "temperature", value: 15 } },
+    ],
+    fallback: { label: "Away", then: { type: "off" } },
+  };
+}
+

@@ -1,6 +1,11 @@
 import type { Calendar, WeekDay } from "../types";
 import type { HomeAssistant } from "./hass";
-import type { ScheduleRanges, StrategyInputs, StrategyPreset } from "../heating/strategy-sim";
+import type { SharePrefs } from "./roles";
+import type { ScheduleRanges } from "../heating/strategy-sim";
+import type { RuleStrategy } from "../rules/types";
+import { detachedConfig, managedState, rulesAutomationConfig } from "../rules/automation";
+import type { ManagedState, RulesSource } from "../rules/automation";
+import { validateStrategy } from "../rules/validate";
 
 export type PlanningAction = Record<string, unknown>;
 
@@ -28,10 +33,16 @@ export interface HeatingZone {
   mode: HeatingZoneAttributes["mode"];
   target: number;
   override_until: string | null;
+  target_template?: string | null;
+  template_result?: string | null;
+  template_error?: string | null;
 }
 
 export interface HeatingZoneAttributes {
-  mode: "schedule" | "override" | "manual_only" | "automation";
+  mode: "schedule" | "override" | "manual_only" | "automation" | "template";
+  target_template?: string | null;
+  template_result?: string | null;
+  template_error?: string | null;
   active_rule?: string | null;
   override_until: string | null;
   override_temp: number | null;
@@ -63,6 +74,7 @@ export interface ZoneUpdate {
   eco_temp?: number;
   default_override_hours?: number;
   max_override_hours?: number;
+  target_template?: string | null;
 }
 
 export interface HotspotShape {
@@ -139,6 +151,35 @@ export const createZone = (hass: HomeAssistant, input: CreateZoneInput) =>
 export const updateZone = (hass: HomeAssistant, entryId: string, patch: ZoneUpdate) =>
   hass.callWS<HeatingZone>({ type: "share_space_heating/update_zone", entry_id: entryId, ...patch });
 
+export interface TemplatePreview {
+  result?: string;
+  error?: string;
+}
+
+// HA core websocket_api/commands.py handle_render_template: events are {result, listeners} or {error, level}.
+export async function subscribeTemplatePreview(
+  hass: HomeAssistant,
+  template: string,
+  variables: Record<string, unknown>,
+  cb: (preview: TemplatePreview) => void
+): Promise<() => void> {
+  const conn = hass.connection;
+  if (!conn?.subscribeMessage) throw { code: "unknown_command", message: "Unknown command." };
+  try {
+    return await conn.subscribeMessage<{ result?: unknown; error?: string }>(
+      (ev) => {
+        if (typeof ev.error === "string") cb({ error: ev.error });
+        else cb({ result: ev.result === null || ev.result === undefined ? "" : String(ev.result) });
+      },
+      { type: "render_template", template, variables, strict: true, report_errors: true, timeout: 3 }
+    );
+  } catch (err) {
+    if (isBackendMissing(err)) throw err;
+    cb({ error: String((err as { message?: string })?.message ?? err) });
+    return () => undefined;
+  }
+}
+
 export const setOverride = (hass: HomeAssistant, entityId: string, temperature: number, hours?: number) =>
   hass.callService("share_space_heating", "set_override", {
     entity_id: entityId,
@@ -209,50 +250,41 @@ export interface StrategyAutomation {
   id: string;
   name: string;
   enabled: boolean;
-  preset: StrategyPreset;
 }
 
-const STRATEGY_PRESETS: StrategyPreset[] = ["office_saver", "lunch_room"];
+const RULES_ID_RE = /^share_space_.+_rules(?:_\d+)?$/;
 
-export const strategyAutomationId = (zoneEntity: string, preset: StrategyPreset): string =>
-  `share_space_${zoneEntity.slice(zoneEntity.indexOf(".") + 1)}_${preset}`;
+export const strategyAutomationId = (zoneEntity: string): string => `share_space_${zoneEntity.slice(zoneEntity.indexOf(".") + 1)}_rules`;
 
-export const strategyBlueprintPath = (preset: StrategyPreset): string => `share_space/${preset}.yaml`;
+/** Suffix of a rules automation id: 1 for the base id, n for `_rules_n`, null when not one of the zone's. */
+export function rulesIdIndex(zoneEntity: string, id: string): number | null {
+  const base = strategyAutomationId(zoneEntity);
+  if (id === base) return 1;
+  const m = id.startsWith(`${base}_`) ? /^(\d+)$/.exec(id.slice(base.length + 1)) : null;
+  return m && Number(m[1]) >= 2 ? Number(m[1]) : null;
+}
+
+/** Next free rules id for a zone: `_rules_2`, `_rules_3`... */
+export function nextRulesId(zoneEntity: string, ids: string[]): string {
+  const max = Math.max(1, ...ids.map((id) => rulesIdIndex(zoneEntity, id) ?? 0));
+  return `${strategyAutomationId(zoneEntity)}_${max + 1}`;
+}
 
 export function listStrategyAutomations(hass: HomeAssistant): StrategyAutomation[] {
   const out: StrategyAutomation[] = [];
   for (const [entityId, ent] of Object.entries(hass.states)) {
     const id = ent.attributes.id;
-    if (!entityId.startsWith("automation.") || typeof id !== "string" || !id.startsWith("share_space_")) continue;
-    const preset = STRATEGY_PRESETS.find((p) => id.endsWith(`_${p}`));
-    if (!preset) continue;
-    out.push({ entityId, id, name: String(ent.attributes.friendly_name ?? id), enabled: ent.state === "on", preset });
+    if (!entityId.startsWith("automation.") || typeof id !== "string" || !RULES_ID_RE.test(id)) continue;
+    out.push({ entityId, id, name: String(ent.attributes.friendly_name ?? id), enabled: ent.state === "on" });
   }
   return out;
 }
 
 export const findZoneStrategies = (hass: HomeAssistant, zoneEntity: string): StrategyAutomation[] =>
-  listStrategyAutomations(hass).filter((a) => a.id === strategyAutomationId(zoneEntity, a.preset));
+  listStrategyAutomations(hass).filter((a) => rulesIdIndex(zoneEntity, a.id) !== null);
 
 export const getAutomationConfig = (hass: HomeAssistant, id: string) =>
   hass.callApi<StrategyAutomationConfig>("GET", `config/automation/config/${id}`);
-
-export async function findZoneStrategiesByConfig(
-  hass: HomeAssistant,
-  zoneEntity: string,
-  preset: StrategyPreset,
-): Promise<StrategyAutomation | undefined> {
-  for (const a of listStrategyAutomations(hass)) {
-    if (a.preset !== preset) continue;
-    try {
-      const { use_blueprint: bp } = await getAutomationConfig(hass, a.id);
-      if (bp?.path?.startsWith("share_space/") && bp.input?.zone === zoneEntity) return a;
-    } catch {
-      continue;
-    }
-  }
-  return undefined;
-}
 
 export const saveStrategyAutomation = (hass: HomeAssistant, id: string, config: StrategyAutomationConfig) =>
   hass.callApi<{ result: string }>("POST", `config/automation/config/${id}`, config as unknown as Record<string, unknown>);
@@ -263,21 +295,189 @@ export const deleteStrategyAutomation = (hass: HomeAssistant, id: string) =>
 export const setAutomationEnabled = (hass: HomeAssistant, entityId: string, on: boolean) =>
   hass.callService("automation", on ? "turn_on" : "turn_off", { entity_id: entityId });
 
-export interface ZoneStrategy {
-  automation: StrategyAutomation;
+/** A zone's rules automation (enabled or not), its last valid rules, the undo version and its managed state. */
+export interface ZoneRules {
+  id: string;
+  enabled: boolean;
   area: string;
-  inputs: StrategyInputs;
+  rules: RuleStrategy | null;
+  previous: RuleStrategy | null;
+  /** Shared strategy id when the automation points at one, null for inline rules. */
+  strategy: string | null;
+  state: ManagedState;
 }
 
+const validRules = (v: unknown): RuleStrategy | null => {
+  if (!v) return null;
+  const r = validateStrategy(v);
+  return r.ok ? r.strategy : null;
+};
+
+const isNotFound = (err: unknown): boolean => {
+  const e = err as { status_code?: number; code?: string; message?: string };
+  return e?.status_code === 404 || e?.code === "not_found" || /not found/i.test(e?.message ?? "");
+};
+
+/** One rules automation by id; null when HA has no such automation. */
+export async function loadRulesAutomation(hass: HomeAssistant, zoneEntity: string, id: string): Promise<ZoneRules | null> {
+  let cfg: StrategyAutomationConfig;
+  try {
+    cfg = await getAutomationConfig(hass, id);
+  } catch (err) {
+    if (isNotFound(err)) return null;
+    throw err;
+  }
+  const input = (cfg.use_blueprint?.input ?? {}) as Record<string, unknown>;
+  return {
+    id,
+    enabled: findZoneStrategies(hass, zoneEntity).find((a) => a.id === id)?.enabled ?? false,
+    area: String(input.area ?? ""),
+    rules: validRules(input.rules),
+    previous: validRules(input.previous_rules),
+    strategy: typeof input.strategy === "string" && input.strategy.trim() !== "" ? input.strategy : null,
+    state: managedState(cfg),
+  };
+}
+
+/** Ids of the zone's rules automations known to HA, oldest first. */
+export const zoneRulesIds = (hass: HomeAssistant, zoneEntity: string): string[] =>
+  findZoneStrategies(hass, zoneEntity)
+    .map((a) => a.id)
+    .sort((a, b) => (rulesIdIndex(zoneEntity, a) ?? 0) - (rulesIdIndex(zoneEntity, b) ?? 0));
+
+/** The zone's latest rules automation (highest `_rules_n`), or null when it has none. */
+export async function loadZoneRules(hass: HomeAssistant, zoneEntity: string): Promise<ZoneRules | null> {
+  const ids = zoneRulesIds(hass, zoneEntity);
+  return loadRulesAutomation(hass, zoneEntity, ids[ids.length - 1] ?? strategyAutomationId(zoneEntity));
+}
+
+/** A zone's running strategy: its rules automation plus the effective rules and name (shared strategy resolved). */
+export interface ZoneStrategy extends ZoneRules {
+  name: string;
+  effective: RuleStrategy | null;
+}
+
+/** The zone's enabled rules automation, or null when no strategy is active. */
 export async function loadZoneStrategy(hass: HomeAssistant, zoneEntity: string): Promise<ZoneStrategy | null> {
-  const automation = findZoneStrategies(hass, zoneEntity).find((a) => a.enabled);
-  if (!automation) return null;
-  const cfg = await getAutomationConfig(hass, automation.id);
-  const { zone: _z, area, ...inputs } = cfg.use_blueprint.input as Record<string, unknown>;
-  return { automation, area: String(area ?? ""), inputs: inputs as unknown as StrategyInputs };
+  const active = findZoneStrategies(hass, zoneEntity).find((a) => a.enabled);
+  const r = active ? await loadRulesAutomation(hass, zoneEntity, active.id) : null;
+  if (!r) return null;
+  if (!r.strategy) return { ...r, name: "Custom rules", effective: r.rules };
+  const s = ((await listStrategies(hass).catch(() => null)) ?? []).find((x) => x.id === r.strategy);
+  return { ...r, name: s?.name ?? "Missing shared strategy", effective: s?.rules ?? null };
+}
+
+export const saveZoneRules = (
+  hass: HomeAssistant,
+  zone: { entity_id: string; name: string },
+  area: string,
+  source: RulesSource,
+  id = strategyAutomationId(zone.entity_id),
+) => saveStrategyAutomation(hass, id, rulesAutomationConfig(zone, area, source));
+
+/** A rules strategy stored once by the integration and used by several zones. */
+export interface SharedStrategy {
+  id: string;
+  name: string;
+  rules: RuleStrategy;
+  previous: RuleStrategy | null;
+}
+
+/** True when another shared strategy already has this name (case-insensitive, trimmed). */
+export const nameTaken = (shared: Array<{ id: string; name: string }>, name: string, exceptId = ""): boolean =>
+  shared.some((s) => s.id !== exceptId && s.name.trim().toLowerCase() === name.trim().toLowerCase());
+
+export const listStrategies = (hass: HomeAssistant) =>
+  hass.callWS<SharedStrategy[]>({ type: "share_space_heating/list_strategies" });
+
+/** Create (no id) or update a shared strategy; rejects a taken name with code name_taken. */
+export const saveStrategy = (hass: HomeAssistant, s: { id?: string; name: string; rules: RuleStrategy; previous?: RuleStrategy | null }) =>
+  hass.callWS<{ id: string }>({
+    type: "share_space_heating/save_strategy",
+    ...(s.id ? { strategy_id: s.id } : {}),
+    name: s.name,
+    rules: s.rules,
+    ...(s.previous === undefined ? {} : { previous: s.previous }),
+  });
+
+export const deleteStrategy = (hass: HomeAssistant, id: string) =>
+  hass.callWS<Record<string, never>>({ type: "share_space_heating/delete_strategy", strategy_id: id });
+
+/** A zone rules automation managed by Share Space that points at a shared strategy. */
+export interface StrategyUse {
+  zone: string;
+  zoneName: string;
+  automationId: string;
+  area: string;
+  strategy: string;
+  enabled: boolean;
+}
+
+/** Every managed rules automation of these zones that points at a shared strategy (one config GET each). */
+export async function loadStrategyUses(hass: HomeAssistant, zones: Array<{ entity_id: string; name: string }>): Promise<StrategyUse[]> {
+  const jobs = zones.flatMap((z) => zoneRulesIds(hass, z.entity_id).map((id) => ({ z, id })));
+  const loaded = await Promise.all(jobs.map(({ z, id }) => loadRulesAutomation(hass, z.entity_id, id).catch(() => null)));
+  const out: StrategyUse[] = [];
+  loaded.forEach((r, i) => {
+    const { z } = jobs[i];
+    if (r?.state === "managed" && r.strategy)
+      out.push({ zone: z.entity_id, zoneName: z.name, automationId: r.id, area: r.area, strategy: r.strategy, enabled: r.enabled });
+  });
+  return out;
+}
+
+/** Zone names using a shared strategy, sorted, each once. */
+export const strategyUsers = (uses: StrategyUse[], strategyId: string, exceptZone?: string): string[] =>
+  [...new Set(uses.filter((u) => u.strategy === strategyId && u.zone !== exceptZone).map((u) => u.zoneName))].sort((a, b) => a.localeCompare(b));
+
+/** Detach: rewrite only the description, the automation becomes a normal HA one. */
+export async function detachAutomation(hass: HomeAssistant, id: string): Promise<void> {
+  await saveStrategyAutomation(hass, id, detachedConfig(await getAutomationConfig(hass, id)));
+}
+
+type HassSource = HomeAssistant | (() => HomeAssistant);
+const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+
+// A freshly saved automation reaches hass.states a moment later.
+async function waitForAutomation(get: () => HomeAssistant, id: string, tries = 20): Promise<StrategyAutomation | undefined> {
+  for (let i = 0; ; i++) {
+    const found = listStrategyAutomations(get()).find((a) => a.id === id);
+    if (found || i >= tries) return found;
+    await sleep(250);
+  }
+}
+
+/** Simple and Strategy are exclusive: enable this strategy, disable the zone's others, drop the presence link. */
+export async function useZoneStrategy(
+  source: HassSource,
+  zone: Pick<HeatingZone, "entity_id" | "entry_id" | "presence_entity">,
+  automationId: string,
+): Promise<void> {
+  const get = typeof source === "function" ? source : () => source;
+  const target = await waitForAutomation(get, automationId);
+  if (target && !target.enabled) await setAutomationEnabled(get(), target.entityId, true);
+  for (const a of findZoneStrategies(get(), zone.entity_id)) {
+    if (a.id !== automationId && a.enabled) await setAutomationEnabled(get(), a.entityId, false);
+  }
+  if (zone.presence_entity) await updateZone(get(), zone.entry_id, { presence_entity: null });
+}
+
+/** Choosing Simple: disable the zone's strategy automations and clear the base target they set. */
+export async function stopZoneStrategies(hass: HomeAssistant, zoneEntity: string): Promise<void> {
+  const active = findZoneStrategies(hass, zoneEntity).filter((a) => a.enabled);
+  if (active.length === 0) return;
+  for (const a of active) await setAutomationEnabled(hass, a.entityId, false);
+  await setBaseTarget(hass, zoneEntity, {});
 }
 
 export function planningSchedule(hass: HomeAssistant, area: string): ScheduleRanges | null {
   const s = hass.states[`binary_sensor.share_space_${area}`]?.attributes.schedule;
   return s && typeof s === "object" ? (s as ScheduleRanges) : null;
 }
+
+// Per-user prefs in HA frontend user data under key "share_space".
+export const getSharePrefs = async (hass: HomeAssistant): Promise<SharePrefs | null> =>
+  (await hass.callWS<{ value: SharePrefs | null }>({ type: "frontend/get_user_data", key: "share_space" })).value;
+
+export const setSharePrefs = (hass: HomeAssistant, prefs: SharePrefs): Promise<void> =>
+  hass.callWS<void>({ type: "frontend/set_user_data", key: "share_space", value: prefs as Record<string, unknown> });

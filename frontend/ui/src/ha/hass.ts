@@ -16,6 +16,7 @@ export interface HomeAssistant {
   now?(): number;
   connection?: {
     subscribeEvents<T>(callback: (event: T) => void, eventType?: string): Promise<() => void>;
+    subscribeMessage?<T>(callback: (message: T) => void, subscribeMessage: Record<string, unknown>): Promise<() => void>;
   };
   themes?: Record<string, unknown>;
   language?: string;

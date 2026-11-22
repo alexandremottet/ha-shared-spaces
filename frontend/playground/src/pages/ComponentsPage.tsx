@@ -3,7 +3,7 @@ import { ComponentStage } from "./components/ComponentStage";
 import { COMPONENTS } from "./components/registry";
 import "./components/components.css";
 
-const GROUPS = ["Schedule", "Roster", "Heating", "HA"] as const;
+const GROUPS = ["Schedule", "Roster", "Heating", "Rules", "HA"] as const;
 
 export function ComponentsPage() {
   const [id, setId] = useState(COMPONENTS[0].id);

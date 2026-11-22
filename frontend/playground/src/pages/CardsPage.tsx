@@ -7,17 +7,11 @@ import { CardHost } from "./cards/CardHost";
 import type { CardEl } from "./cards/CardHost";
 import { CARDS, staticOf } from "./cards/catalog";
 import "./cards/cards.css";
-
-const WIDTHS = [
-  { label: "Narrow 300px", value: "300px" },
-  { label: "Medium 500px", value: "500px" },
-  { label: "Full", value: "100%" },
-];
+import { WidthFrame } from "./cards/WidthFrame";
 
 function CardGallery() {
   const { hass } = useHassContext();
   const [tag, setTag] = useState(CARDS[0].tag);
-  const [width, setWidth] = useState("500px");
   const [texts, setTexts] = useState<Record<string, string>>({});
   const [applied, setApplied] = useState<Record<string, unknown>>({});
   const [parseError, setParseError] = useState("");
@@ -58,28 +52,18 @@ function CardGallery() {
         ))}
       </div>
       <div className="card-layout">
-        <div className="panel card-stage">
-          <div className="row">
-            {WIDTHS.map((w) => (
-              <button key={w.value} className={w.value === width ? "on" : ""} onClick={() => setWidth(w.value)}>
-                {w.label}
-              </button>
-            ))}
-          </div>
-          <div className="card-frame" style={{ width }}>
-            {config !== undefined && (
-              <CardHost
-                key={tag}
-                tag={tag}
-                config={config}
-                hass={hass}
-                onElement={(el: CardEl) => setGrid(el.getGridOptions?.() ?? null)}
-                onError={setCardError}
-              />
-            )}
-          </div>
-          {cardError && <div className="notice error">setConfig error: {cardError}</div>}
-        </div>
+        <WidthFrame footer={cardError && <div className="notice error">setConfig error: {cardError}</div>}>
+          {config !== undefined && (
+            <CardHost
+              key={tag}
+              tag={tag}
+              config={config}
+              hass={hass}
+              onElement={(el: CardEl) => setGrid(el.getGridOptions?.() ?? null)}
+              onError={setCardError}
+            />
+          )}
+        </WidthFrame>
         <div className="panel stack">
           <h4>Config (JSON)</h4>
           <textarea className="json-edit" spellCheck={false} value={text ?? ""} onChange={(e) => edit(e.target.value)} />

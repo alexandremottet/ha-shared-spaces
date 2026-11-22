@@ -24,7 +24,7 @@ function HeatingCard({ hass, entityId }: { hass: HomeAssistant; entityId: string
   useEffect(() => {
     if (card.current) card.current.hass = hass;
   }, [hass]);
-  return <div ref={box} />;
+  return <div ref={box} className="real" />;
 }
 
 function Zone({ hass, entityId, controller }: { hass: HomeAssistant; entityId: string; controller: MockHassController | null }) {
@@ -86,6 +86,17 @@ export function HeatingSection({ hass, controller }: { hass: HomeAssistant; cont
         The heating card for each zone, plus buttons to simulate what happens outside the UI (someone turning the thermostat,
         occupancy forced on/off). Watch the card and the event log react.
       </div>
+      {controller && (
+        <div className="panel row">
+          <label className="row">
+            Outdoor temperature
+            <input type="range" min={-10} max={25} step={1} value={controller.outdoor} onChange={(e) => controller.setOutdoor(Number(e.target.value))} />
+            <b>{controller.outdoor} °C</b>
+          </label>
+          <button onClick={() => controller.loadDemoRules()}>Load outdoor preheat demo</button>
+          <span className="muted">Saves the demo as shared strategy "Old building" used by Open space: 20 °C; preheat 6 h at 10 °C outside down to 1 h at 20 °C; 15 °C setback on nights before a morning; off on weekends. See it in Panel → Rules → Open space, next to the seeded starters Office saver and Lunch room; pick any of them for Workshop or Kitchen.</span>
+        </div>
+      )}
       {ids.length === 0 && <div className="notice">No heating zones (Share Space Heating not installed or no zone).</div>}
       <div className="zones">
         {ids.map((id) => (

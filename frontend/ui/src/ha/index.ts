@@ -1,6 +1,7 @@
 export * from "./theme";
 export * from "./hass";
 export * from "./my-person";
+export * from "./roles";
 export * from "./ws";
 export * from "./card-base";
 export * from "./ha-dialog-controls";

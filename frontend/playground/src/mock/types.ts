@@ -7,6 +7,7 @@ export interface SeedPerson {
   name: string;
   userId: string;
   isAdmin: boolean;
+  userData?: Record<string, unknown>;
 }
 
 export interface SeedClimate {
@@ -52,6 +53,8 @@ export interface MockOptions {
   playing?: boolean;
   language?: string;
   latencyMs?: number;
+  /** Seed the outdoor demo strategy on Open space at start (the app does; tests start without it). */
+  demoRules?: boolean;
 }
 
 export interface ActionLogEntry {

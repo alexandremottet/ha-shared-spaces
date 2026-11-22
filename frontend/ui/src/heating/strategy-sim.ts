@@ -1,10 +1,9 @@
 import type { WeekDay } from "../types";
 import { WEEK_DAYS } from "../types";
-import { fromWall, wallTime } from "./tz";
+import { wallTime } from "./tz";
 
-export type StrategyPreset = "office_saver" | "lunch_room";
 export type ScheduleRanges = Partial<Record<WeekDay, Array<[string, string]>>>;
-export type StrategyResult = { off: true } | { target: number };
+export type StrategyResult = { off: true } | { target: number; preset?: "comfort" | "eco" };
 export interface StrategyEvaluation {
   result: StrategyResult;
   reason: string;
@@ -14,46 +13,8 @@ export interface StrategySegment extends StrategyEvaluation {
   end: number;
 }
 
-export interface OfficeSaverInputs {
-  comfort_temp: number;
-  setback_temp: number;
-  preheat_hours: number;
-  max_gap_hours: number;
-}
-
-export interface LunchRoomInputs {
-  morning_start: string;
-  morning_end: string;
-  afternoon_start: string;
-  afternoon_end: string;
-  heat_start: string;
-  heat_end: string;
-  temperature: number;
-  match: "all" | "any";
-}
-
-export type StrategyInputs = OfficeSaverInputs | LunchRoomInputs;
-
-export const DEFAULT_OFFICE_SAVER: OfficeSaverInputs = { comfort_temp: 21, setback_temp: 16, preheat_hours: 6, max_gap_hours: 24 };
-export const DEFAULT_LUNCH_ROOM: LunchRoomInputs = {
-  morning_start: "11:00",
-  morning_end: "12:00",
-  afternoon_start: "13:00",
-  afternoon_end: "14:00",
-  heat_start: "11:00",
-  heat_end: "14:00",
-  temperature: 20,
-  match: "all",
-};
-
-export const STRATEGY_LABELS: Record<StrategyPreset, string> = { office_saver: "Office saver", lunch_room: "Lunch room" };
-
-export const defaultInputs = (preset: StrategyPreset): StrategyInputs =>
-  preset === "office_saver" ? { ...DEFAULT_OFFICE_SAVER } : { ...DEFAULT_LUNCH_ROOM };
-
 const SLOT_MS = 30 * 60000;
 const SEARCH_SLOTS = 8 * 48;
-const HOUR = 3600000;
 
 export const toMinutes = (t: string): number => {
   const [h, m] = t.split(":", 2).map(Number);
@@ -142,73 +103,28 @@ export function windowMatches(schedule: ScheduleRanges, day: WeekDay, start: str
   return false;
 }
 
-function officeSaverRule(
-  inputs: OfficeSaverInputs,
-  now: number,
-  occupied: boolean,
-  nextOnAt: () => number | null,
-  previousOffAt: () => number | null,
-): StrategyEvaluation {
-  if (occupied) return { result: { target: inputs.comfort_temp }, reason: "Occupied" };
-  const on = nextOnAt();
-  if (on !== null && now >= on - inputs.preheat_hours * HOUR) return { result: { target: inputs.comfort_temp }, reason: "Preheat" };
-  const off = previousOffAt();
-  const gap = inputs.max_gap_hours * HOUR;
-  if (off !== null && now - off <= gap && on !== null && on - now <= gap) {
-    return { result: { target: inputs.setback_temp }, reason: "Between working days" };
-  }
-  return { result: { off: true }, reason: "Away" };
-}
-
-export function evaluateOfficeSaver(inputs: OfficeSaverInputs, schedule: ScheduleRanges, now: number, tz: string): StrategyEvaluation {
-  return officeSaverRule(
-    inputs,
-    now,
-    occupiedAt(schedule, now, tz),
-    () => nextOn(schedule, now, tz),
-    () => previousOff(schedule, now, tz),
-  );
-}
-
-export function evaluateLunchRoom(inputs: LunchRoomInputs, schedule: ScheduleRanges, now: number, tz: string): StrategyEvaluation {
-  const w = wallTime(now, tz);
-  const minute = w.hour * 60 + w.minute;
-  if (minute < toMinutes(inputs.heat_start) || minute >= toMinutes(inputs.heat_end)) {
-    return { result: { off: true }, reason: "Outside lunch hours" };
-  }
-  const day = WEEK_DAYS[w.weekday];
-  const matches = [
-    windowMatches(schedule, day, inputs.morning_start, inputs.morning_end, tz),
-    windowMatches(schedule, day, inputs.afternoon_start, inputs.afternoon_end, tz),
-  ];
-  const occupied = inputs.match === "any" ? matches.some(Boolean) : matches.every(Boolean);
-  return occupied
-    ? { result: { target: inputs.temperature }, reason: "Lunch" }
-    : { result: { off: true }, reason: "No lunch today" };
-}
-
-export function evaluate(
-  preset: StrategyPreset,
-  inputs: StrategyInputs,
-  schedule: ScheduleRanges,
-  now: number,
-  tz: string,
-): StrategyEvaluation {
-  return preset === "office_saver"
-    ? evaluateOfficeSaver(inputs as OfficeSaverInputs, schedule, now, tz)
-    : evaluateLunchRoom(inputs as LunchRoomInputs, schedule, now, tz);
-}
-
 export const sameResult = (a: StrategyEvaluation, b: StrategyEvaluation): boolean =>
-  a.reason === b.reason && ("off" in a.result ? "off" in b.result : "target" in b.result && a.result.target === b.result.target);
+  a.reason === b.reason && ("off" in a.result ? "off" in b.result : "target" in b.result && a.result.target === b.result.target && a.result.preset === b.result.preset);
 
-interface Timeline {
+export interface Timeline {
   cuts: number[];
   at(t: number): StrategyEvaluation;
 }
 
+export interface OccupancyFacts {
+  occupied: boolean;
+  nextOn(): number | null;
+  previousOff(): number | null;
+}
+
+export interface OccupancyTrack {
+  flips: Array<{ t: number; on: boolean }>;
+  slots: number[];
+  at(t: number): OccupancyFacts;
+}
+
 // Occupancy facts from one pass over the slots; mirrors nextOn/previousOff search windows exactly.
-function officeSaverTimeline(inputs: OfficeSaverInputs, schedule: ScheduleRanges, start: number, end: number, tz: string): Timeline {
+export function occupancyTrack(schedule: ScheduleRanges, start: number, end: number, tz: string): OccupancyTrack {
   const p = plannerFor(schedule, tz);
   const t0 = slotStart(start, tz);
   const pad = SEARCH_SLOTS + 1;
@@ -216,57 +132,32 @@ function officeSaverTimeline(inputs: OfficeSaverInputs, schedule: ScheduleRanges
   const n = Math.ceil((end - t0) / SLOT_MS) + 2 * pad;
   const on = Array.from({ length: n }, (_, k) => slotOn(p, first + k * SLOT_MS));
   const time = (k: number) => first + k * SLOT_MS;
-  const cuts: number[] = [];
-  for (let k = 1; k < n; k++) {
-    if (on[k] === on[k - 1]) continue;
-    const t = time(k);
-    if (on[k]) cuts.push(t - inputs.preheat_hours * HOUR, t - inputs.max_gap_hours * HOUR);
-    else cuts.push(t + inputs.max_gap_hours * HOUR);
-  }
-  for (let t = t0; t < end; t += SLOT_MS) cuts.push(t);
+  const flips: OccupancyTrack["flips"] = [];
+  for (let k = 1; k < n; k++) if (on[k] !== on[k - 1]) flips.push({ t: time(k), on: on[k] });
+  const slots: number[] = [];
+  for (let t = t0; t < end; t += SLOT_MS) slots.push(t);
   return {
-    cuts,
+    flips,
+    slots,
     at(t) {
       const idx = pad + Math.floor((t - t0) / SLOT_MS);
-      const nextOnAt = () => {
-        for (let j = idx + 1; j <= idx + SEARCH_SLOTS; j++) if (on[j] && !on[j - 1]) return time(j);
-        return null;
+      return {
+        occupied: on[idx],
+        nextOn: () => {
+          for (let j = idx + 1; j <= idx + SEARCH_SLOTS; j++) if (on[j] && !on[j - 1]) return time(j);
+          return null;
+        },
+        previousOff: () => {
+          for (let j = idx; j >= idx - SEARCH_SLOTS; j--) if (!on[j] && on[j - 1]) return time(j);
+          return null;
+        },
       };
-      const previousOffAt = () => {
-        for (let j = idx; j >= idx - SEARCH_SLOTS; j--) if (!on[j] && on[j - 1]) return time(j);
-        return null;
-      };
-      return officeSaverRule(inputs, t, on[idx], nextOnAt, previousOffAt);
     },
   };
 }
 
-function lunchRoomTimeline(inputs: LunchRoomInputs, schedule: ScheduleRanges, start: number, end: number, tz: string): Timeline {
-  const cuts: number[] = [];
-  const w = wallTime(start, tz);
-  const days = Math.ceil((end - start) / (24 * HOUR)) + 1;
-  for (let i = 0; i <= days; i++) {
-    for (const hm of ["00:00", inputs.heat_start, inputs.heat_end]) {
-      const m = toMinutes(hm);
-      cuts.push(fromWall(tz, w.year, w.month, w.day + i, Math.floor(m / 60), m % 60));
-    }
-  }
-  return { cuts, at: (t) => evaluateLunchRoom(inputs, schedule, t, tz) };
-}
-
-/** Exact strategy segments over [start, end): result is constant between schedule-derived breakpoints. */
-export function strategyTimeline(
-  preset: StrategyPreset,
-  inputs: StrategyInputs,
-  schedule: ScheduleRanges,
-  start: number,
-  end: number,
-  tz: string,
-): StrategySegment[] {
-  const timeline =
-    preset === "office_saver"
-      ? officeSaverTimeline(inputs as OfficeSaverInputs, schedule, start, end, tz)
-      : lunchRoomTimeline(inputs as LunchRoomInputs, schedule, start, end, tz);
+/** Segments over [start, end): one evaluation per interval between cuts, equal neighbours merged. */
+export function buildSegments(timeline: Timeline, start: number, end: number): StrategySegment[] {
   const bounds = [...new Set([start, end, ...timeline.cuts.filter((t) => t > start && t < end)])].sort((a, b) => a - b);
   const segments: StrategySegment[] = [];
   for (let i = 0; i < bounds.length - 1; i++) {

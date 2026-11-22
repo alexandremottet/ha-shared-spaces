@@ -19,6 +19,7 @@ export interface ZoneConfig {
   max_override_hours: number;
   frost_temp?: number;
   off_mode?: OffMode;
+  target_template?: string | null;
 }
 
 export interface ClimateInfo {
@@ -38,6 +39,27 @@ export interface ZoneEnv {
 }
 
 const HOUR = 3600000;
+
+/** Cheap syntax check: balanced `{{ }}` and `{% %}`; no Jinja evaluation in the playground. */
+export function templateSyntaxError(tpl: string): string | null {
+  for (const [open, close, label] of [["{{", "}}", "expression"], ["{%", "%}", "statement"]] as const) {
+    let depth = 0;
+    for (let i = 0; i < tpl.length - 1; i++) {
+      const pair = tpl.slice(i, i + 2);
+      if (pair === open) {
+        if (depth) return `Unexpected '${open}' inside a ${label}`;
+        depth = 1;
+        i++;
+      } else if (pair === close) {
+        if (!depth) return `Unexpected '${close}' without a matching '${open}'`;
+        depth = 0;
+        i++;
+      }
+    }
+    if (depth) return `Unclosed ${label}: missing '${close}'`;
+  }
+  return null;
+}
 
 export class HeatingZoneSim {
   config: ZoneConfig;

@@ -34,7 +34,7 @@ const storedMode = (): HassMode => {
 };
 
 export function HassProvider({ children, mockOptions }: { children: ReactNode; mockOptions?: MockOptions }) {
-  const controller = useMemo(() => createMockHass(mockOptions), []);
+  const controller = useMemo(() => createMockHass({ demoRules: true, ...mockOptions }), []);
   const [mode, setModeState] = useState<HassMode>(storedMode);
   const [mockHass, setMockHass] = useState(controller.hass);
   const [live, setLive] = useState<LiveHass | null>(null);

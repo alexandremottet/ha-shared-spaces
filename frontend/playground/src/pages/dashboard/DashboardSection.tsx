@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import type { HomeAssistant } from "ha-share-space-ui/ha";
 import { createCardElement } from "../../stubs";
+import { WidthFrame } from "../cards/WidthFrame";
 import "./dashboard.css";
 
 type Json = Record<string, unknown>;
@@ -94,14 +95,18 @@ export function DashboardSection({ hass, refreshKey }: { hass: HomeAssistant; re
 
   const view = views[Math.min(active, views.length - 1)];
   return (
-    <section className="panel stack">
-      <h3>Generated dashboard</h3>
-      <div className="muted">
-        <code>ll-strategy-dashboard-share-space.generate({"{}"}, hass)</code> (regenerates on user, backend toggles or reset)
-      </div>
-      {error && <div className="notice error">{error}</div>}
-      <div className="dash-cols">
-        <pre className="json">{result ? JSON.stringify(result, null, 2) : "..."}</pre>
+    <div className="card-layout">
+      <WidthFrame
+        header={
+          <>
+            <h3>Generated dashboard</h3>
+            <div className="muted">
+              <code>ll-strategy-dashboard-share-space.generate({"{}"}, hass)</code> (regenerates on user, backend toggles or reset)
+            </div>
+            {error && <div className="notice error">{error}</div>}
+          </>
+        }
+      >
         <div className="stack">
           <div className="row">
             {views.map((v, i) => (
@@ -117,7 +122,11 @@ export function DashboardSection({ hass, refreshKey }: { hass: HomeAssistant; re
             </>
           )}
         </div>
-      </div>
-    </section>
+      </WidthFrame>
+      <section className="panel stack">
+        <h3>Config (JSON)</h3>
+        <pre className="json">{result ? JSON.stringify(result, null, 2) : "..."}</pre>
+      </section>
+    </div>
   );
 }

@@ -1,11 +1,11 @@
-import { WEEK_DAYS, evaluate, nextOff, nextOn, occupiedAt, previousOff, wallTime, windowMatches } from "ha-share-space-ui";
-import type { Calendar, Schedule, ScheduleRanges, StrategyInputs, StrategyPreset } from "ha-share-space-ui";
+import { RULES_BLUEPRINT_PATH, WEEK_DAYS, evaluateRules, nextOff, rulesAutomationConfig, sensorReadings, nextOn, occupiedAt, previousOff, wallTime, windowMatches } from "ha-share-space-ui";
+import type { Calendar, RuleStrategy, Schedule, ScheduleRanges } from "ha-share-space-ui";
 import type { AreaActions, Floorplan, HassEntity, HomeAssistant } from "ha-share-space-ui/ha";
 import { MockClock } from "./clock";
-import { HeatingZoneSim } from "./heating";
+import { HeatingZoneSim, templateSyntaxError } from "./heating";
 import type { ClimateInfo, ZoneConfig } from "./heating";
 import { DAYS, isOccupied, mergeCalendars, nextChange, scheduleToRanges, toIsoLocal, SLOT_MINUTES } from "./planning";
-import { demoSeed, defaultStartTime } from "./seed";
+import { DEFAULT_OUTDOOR, OUTDOOR_SENSOR, STARTERS, demoSeed, defaultStartTime, outdoorPreheatDemo } from "./seed";
 import type { ActionLogEntry, HeatingLogEntry, InstalledBackends, MockOptions, SeedData } from "./types";
 
 export type MockHassEvent = { event_type: string; data: Record<string, unknown> };
@@ -26,7 +26,8 @@ export interface StrategyAutomationRec {
   config: {
     alias: string;
     description?: string;
-    use_blueprint: { path: string; input: Record<string, unknown> };
+    use_blueprint?: { path: string; input: Record<string, unknown> };
+    [key: string]: unknown;
   };
   enabled: boolean;
   lastTriggered: number | null;
@@ -34,7 +35,7 @@ export interface StrategyAutomationRec {
 
 export interface MockState {
   installed: InstalledBackends;
-  persons: Array<{ entity_id: string; name: string; userId: string; isAdmin: boolean }>;
+  persons: Array<{ entity_id: string; name: string; userId: string; isAdmin: boolean; userData?: Record<string, unknown> }>;
   areas: Array<{ area_id: string; name: string }>;
   calendars: Record<string, Partial<Calendar>>;
   personAreas: Record<string, string>;
@@ -47,15 +48,6 @@ export interface MockState {
 
 type WsHandler = (msg: Record<string, unknown>) => unknown;
 type ServiceHandler = (data: Record<string, unknown>) => void;
-
-const BLUEPRINTS: Record<string, StrategyPreset> = {
-  "share_space/office_saver.yaml": "office_saver",
-  "share_space/lunch_room.yaml": "lunch_room",
-};
-const DEFAULT_INPUTS: Record<StrategyPreset, Record<string, unknown>> = {
-  office_saver: { comfort_temp: 21, setback_temp: 16, preheat_hours: 6, max_gap_hours: 24 },
-  lunch_room: { morning_start: "11:00", morning_end: "12:00", afternoon_start: "13:00", afternoon_end: "14:00", heat_start: "11:00", heat_end: "14:00", temperature: 20, match: "all" },
-};
 
 const HA_ERROR = (code: string, message: string) => ({ code, message });
 const slugify = (s: string) => s.toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_+|_+$/g, "");
@@ -81,6 +73,7 @@ export class MockHassController {
   private _rangesCache = new Map<string, { version: number; ranges: ScheduleRanges }>();
   private _extraCache = new Map<string, { key: string; attrs: Record<string, string | boolean | null> }>();
   private _automations = new Map<string, StrategyAutomationRec>();
+  private _strategies = new Map<string, { id: string; name: string; rules: RuleStrategy; previous: RuleStrategy | null }>();
   private _autoLast = new Map<string, string>();
   private _planningVersion = 0;
   private _dirty = true;
@@ -147,6 +140,7 @@ export class MockHassController {
     this._rangesCache.clear();
     this._extraCache.clear();
     this._automations.clear();
+    this._strategies.clear();
     this._autoLast.clear();
     for (const id of [...this._entities.keys()]) if (id.startsWith("automation.")) this._entities.delete(id);
     this._loadSeed();
@@ -206,12 +200,82 @@ export class MockHassController {
     this._settle(true);
   }
 
+  /** Outdoor reading used by "Follow a sensor" rules. */
+  get outdoor(): number {
+    return Number(this._entities.get(OUTDOOR_SENSOR)?.state ?? DEFAULT_OUTDOOR);
+  }
+
+  setOutdoor(temp: number): void {
+    this._setOutdoorEntity(temp);
+    this._settle(true);
+  }
+
+  private _setOutdoorEntity(temp: number): void {
+    this._setEntity(OUTDOOR_SENSOR, String(temp), { friendly_name: "Outdoor temperature", unit_of_measurement: "°C", device_class: "temperature" });
+  }
+
+  /** Dev: (re)save the outdoor preheat demo as shared "Old building", used by Open space. */
+  loadDemoRules(): void {
+    this._seedDemoRules();
+    this._settle(true);
+  }
+
+  // Demo: Open space runs the shared outdoor preheat strategy (saved like the panel would).
+  private _seedDemoRules(): void {
+    const zone = [...this._zones.values()].find((z) => z.config.entry_id === "zone_open_space");
+    if (!zone) return;
+    const name = "Old building";
+    const sid = [...this._strategies.values()].find((x) => x.name.toLowerCase() === name.toLowerCase())?.id ?? "demo_old_building";
+    this._strategies.set(sid, { id: sid, name, rules: outdoorPreheatDemo(), previous: null });
+    const entity = this._zoneEntityId(zone.config);
+    const config = rulesAutomationConfig({ entity_id: entity, name: zone.config.name }, "open_space", { strategy: sid, name });
+    const id = `share_space_${entity.slice(entity.indexOf(".") + 1)}_rules`;
+    const existing = this._automations.get(id);
+    this._autoLast.delete(id);
+    this._automations.set(id, {
+      entityId: existing?.entityId ?? this._freeAutomationEntity("automation.share_space_open_space_custom_rules"),
+      config: { ...config },
+      enabled: true,
+      lastTriggered: null,
+    });
+  }
+
   simulateThermostatChange(climateEntity: string, temperature: number): void {
     this._callService("climate", "set_temperature", { entity_id: climateEntity, temperature });
   }
 
   updateZone(entryId: string, patch: Partial<ZoneConfig>): void {
     this._zones.get(entryId)?.patchConfig(patch);
+    this._settle(true);
+  }
+
+  /** Strategy automations stored in the mock (dev controls). */
+  automations(): Array<{ id: string; entityId: string; alias: string; description: string; blueprint: string | null; enabled: boolean }> {
+    return [...this._automations.entries()].map(([id, a]) => ({
+      id,
+      entityId: a.entityId,
+      alias: a.config.alias,
+      description: a.config.description ?? "",
+      blueprint: a.config.use_blueprint?.path ?? null,
+      enabled: a.enabled,
+    }));
+  }
+
+  /** Dev: simulate editing an automation in HA's editor (alias changes, description untouched). */
+  simulateAutomationEdit(id: string): void {
+    const a = this._automations.get(id);
+    if (!a) return;
+    a.config = { ...a.config, alias: `${a.config.alias} (edited in HA)` };
+    this._settle(true);
+  }
+
+  /** Dev: simulate HA's "Take control" (blueprint expanded, use_blueprint removed). */
+  simulateTakeControl(id: string): void {
+    const a = this._automations.get(id);
+    if (!a?.config.use_blueprint) return;
+    const { use_blueprint: _bp, ...rest } = a.config;
+    a.config = { ...rest, triggers: [{ trigger: "time_pattern", minutes: "/5" }], conditions: [], actions: [] };
+    this._autoLast.delete(id);
     this._settle(true);
   }
 
@@ -226,6 +290,7 @@ export class MockHassController {
       name: p.name,
       userId: p.userId,
       isAdmin: p.isAdmin,
+      userData: p.userData,
     }));
     return {
       installed: this.installed,
@@ -246,6 +311,10 @@ export class MockHassController {
     this._floorplans = clone(this._seed.floorplans);
     for (const z of this._seed.zones) this._addZone({ ...z });
     for (const s of this._seed.switches) this._setEntity(s.entity_id, s.state, { friendly_name: s.name });
+    this._setOutdoorEntity(DEFAULT_OUTDOOR);
+    // Like the integration's first load: seed the starter shared strategies.
+    for (const st of STARTERS) this._strategies.set(st.id, { ...clone(st), previous: null });
+    if (this._options.demoRules) this._seedDemoRules();
     for (const area of new Set(Object.values(this._state.personAreas))) this._knownAreas.add(area);
   }
 
@@ -428,6 +497,9 @@ export class MockHassController {
         override_until: zone.overrideActive ? new Date(zone.overrideUntil as number).toISOString() : null,
         override_temp: zone.overrideTemp,
         presence: zone.presence,
+        target_template: zone.config.target_template ?? null,
+        template_result: null,
+        template_error: null,
         climate_entity: zone.config.climate_entity,
         current_temperature: zone.currentTemperature,
       });
@@ -480,12 +552,13 @@ export class MockHassController {
         mode: "single",
         last_triggered: a.lastTriggered === null ? null : new Date(a.lastTriggered).toISOString(),
       });
-      const preset = BLUEPRINTS[a.config.use_blueprint.path];
-      if (!a.enabled || !preset || !this.installed.heating || !this.installed.planning) continue;
-      const input = { ...DEFAULT_INPUTS[preset], ...a.config.use_blueprint.input };
+      const bp = a.config.use_blueprint;
+      if (bp?.path !== RULES_BLUEPRINT_PATH || !a.enabled || !this.installed.heating || !this.installed.planning) continue;
+      const input = bp.input;
       const area = String(input.area);
       if (!this._knownAreas.has(area)) continue;
-      const ev = evaluate(preset, input as unknown as StrategyInputs, this._ranges(area), now, this.tz);
+      const ev = this._evalRules(input, area, now);
+      if (!ev) continue;
       const key = JSON.stringify(ev);
       if (this._autoLast.get(id) === key) continue;
       this._autoLast.set(id, key);
@@ -493,12 +566,24 @@ export class MockHassController {
       try {
         this._callService("share_space_heating", "set_base_target", {
           entity_id: input.zone,
-          ...("off" in ev.result ? { off: true } : { temperature: ev.result.target }),
+          ...("off" in ev.result ? { off: true } : ev.result.preset ? { preset: ev.result.preset } : { temperature: ev.result.target }),
           reason: ev.reason,
         });
       } catch {
         this._autoLast.delete(id);
       }
+    }
+  }
+
+  private _evalRules(input: Record<string, unknown>, area: string, now: number) {
+    const sid = typeof input.strategy === "string" ? input.strategy.trim() : "";
+    const rules = sid ? this._strategies.get(sid)?.rules : (input.rules as RuleStrategy | undefined);
+    if (!rules) return null;
+    try {
+      const cfg = this._zoneByEntity(input.zone).config;
+      return evaluateRules(rules, this._ranges(area), now, this.tz, { comfort: cfg.comfort_temp, eco: cfg.eco_temp }, sensorReadings(rules, Object.fromEntries(this._entities)));
+    } catch {
+      return null;
     }
   }
 
@@ -547,6 +632,9 @@ export class MockHassController {
       callApi: (method, path, data) => this._callApi(method, path, data) as Promise<never>,
       now: this.clock.now,
       connection: {
+        subscribeMessage: async () => {
+          throw HA_ERROR("unknown_command", "Unknown command.");
+        },
         subscribeEvents: async <T,>(cb: (e: T) => void, type?: string) => {
           const key = type ?? "*";
           const handler = (e: MockHassEvent) => cb(e as unknown as T);
@@ -597,9 +685,10 @@ export class MockHassController {
     }
     if (method !== "POST") throw HA_ERROR("invalid_format", `Unsupported method ${method}`);
     const config = data as StrategyAutomationRec["config"] | undefined;
-    if (!config?.alias || !config.use_blueprint?.path) throw HA_ERROR("invalid_format", "alias and use_blueprint are required");
+    if (!config?.alias || !(config.use_blueprint?.path || Array.isArray(config.triggers)))
+      throw HA_ERROR("invalid_format", "alias and use_blueprint or triggers are required");
     this._automations.set(id, {
-      entityId: existing?.entityId ?? `automation.${slugify(config.alias) || id}`,
+      entityId: existing?.entityId ?? this._freeAutomationEntity(`automation.${slugify(config.alias) || id}`),
       config: clone(config),
       enabled: existing?.enabled ?? true,
       lastTriggered: existing?.lastTriggered ?? null,
@@ -607,6 +696,15 @@ export class MockHassController {
     this._autoLast.delete(id);
     this._settle(false);
     return { result: "ok" };
+  }
+
+  // Like HA: a taken entity id gets a _2, _3 suffix.
+  private _freeAutomationEntity(base: string): string {
+    const taken = new Set([...this._automations.values()].map((a) => a.entityId));
+    let n = 1;
+    let id = base;
+    while (taken.has(id)) id = `${base}_${++n}`;
+    return id;
   }
 
   private async _callServiceAsync(domain: string, service: string, data: Record<string, unknown>): Promise<void> {
@@ -666,6 +764,15 @@ export class MockHassController {
       st().areas.map((a) => ({ area_id: a.area_id, name: a.name, picture: null, aliases: [], labels: [] }))
     );
     ws("share_space/get_calendar", "planning", (m) => ({ calendar: st().calendars[String(m.person)] ?? {} }));
+    ws("frontend/get_user_data", null, (m) => {
+      const data = this._currentUser()?.userData ?? {};
+      return { value: m.key === undefined ? data : (data[String(m.key)] ?? null) };
+    });
+    ws("frontend/set_user_data", null, (m) => {
+      const me = this._currentUser();
+      if (me) me.userData = { ...me.userData, [String(m.key)]: m.value };
+      return null;
+    });
     ws("share_space/get_person_area", "planning", (m) => ({ area: st().personAreas[String(m.person)] ?? null }));
     ws("share_space/get_area_schedule", "planning", (m) => ({ schedule: this._schedule(String(m.area)) }));
     ws("share_space/get_area_calendars", "planning", (m) => ({ persons: this.areaCalendars(String(m.area)) }));
@@ -702,6 +809,9 @@ export class MockHassController {
         mode: z.mode,
         target: z.target,
         override_until: z.overrideActive ? new Date(z.overrideUntil as number).toISOString() : null,
+        target_template: z.config.target_template ?? null,
+        template_result: null,
+        template_error: null,
       }))
     );
     ws(
@@ -720,6 +830,12 @@ export class MockHassController {
           if (m.off_mode !== "frost" && m.off_mode !== "hvac_off") throw HA_ERROR("invalid_format", "invalid off_mode");
           patch.off_mode = m.off_mode;
         }
+        if ("target_template" in m) {
+          const tpl = typeof m.target_template === "string" && m.target_template.trim() ? m.target_template : null;
+          const bad = tpl ? templateSyntaxError(tpl) : null;
+          if (bad) throw HA_ERROR("invalid_format", bad);
+          patch.target_template = tpl;
+        }
         zone.patchConfig(patch);
         this._settle(false);
         const z = zone;
@@ -732,6 +848,9 @@ export class MockHassController {
           mode: z.mode,
           target: z.target,
           override_until: z.overrideActive ? new Date(z.overrideUntil as number).toISOString() : null,
+          target_template: z.config.target_template ?? null,
+          template_result: null,
+          template_error: null,
         };
       },
       true
@@ -753,6 +872,42 @@ export class MockHassController {
         };
         this._addZone(config);
         return { entry_id: config.entry_id, entity_id: this._zoneEntityId(config) };
+      },
+      true
+    );
+
+    ws("share_space_heating/list_strategies", "heating", () =>
+      [...this._strategies.values()].sort((a, b) => a.name.localeCompare(b.name))
+    );
+    ws(
+      "share_space_heating/save_strategy",
+      "heating",
+      (m) => {
+        const id = typeof m.strategy_id === "string" && m.strategy_id ? m.strategy_id : null;
+        const name = typeof m.name === "string" ? m.name.trim() : "";
+        const shape = (r: unknown) => {
+          const x = r as { version?: unknown; rules?: unknown; fallback?: unknown } | null;
+          return !!x && typeof x === "object" && x.version === 1 && Array.isArray(x.rules) && !!x.fallback && typeof x.fallback === "object";
+        };
+        if (!name || !shape(m.rules) || (m.previous != null && !shape(m.previous))) throw HA_ERROR("invalid_format", "name and rules are required");
+        if (id && !this._strategies.has(id)) throw HA_ERROR("not_found", "Shared strategy not found");
+        if ([...this._strategies.values()].some((x) => x.id !== id && x.name.toLowerCase() === name.toLowerCase()))
+          throw HA_ERROR("name_taken", `A shared strategy named ${name} already exists`);
+        const sid = id ?? Math.random().toString(16).slice(2, 14).padEnd(12, "0");
+        const prev = this._strategies.get(sid);
+        const previous = "previous" in m ? ((m.previous as RuleStrategy | null) ?? null) : (prev?.previous ?? null);
+        this._strategies.set(sid, { id: sid, name, rules: clone(m.rules as RuleStrategy), previous: clone(previous) });
+        this._settle(false);
+        return { id: sid };
+      },
+      true
+    );
+    ws(
+      "share_space_heating/delete_strategy",
+      "heating",
+      (m) => {
+        if (!this._strategies.delete(String(m.strategy_id))) throw HA_ERROR("not_found", "Shared strategy not found");
+        return {};
       },
       true
     );

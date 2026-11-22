@@ -7,12 +7,19 @@ import {
   getFloorplans,
   saveFloorplan,
   listAreas,
+  spaceRole,
+  getSharePrefs,
+  setSharePrefs,
   setOverride,
   extendOverride,
   clearOverride,
 } from "ha-share-space-ui/ha";
-import type { HomeAssistant, Floorplan, Hotspot, AreaInfo } from "ha-share-space-ui/ha";
+import type { SharePrefs, HomeAssistant, Floorplan, Hotspot, AreaInfo } from "ha-share-space-ui/ha";
 import { zoneViewModel } from "ha-share-space-heating-card/view-model";
+import "./panel-tabs";
+import "./settings-tab";
+import "./rules-page";
+import "./extension-points-page";
 import { PLACEHOLDER_SIZE, PLACEHOLDER_URL } from "./placeholder";
 
 interface Box {
@@ -60,7 +67,10 @@ export class ShareSpaceSpace extends LitElement {
   @property({ attribute: false }) route?: unknown;
   @property({ attribute: false }) panel?: unknown;
 
-  @state() private _plans: Floorplan[] | null = null;
+  @state() private _tab = "space";
+@state() private _prefs: SharePrefs | null = null;
+private _prefsFor = "";
+@state() private _plans: Floorplan[] | null = null;
   @state() private _error = "";
   @state() private _planId = "";
   @state() private _box: Box = { x: 0, y: 0, w: 0, h: 0 };
@@ -99,6 +109,46 @@ export class ShareSpaceSpace extends LitElement {
     return !!this.hass?.user?.is_admin;
   }
 
+  private async _loadPrefs(): Promise<void> {
+    const id = this.hass?.user?.id ?? "";
+    if (!this.hass || !id || id === this._prefsFor) return;
+    this._prefsFor = id;
+    try {
+      this._prefs = await getSharePrefs(this.hass);
+    } catch {
+      this._prefs = null;
+    }
+  }
+
+  private async _setTechnical(technical: boolean): Promise<void> {
+    if (!this.hass) return;
+    const prev = this._prefs;
+    this._prefs = { ...prev, technical };
+    try {
+      await setSharePrefs(this.hass, this._prefs);
+    } catch {
+      this._prefs = prev;
+    }
+  }
+
+  private get _role() {
+    return spaceRole(this.hass, this._prefs);
+  }
+
+  private get _tabs() {
+    return this._role === "user"
+      ? []
+      : [
+          { id: "space", label: "Space" },
+          { id: "rules", label: "Rules" },
+          { id: "settings", label: "Settings" },
+        ];
+  }
+
+  private get _activeTab(): string {
+    return this._tabs.some((t) => t.id === this._tab) ? this._tab : "space";
+  }
+
   private get _plan(): Floorplan | null {
     if (this._edit && this._draft) return this._draft;
     const plans = this._plans ?? [];
@@ -111,6 +161,7 @@ export class ShareSpaceSpace extends LitElement {
       void this._load();
       void listAreas(this.hass).then((a) => (this._areas = a)).catch(() => undefined);
       if (this._isAdmin && new URLSearchParams(location.search).get("edit") === "1") this._startEdit();
+      this._tab = new URLSearchParams(location.search).get("tab") ?? this._tab;
     }
   }
 
@@ -155,11 +206,13 @@ export class ShareSpaceSpace extends LitElement {
 
   protected updated(changed: PropertyValues): void {
     const stage = this.renderRoot.querySelector<HTMLElement>(".stage");
-    if (stage && !this._observed) {
+    if (stage && stage !== this._observed) {
+      if (this._observed) this._ro?.unobserve(this._observed);
       this._observed = stage;
       this._ro?.observe(stage);
       this._measure();
     }
+    if (changed.has("hass")) void this._loadPrefs();
     if (changed.has("_openId") || changed.has("_box")) this._placePopover();
     if (this._cardEl && changed.has("hass") && this.hass) this._cardEl.hass = this.hass;
     if (changed.has("_openId") || changed.has("_plans")) void this._mountCard();
@@ -338,9 +391,32 @@ export class ShareSpaceSpace extends LitElement {
       z-index: 10;
       display: flex;
       flex-direction: column;
-      background: var(--primary-background-color);
+      background: var(--lovelace-background, var(--primary-background-color));
       color: var(--primary-text-color);
       font-family: var(--paper-font-body1_-_font-family, inherit);
+    }
+    .space {
+      position: relative;
+      flex: 1;
+      min-height: 0;
+      display: flex;
+      flex-direction: column;
+    }
+    .space[hidden] {
+      display: none;
+    }
+    share-space-panel-tabs {
+      flex-shrink: 0;
+    }
+    /* tab pages scroll inside the fixed host */
+    share-space-rules-page,
+    share-space-settings {
+      flex: 1;
+      min-height: 0;
+      overflow-y: auto;
+    }
+    .page {
+      padding: 16px 24px;
     }
     .fab {
       position: absolute;
@@ -592,13 +668,37 @@ export class ShareSpaceSpace extends LitElement {
   protected render(): TemplateResult {
     const plans = this._plans;
     const plan = this._plan;
+    const tab = this._activeTab;
     return html`
       <button class="fab exit" aria-label="Back" @click=${this._exit}>${ICON_BACK}</button>
-      ${plans === null && !this._draft ? html`<div class="center muted">Loading…</div>` : nothing}
-      ${plan ? this._renderStage(plan) : plans !== null ? this._renderEmpty() : nothing}
-      ${plan ? this._renderBar(plans ?? []) : nothing}
-      ${this._edit && this._draft ? this._renderEditor(this._draft) : nothing}
-      ${this._renderPopover()}
+      ${this._tabs.length
+        ? html`<share-space-panel-tabs
+            .tabs=${this._tabs}
+            .active=${tab}
+            @tab-change=${(e: CustomEvent<string>) => {
+              this._tab = e.detail;
+              this._closePopover();
+            }}
+          ></share-space-panel-tabs>`
+        : nothing}
+      <div class="space" ?hidden=${tab !== "space"}>
+        ${plans === null && !this._draft ? html`<div class="center muted">Loading…</div>` : nothing}
+        ${plan ? this._renderStage(plan) : plans !== null ? this._renderEmpty() : nothing}
+        ${plan ? this._renderBar(plans ?? []) : nothing}
+        ${this._edit && this._draft ? this._renderEditor(this._draft) : nothing}
+        ${this._renderPopover()}
+      </div>
+      ${tab === "rules" ? html`<share-space-rules-page .hass=${this.hass}></share-space-rules-page>` : nothing}
+      ${tab === "settings"
+        ? html`<share-space-settings
+            .role=${this._role}
+            @technical-change=${(e: CustomEvent<boolean>) => void this._setTechnical(e.detail)}
+          >
+            ${this._role === "technical_admin"
+              ? html`<share-space-extension-points slot="extension-points" .hass=${this.hass}></share-space-extension-points>`
+              : nothing}
+          </share-space-settings>`
+        : nothing}
     `;
   }
 

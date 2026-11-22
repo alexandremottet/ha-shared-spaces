@@ -47,6 +47,7 @@ function Nav({ path }: { path: string }) {
         </a>
       ))}
       <span className="spacer" />
+      <span className="legend-chip real-chip" title="Shipped UI: what users get in Home Assistant">In Home Assistant</span>
       <label>
         Data
         <select value={mode} onChange={(e) => setMode(e.target.value as "mock" | "live")}>

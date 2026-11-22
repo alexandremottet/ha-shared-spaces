@@ -1,6 +1,7 @@
 import type { CSSProperties } from "react";
-import { WEEK_DAYS } from "ha-share-space-ui";
-import type { Calendar, TimeRange } from "ha-share-space-ui";
+import { WEEK_DAYS, ZONE_TARGET_HOOK } from "ha-share-space-ui";
+import { starterRules } from "../../mock/seed";
+import type { Calendar, Condition, RuleStrategy, ScheduleRanges, TimeRange } from "ha-share-space-ui";
 
 export type PropKind = "text" | "number" | "boolean" | "select" | "json";
 
@@ -20,7 +21,7 @@ export interface ActionDef {
 export interface ComponentDef {
   id: string;
   tag: string;
-  group: "Schedule" | "Roster" | "Heating" | "HA";
+  group: "Schedule" | "Roster" | "Heating" | "Rules" | "HA";
   description: string;
   props: PropDef[];
   events: string[];
@@ -89,6 +90,26 @@ const heatingProps = (extra: Partial<Record<string, unknown>> = {}): PropDef[] =
 };
 
 const heatingEvents = ["override-requested", "override-cleared", "override-extended", "target-set"];
+
+const officeSchedule: ScheduleRanges = Object.fromEntries(
+  ["monday", "tuesday", "wednesday", "thursday", "friday"].map((d) => [d, [["08:00", "12:00"], ["14:00", "18:00"]]]),
+);
+
+const sampleStrategy = starterRules("office_saver");
+const sampleLunch = starterRules("lunch_room");
+const sampleCondition: Condition = { type: "occupied_within", hours: 2 };
+const OUTDOOR = "sensor.outdoor_temperature";
+const outdoorCurve = (points: Array<[number, number]>, fallback: number) => ({ type: "curve" as const, entity: OUTDOOR, default: fallback, points: points.map(([at, value]) => ({ at, value })) });
+const sampleOldBuilding: RuleStrategy = {
+  version: 1,
+  rules: [
+    { label: "Cold day", when: [{ type: "sensor", entity: OUTDOOR, op: "below", than: 0 }, { type: "occupied" }], then: { type: "temperature", value: 22 } },
+    { label: "Occupied", when: [{ type: "occupied" }], then: { type: "temperature", value: outdoorCurve([[-5, 22], [15, 19]], 10) } },
+    { label: "Preheat", when: [{ type: "occupied_within", hours: outdoorCurve([[-10, 9], [0, 5], [10, 2], [18, 1]], 0) }], then: { type: "temperature", value: 21 } },
+    { label: "Between working days", when: [{ type: "between_days", gap_hours: 24 }], then: { type: "eco" } },
+  ],
+  fallback: { label: "Away", then: { type: "off" } },
+};
 
 export const COMPONENTS: ComponentDef[] = [
   {
@@ -247,6 +268,124 @@ export const COMPONENTS: ComponentDef[] = [
     props: heatingProps({ target: 19, currentTemperature: 18.5, presence: false, compact: true }),
     events: heatingEvents,
     stage: { maxWidth: 240 },
+  },
+  {
+    id: "rule-condition",
+    tag: "share-space-rule-condition",
+    group: "Rules",
+    description: "One rule condition: type, fields and a not toggle. Try Planned during or Day of week.",
+    props: [
+      { name: "condition", kind: "json", value: sampleCondition },
+      { name: "errors", kind: "json", value: [] },
+    ],
+    events: ["condition-change", "condition-remove"],
+    stage: { maxWidth: 480 },
+  },
+  {
+    id: "rule-action",
+    tag: "share-space-rule-action",
+    group: "Rules",
+    description: "What a rule does: comfort, eco, off or a fixed temperature.",
+    props: [
+      { name: "action", kind: "json", value: { type: "temperature", value: 18 } },
+      { name: "errors", kind: "json", value: [] },
+    ],
+    events: ["action-change"],
+    stage: { maxWidth: 480 },
+  },
+  {
+    id: "rule-row",
+    tag: "share-space-rule-row",
+    group: "Rules",
+    description: "A When / Then rule with name, conditions, action and move / remove buttons.",
+    props: [
+      { name: "rule", kind: "json", value: sampleStrategy.rules[1] },
+      { name: "index", kind: "number", value: 1 },
+      { name: "count", kind: "number", value: 3 },
+      { name: "errors", kind: "json", value: [] },
+    ],
+    events: ["rule-change", "rule-remove", "rule-move"],
+    stage: { maxWidth: 560 },
+  },
+  {
+    id: "rule-list-office",
+    tag: "share-space-rule-list",
+    group: "Rules",
+    description: "Office saver starter as a rule list. Edit the strategy JSON to see inline validation errors.",
+    props: [{ name: "strategy", kind: "json", value: sampleStrategy }],
+    events: ["strategy-change"],
+    stage: { maxWidth: 560 },
+  },
+  {
+    id: "rule-list-lunch",
+    tag: "share-space-rule-list",
+    group: "Rules",
+    description: "Lunch room starter as a rule list (Planned during with several windows).",
+    props: [{ name: "strategy", kind: "json", value: sampleLunch }],
+    events: ["strategy-change"],
+    stage: { maxWidth: 560 },
+  },
+  {
+    id: "rule-list-old-building",
+    tag: "share-space-rule-list",
+    group: "Rules",
+    description: "Old building: preheat hours and comfort temperature follow the outdoor sensor (curves), extra heat below 0 °C.",
+    props: [{ name: "strategy", kind: "json", value: sampleOldBuilding }],
+    events: ["strategy-change"],
+    stage: { maxWidth: 760 },
+  },
+  {
+    id: "rule-value",
+    tag: "share-space-rule-value",
+    group: "Rules",
+    description: "A fixed number or Follow a sensor: points mapped linearly, flat outside, with a mini plot.",
+    props: [
+      { name: "value", kind: "json", value: outdoorCurve([[-10, 9], [0, 5], [10, 2], [18, 1]], 0) },
+      { name: "unit", kind: "text", value: "h" },
+      { name: "label", kind: "text", value: "Hours" },
+      { name: "errors", kind: "json", value: [] },
+    ],
+    events: ["value-change"],
+    stage: { maxWidth: 560 },
+  },
+  {
+    id: "rule-preview",
+    tag: "share-space-rule-preview",
+    group: "Rules",
+    description: "7-day timeline of a rule strategy for a sample office schedule.",
+    props: [
+      { name: "strategy", kind: "json", value: sampleStrategy },
+      { name: "schedule", kind: "json", value: officeSchedule },
+      { name: "now", kind: "number", value: Date.now() },
+      { name: "tz", kind: "text", value: "Europe/Paris" },
+      { name: "temps", kind: "json", value: { comfort: 21, eco: 17 } },
+    ],
+    events: [],
+    stage: { maxWidth: 560 },
+  },
+  {
+    id: "template-editor-zone-target",
+    tag: "share-space-template-editor",
+    group: "HA",
+    description: "Jinja template editor for the Zone target hook, with help, snippets and entity picker. Live result needs Home Assistant.",
+    props: [
+      { name: "value", kind: "text", value: "{{ 'comfort' if is_state('binary_sensor.door', 'on') else 'eco' }}" },
+      { name: "hook", kind: "json", value: ZONE_TARGET_HOOK },
+      {
+        name: "entities",
+        kind: "json",
+        value: [
+          { entity_id: "binary_sensor.door", name: "Front door" },
+          { entity_id: "sensor.outdoor_temperature", name: "Outdoor temperature" },
+        ],
+      },
+      { name: "result", kind: "json", value: null },
+      { name: "liveAvailable", kind: "boolean", value: false },
+      { name: "busy", kind: "boolean", value: false },
+      { name: "error", kind: "text", value: "" },
+    ],
+    events: ["value-change", "save", "clear"],
+    stage: { maxWidth: 640 },
   },
   {
     id: "ha-period-edit-dialog",

@@ -61,14 +61,14 @@ function AreaCard({ hass, areaId, controller }: { hass: HomeAssistant; areaId: s
       {error && <div className="notice error">{error}</div>}
       {sensor && (
         <div ref={planningBox}>
-          <CardHost key={`p${planningRev}`} tag="share-space-area-planning-card" config={planningConfig} hass={hass} />
+          <div className="real"><CardHost key={`p${planningRev}`} tag="share-space-area-planning-card" config={planningConfig} hass={hass} /></div>
         </div>
       )}
       {sensor && (
         <details>
           <summary>Actions</summary>
           <div ref={actionsBox}>
-            <CardHost key={`a${actionsRev}`} tag="share-space-area-actions-card" config={actionsConfig} hass={hass} />
+            <div className="real"><CardHost key={`a${actionsRev}`} tag="share-space-area-actions-card" config={actionsConfig} hass={hass} /></div>
           </div>
         </details>
       )}

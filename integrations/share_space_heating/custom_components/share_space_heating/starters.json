@@ -1,0 +1,111 @@
+[
+  {
+    "id": "office_saver",
+    "name": "Office saver",
+    "rules": {
+      "version": 1,
+      "rules": [
+        {
+          "label": "Occupied",
+          "when": [
+            {
+              "type": "occupied"
+            }
+          ],
+          "then": {
+            "type": "temperature",
+            "value": 21.0
+          }
+        },
+        {
+          "label": "Preheat",
+          "when": [
+            {
+              "type": "occupied_within",
+              "hours": 6.0
+            }
+          ],
+          "then": {
+            "type": "temperature",
+            "value": 21.0
+          }
+        },
+        {
+          "label": "Between working days",
+          "when": [
+            {
+              "type": "between_days",
+              "gap_hours": 24.0
+            }
+          ],
+          "then": {
+            "type": "temperature",
+            "value": 16.0
+          }
+        }
+      ],
+      "fallback": {
+        "label": "Away",
+        "then": {
+          "type": "off"
+        }
+      }
+    }
+  },
+  {
+    "id": "lunch_room",
+    "name": "Lunch room",
+    "rules": {
+      "version": 1,
+      "rules": [
+        {
+          "label": "Lunch",
+          "when": [
+            {
+              "type": "time",
+              "start": "11:00",
+              "end": "14:00"
+            },
+            {
+              "type": "planned",
+              "windows": [
+                {
+                  "start": "11:00",
+                  "end": "12:00"
+                },
+                {
+                  "start": "13:00",
+                  "end": "14:00"
+                }
+              ],
+              "match": "all"
+            }
+          ],
+          "then": {
+            "type": "temperature",
+            "value": 20.0
+          }
+        },
+        {
+          "label": "No lunch today",
+          "when": [
+            {
+              "type": "time",
+              "start": "11:00",
+              "end": "14:00"
+            }
+          ],
+          "then": {
+            "type": "off"
+          }
+        }
+      ],
+      "fallback": {
+        "label": "Outside lunch hours",
+        "then": {
+          "type": "off"
+        }
+      }
+    }
+  }
+]

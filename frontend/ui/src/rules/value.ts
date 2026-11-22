@@ -1,0 +1,59 @@
+import type { RuleStrategy, Value } from "./types";
+
+/** Numeric readings by entity id; a missing entry means no reading. */
+export type SensorReadings = Record<string, number>;
+
+export const TEMP_LIMITS: [number, number] = [5, 35];
+
+/** Fixed number, or the sensor reading mapped through the curve points (linear between, flat outside). */
+export function evalValue(v: Value, readings: SensorReadings = {}): number {
+  if (typeof v === "number") return v;
+  const r = readings[v.entity];
+  const x = r === undefined || !Number.isFinite(r) ? v.default : r;
+  const pts = v.points;
+  if (x <= pts[0].at) return pts[0].value;
+  for (let i = 1; i < pts.length; i++) {
+    const a = pts[i - 1];
+    const b = pts[i];
+    if (x <= b.at) return a.value + ((x - a.at) / (b.at - a.at)) * (b.value - a.value);
+  }
+  return pts[pts.length - 1].value;
+}
+
+/** Temperature result: limited to 5-35 and rounded to 0.5. */
+export const temperatureOf = (v: Value, readings?: SensorReadings): number =>
+  Math.round(Math.min(TEMP_LIMITS[1], Math.max(TEMP_LIMITS[0], evalValue(v, readings))) * 2) / 2;
+
+/** Entity ids read by curves and sensor conditions. */
+export function strategySensors(strategy: RuleStrategy): string[] {
+  const out = new Set<string>();
+  const add = (v: unknown) => {
+    if (v && typeof v === "object" && "entity" in v && typeof v.entity === "string") out.add(v.entity);
+  };
+  const actions = [...strategy.rules.map((r) => r.then), strategy.fallback.then];
+  for (const a of actions) if (a.type === "temperature") add(a.value);
+  for (const r of strategy.rules)
+    for (const c of r.when) {
+      if (c.type === "occupied_within") add(c.hours);
+      if (c.type === "sensor") out.add(c.entity);
+    }
+  return [...out];
+}
+
+/** Number from an HA state: weather.* attribute temperature, else the numeric state. */
+export function readingOf(entityId: string, state?: { state: string; attributes?: Record<string, unknown> }): number | undefined {
+  if (!state) return undefined;
+  const raw = entityId.startsWith("weather.") ? state.attributes?.temperature : state.state;
+  const n = typeof raw === "number" ? raw : typeof raw === "string" && raw.trim() ? Number(raw) : NaN;
+  return Number.isFinite(n) ? n : undefined;
+}
+
+/** Current readings for every sensor the strategy uses. */
+export function sensorReadings(strategy: RuleStrategy, states: Record<string, { state: string; attributes?: Record<string, unknown> }>): SensorReadings {
+  const out: SensorReadings = {};
+  for (const id of strategySensors(strategy)) {
+    const t = readingOf(id, states[id]);
+    if (t !== undefined) out[id] = t;
+  }
+  return out;
+}

@@ -3,6 +3,7 @@ import { THEMES, applyTheme, initialTheme } from "../../stubs";
 import type { ThemeName } from "../../stubs";
 import type { MockHassController } from "../../mock/mock-hass";
 import { RoleSwitch } from "../RoleSwitch";
+import { HaAutomationControls } from "./HaAutomationControls";
 
 export type Viewport = "full" | "phone" | "tablet";
 
@@ -43,6 +44,7 @@ export function Toolbar({ controller, edit, setEdit, narrow, setNarrow, viewport
           </select>
         </label>
       )}
+      {controller && <HaAutomationControls controller={controller} />}
       <label title={isAdmin ? "" : "Edit mode needs an admin user"}>
         <input type="checkbox" checked={edit} disabled={!isAdmin} onChange={(e) => setEdit(e.target.checked)} />
         edit mode

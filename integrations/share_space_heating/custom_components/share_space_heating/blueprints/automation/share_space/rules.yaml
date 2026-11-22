@@ -1,0 +1,75 @@
+# share_space_blueprint_version: 3
+blueprint:
+  name: Share Space - Rules
+  description: >
+    Runs a Share Space rule list: rules are checked top to bottom, the first rule whose
+    conditions all hold sets the zone's base target, otherwise the fallback does.
+  domain: automation
+  input:
+    zone:
+      name: Heating zone
+      selector:
+        entity:
+          integration: share_space_heating
+          domain: sensor
+    area:
+      name: Share Space area id
+      description: Area id used in binary_sensor.share_space_<area> (e.g. open_space).
+      selector:
+        text:
+    rules:
+      name: Rules
+      description: >
+        Strategy JSON {version, rules: [{label, when: [...], then}], fallback: {label, then}}
+        (see fixtures/heating/RULES.md). Edited from the Share Space panel.
+      default: {}
+      selector:
+        object:
+    strategy:
+      name: Shared strategy
+      description: >
+        Id of a shared strategy saved from the Share Space panel. Empty = use Rules.
+      default: ""
+      selector:
+        text:
+    previous_rules:
+      name: Previous rules
+      description: Rule list before the last save, kept for undo. Not used when running.
+      default: null
+      selector:
+        object:
+
+mode: queued
+max: 5
+max_exceeded: silent
+
+# Rules are evaluated in Python by share_space_heating.run_rules (rules.py); this only decides when.
+trigger_variables:
+  area: !input area
+
+triggers:
+  - trigger: event
+    event_type: state_changed
+    event_data:
+      entity_id: "{{ 'binary_sensor.share_space_' ~ area }}"
+  - trigger: event
+    event_type: state_changed
+    event_data:
+      entity_id: "{{ 'sensor.share_space_' ~ area ~ '_next_on' }}"
+  - trigger: event
+    event_type: state_changed
+    event_data:
+      entity_id: "{{ 'sensor.share_space_' ~ area ~ '_previous_off' }}"
+  # Time, preheat lead and outdoor readings are picked up within a minute.
+  - trigger: time_pattern
+    minutes: "*"
+  - trigger: homeassistant
+    event: start
+
+actions:
+  - action: share_space_heating.run_rules
+    data:
+      entity_id: !input zone
+      area: !input area
+      rules: !input rules
+      strategy: !input strategy

@@ -7,8 +7,10 @@ import voluptuous as vol
 
 from homeassistant.components import websocket_api
 from homeassistant.core import HomeAssistant
+from homeassistant.exceptions import TemplateError
 from homeassistant.helpers import config_validation as cv
 from homeassistant.helpers import entity_registry as er
+from homeassistant.helpers.template import Template
 
 from .const import (
     CONF_CLIMATE_ENTITY,
@@ -19,6 +21,8 @@ from .const import (
     CONF_MAX_OVERRIDE_HOURS,
     CONF_OFF_MODE,
     CONF_PRESENCE_ENTITY,
+    CONF_TARGET_TEMPLATE,
+    DATA_STRATEGIES,
     DATA_ZONES,
     DOMAIN,
     OFF_MODES,
@@ -29,6 +33,9 @@ def async_register(hass: HomeAssistant) -> None:
     websocket_api.async_register_command(hass, ws_list_zones)
     websocket_api.async_register_command(hass, ws_create_zone)
     websocket_api.async_register_command(hass, ws_update_zone)
+    websocket_api.async_register_command(hass, ws_list_strategies)
+    websocket_api.async_register_command(hass, ws_save_strategy)
+    websocket_api.async_register_command(hass, ws_delete_strategy)
 
 
 def _presence_entity(value):
@@ -45,6 +52,21 @@ _HOURS = vol.All(vol.Coerce(float), vol.Range(min=0.5, max=72))
 _FROST = vol.All(vol.Coerce(float), vol.Range(min=5, max=15))
 
 
+def _template_error(hass: HomeAssistant, msg: dict) -> str | None:
+    """Normalize `target_template` in msg ("" -> None); return a syntax error message."""
+    if CONF_TARGET_TEMPLATE not in msg:
+        return None
+    source = msg[CONF_TARGET_TEMPLATE]
+    if source is None or not source.strip():
+        msg[CONF_TARGET_TEMPLATE] = None
+        return None
+    try:
+        Template(source, hass).ensure_valid()
+    except TemplateError as err:
+        return str(err)
+    return None
+
+
 def _summary(hass: HomeAssistant, entry_id: str, zone) -> dict:
     return {
         "entry_id": entry_id,
@@ -55,6 +77,9 @@ def _summary(hass: HomeAssistant, entry_id: str, zone) -> dict:
         "mode": zone.mode,
         "active_rule": zone.active_rule,
         "target": zone.target,
+        "target_template": zone.target_template,
+        "template_result": zone.template_result,
+        "template_error": zone.template_error,
         "override_until": zone.override_until.isoformat() if zone.override_active else None,
     }
 
@@ -80,10 +105,14 @@ async def ws_list_zones(hass: HomeAssistant, connection, msg: dict) -> None:
         vol.Optional(CONF_COMFORT_TEMP): vol.Coerce(float),
         vol.Optional(CONF_ECO_TEMP): vol.Coerce(float),
         vol.Optional(CONF_DEFAULT_OVERRIDE_HOURS): vol.Coerce(float),
+        vol.Optional(CONF_TARGET_TEMPLATE): vol.Any(None, str),
     }
 )
 @websocket_api.async_response
 async def ws_create_zone(hass: HomeAssistant, connection, msg: dict) -> None:
+    if error := _template_error(hass, msg):
+        connection.send_error(msg["id"], websocket_api.ERR_INVALID_FORMAT, error)
+        return
     data = {key: value for key, value in msg.items() if key not in ("id", "type")}
     result = await hass.config_entries.flow.async_init(
         DOMAIN, context={"source": "import"}, data=data
@@ -107,10 +136,14 @@ async def ws_create_zone(hass: HomeAssistant, connection, msg: dict) -> None:
         vol.Optional(CONF_MAX_OVERRIDE_HOURS): _HOURS,
         vol.Optional(CONF_FROST_TEMP): _FROST,
         vol.Optional(CONF_OFF_MODE): vol.In(OFF_MODES),
+        vol.Optional(CONF_TARGET_TEMPLATE): vol.Any(None, str),
     }
 )
 @websocket_api.async_response
 async def ws_update_zone(hass: HomeAssistant, connection, msg: dict) -> None:
+    if error := _template_error(hass, msg):
+        connection.send_error(msg["id"], websocket_api.ERR_INVALID_FORMAT, error)
+        return
     entry = hass.config_entries.async_get_entry(msg["entry_id"])
     zones = hass.data.get(DOMAIN, {}).get(DATA_ZONES, {})
     if entry is None or entry.domain != DOMAIN or entry.entry_id not in zones:
@@ -127,3 +160,56 @@ async def ws_update_zone(hass: HomeAssistant, connection, msg: dict) -> None:
             connection.send_error(msg["id"], "reload_timeout", "Zone reload timed out")
             return
     connection.send_result(msg["id"], _summary(hass, entry.entry_id, zones[entry.entry_id]))
+
+
+def _valid_rules(rules: dict) -> bool:
+    return rules.get("version") == 1 and isinstance(rules.get("rules"), list) and isinstance(rules.get("fallback"), dict)
+
+
+@websocket_api.websocket_command({vol.Required("type"): f"{DOMAIN}/list_strategies"})
+@websocket_api.async_response
+async def ws_list_strategies(hass: HomeAssistant, connection, msg: dict) -> None:
+    store = hass.data.get(DOMAIN, {}).get(DATA_STRATEGIES)
+    connection.send_result(msg["id"], store.all() if store else [])
+
+
+@websocket_api.require_admin
+@websocket_api.websocket_command(
+    {
+        vol.Required("type"): f"{DOMAIN}/save_strategy",
+        vol.Optional("strategy_id"): str,
+        vol.Required("name"): str,
+        vol.Required("rules"): dict,
+        vol.Optional("previous"): vol.Any(dict, None),
+    }
+)
+@websocket_api.async_response
+async def ws_save_strategy(hass: HomeAssistant, connection, msg: dict) -> None:
+    store = hass.data[DOMAIN][DATA_STRATEGIES]
+    name = msg["name"].strip()
+    if not name:
+        connection.send_error(msg["id"], websocket_api.ERR_INVALID_FORMAT, "Name is required")
+        return
+    previous = msg.get("previous")
+    if not _valid_rules(msg["rules"]) or (previous is not None and not _valid_rules(previous)):
+        connection.send_error(msg["id"], websocket_api.ERR_INVALID_FORMAT, "Invalid strategy shape")
+        return
+    strategy_id = msg.get("strategy_id")
+    if strategy_id is not None and store.get(strategy_id) is None:
+        connection.send_error(msg["id"], websocket_api.ERR_NOT_FOUND, "Strategy not found")
+        return
+    if any(s["id"] != strategy_id and s["name"].casefold() == name.casefold() for s in store.all()):
+        connection.send_error(msg["id"], "name_taken", "A strategy with this name already exists")
+        return
+    saved = await store.async_save(strategy_id, name, msg["rules"], previous)
+    connection.send_result(msg["id"], {"id": saved})
+
+
+@websocket_api.require_admin
+@websocket_api.websocket_command({vol.Required("type"): f"{DOMAIN}/delete_strategy", vol.Required("strategy_id"): str})
+@websocket_api.async_response
+async def ws_delete_strategy(hass: HomeAssistant, connection, msg: dict) -> None:
+    if not await hass.data[DOMAIN][DATA_STRATEGIES].async_delete(msg["strategy_id"]):
+        connection.send_error(msg["id"], websocket_api.ERR_NOT_FOUND, "Strategy not found")
+        return
+    connection.send_result(msg["id"], {})

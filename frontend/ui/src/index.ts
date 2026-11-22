@@ -12,3 +12,8 @@ export * from "./types";
 export * from "./heating/heating-control";
 export * from "./heating/tz";
 export * from "./heating/strategy-sim";
+export * from "./heating/strategy-timeline";
+export * from "./heating/week-preview";
+export * from "./rules";
+export * from "./template-hooks";
+export * from "./template-editor";

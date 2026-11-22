@@ -3,9 +3,8 @@ import type { PropertyValues } from "lit";
 import { property, state } from "lit/decorators.js";
 import { safeCustomElement } from "../define";
 import type { HomeAssistant } from "./hass";
-import { getAreaActions, isBackendMissing, listZones, findZoneStrategies, listStrategyAutomations, loadZoneStrategy, setAreaActions, setBaseTarget, setAutomationEnabled, updateZone } from "./ws";
+import { getAreaActions, isBackendMissing, listZones, listStrategyAutomations, loadZoneStrategy, setAreaActions, stopZoneStrategies, updateZone } from "./ws";
 import type { AreaActions, HeatingZone, PlanningAction, ZoneStrategy } from "./ws";
-import { STRATEGY_LABELS } from "../heating/strategy-sim";
 import { haTheme } from "./theme";
 import "../heating/strategy-editor";
 
@@ -407,17 +406,9 @@ export class ShareSpaceAreaTriggerPopover extends LitElement {
     if (on && this._tempOff !== "") patch.eco_temp = Number(this._tempOff);
     return this._run(async () => {
       // Simple and Strategy are exclusive: choosing Simple stops any strategy driving this zone.
-      if (on) await this._stopStrategies(zone);
+      if (on) await stopZoneStrategies(this.hass!, zone.entity_id);
       await updateZone(this.hass!, zone.entry_id, patch);
     });
-  }
-
-  // Disable the zone's strategy automations and drop the base target they left behind.
-  private async _stopStrategies(zone: HeatingZone): Promise<void> {
-    const active = findZoneStrategies(this.hass!, zone.entity_id).filter((a) => a.enabled);
-    if (active.length === 0) return;
-    for (const a of active) await setAutomationEnabled(this.hass!, a.entityId, false);
-    await setBaseTarget(this.hass!, zone.entity_id, {});
   }
 
   private _optionIds(domains: string[]): string[] {
@@ -456,7 +447,7 @@ export class ShareSpaceAreaTriggerPopover extends LitElement {
 
   private _zoneLink(z: HeatingZone): ZoneLink | null {
     const strategy = this._zoneStrategies[z.entity_id];
-    if (strategy) return { area: strategy.area, mode: "strategy", label: STRATEGY_LABELS[strategy.automation.preset] };
+    if (strategy) return { area: strategy.area, mode: "strategy", label: strategy.name };
     const area = z.presence_entity?.startsWith("binary_sensor.share_space_") ? z.presence_entity.slice("binary_sensor.share_space_".length) : null;
     return area ? { area, mode: "simple", label: "occupied / empty °C" } : null;
   }
@@ -470,7 +461,7 @@ export class ShareSpaceAreaTriggerPopover extends LitElement {
   private _unlink(z: HeatingZone, link: ZoneLink): Promise<void> {
     const strategy = this._zoneStrategies[z.entity_id];
     return link.mode === "strategy" && strategy
-      ? this._run(() => this._stopStrategies(z))
+      ? this._run(() => stopZoneStrategies(this.hass!, z.entity_id))
       : this._link(z, false);
   }
 

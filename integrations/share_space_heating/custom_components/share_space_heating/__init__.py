@@ -5,6 +5,8 @@ import re
 import shutil
 from pathlib import Path
 
+import logging
+
 import voluptuous as vol
 
 from homeassistant.config_entries import ConfigEntry
@@ -18,14 +20,18 @@ from . import websocket_api
 from .const import (
     BLUEPRINT_DIR,
     DATA_STORE,
+    DATA_STRATEGIES,
     DATA_ZONES,
     DOMAIN,
     SERVICE_CLEAR_OVERRIDE,
     SERVICE_EXTEND_OVERRIDE,
+    SERVICE_RUN_RULES,
     SERVICE_SET_BASE_TARGET,
     SERVICE_SET_OVERRIDE,
 )
-from .store import OverrideStore
+from .rules import decide, planning_facts
+from .store import OverrideStore, StrategyStore
+from .target import BaseTarget
 from .zone import Zone
 
 PLATFORMS = ["sensor"]
@@ -62,6 +68,26 @@ BASE_SCHEMA = vol.All(
     ),
     cv.has_at_most_one_key("temperature", "preset", "off"),
 )
+def _one_rules_source(data: dict) -> dict:
+    """Exactly one non-empty source; empty `{}` / `""` count as absent (the blueprint passes both)."""
+    given = [key for key in ("rules", "strategy") if data.get(key)]
+    if len(given) != 1:
+        raise vol.Invalid("Provide exactly one of rules or strategy")
+    return data
+
+
+RUN_RULES_SCHEMA = vol.All(
+    vol.Schema(
+        {
+            vol.Required(ATTR_ENTITY_ID): cv.entity_id,
+            vol.Required("area"): cv.string,
+            vol.Optional("rules"): dict,
+            vol.Optional("strategy"): cv.string,
+        }
+    ),
+    _one_rules_source,
+)
+_LOGGER = logging.getLogger(__name__)
 BLUEPRINTS_SRC = Path(__file__).parent / "blueprints" / "automation" / "share_space"
 
 
@@ -90,7 +116,9 @@ async def async_setup(hass: HomeAssistant, config: dict) -> bool:
     websocket_api.async_register(hass)
     store = OverrideStore(hass)
     await store.async_load()
-    hass.data[DOMAIN] = {DATA_STORE: store, DATA_ZONES: {}}
+    strategies = StrategyStore(hass)
+    await strategies.async_load()
+    hass.data[DOMAIN] = {DATA_STORE: store, DATA_ZONES: {}, DATA_STRATEGIES: strategies}
     _register_services(hass)
     await hass.async_add_executor_job(
         _install_blueprints, Path(hass.config.path(BLUEPRINT_DIR))
@@ -131,6 +159,30 @@ def _register_services(hass: HomeAssistant) -> None:
             reason=data.get("reason"),
         )
 
+    async def run_rules(call: ServiceCall) -> None:
+        zone = _zone_for(hass, call.data[ATTR_ENTITY_ID])
+        facts = planning_facts(hass, call.data["area"])
+        if facts is None:
+            _LOGGER.debug("Planning for area %s not loaded, rules skipped", call.data["area"])
+            return
+        try:
+            if strategy_id := call.data.get("strategy"):
+                strategies = hass.data.get(DOMAIN, {}).get(DATA_STRATEGIES)
+                shared = strategies.get(strategy_id) if strategies else None
+                if shared is None:
+                    raise ServiceValidationError(f"Shared strategy {strategy_id} not found")
+                rules = shared["rules"]
+            else:
+                rules = call.data["rules"]
+            d = decide(rules, facts)
+        except (KeyError, TypeError, ValueError, AttributeError, IndexError) as err:
+            raise ServiceValidationError(f"Invalid rules: {err!r}") from err
+        # every-minute runs: skip unchanged decisions so the store is not rewritten
+        if zone.base == BaseTarget(d.temperature, d.preset, d.off, d.label):
+            return
+        await zone.async_set_base_target(temperature=d.temperature, preset=d.preset, off=d.off, reason=d.label)
+
+    hass.services.async_register(DOMAIN, SERVICE_RUN_RULES, run_rules, RUN_RULES_SCHEMA)
     hass.services.async_register(DOMAIN, SERVICE_SET_BASE_TARGET, set_base_target, BASE_SCHEMA)
     hass.services.async_register(DOMAIN, SERVICE_SET_OVERRIDE, set_override, SET_SCHEMA)
     hass.services.async_register(DOMAIN, SERVICE_EXTEND_OVERRIDE, extend_override, EXTEND_SCHEMA)

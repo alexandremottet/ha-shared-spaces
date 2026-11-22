@@ -87,7 +87,7 @@ export function ComponentStage({ def }: { def: ComponentDef }) {
       </header>
       <section className="panel cmp-live">
         <h4>Live</h4>
-        <div className="cmp-stage" style={def.stage}>
+        <div className="cmp-stage real" style={def.stage}>
           {createElement(def.tag, { ref })}
         </div>
         {def.actions && (

@@ -9,3 +9,6 @@ __pycache__/
 .ha-dev/
 frontend/playground/dist/
 .env.local
+
+# Claude Code sub-agent worktrees
+.claude/worktrees/

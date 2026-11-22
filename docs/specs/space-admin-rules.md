@@ -25,15 +25,13 @@ security boundary between Space Admin and Technical Admin.
 |---|---|---|
 | User | non-admin | Space tab: own planning, cards |
 | Space Admin | `is_admin` | + Rules tab, + Settings tab |
-| Technical Admin | `is_admin` with HA **Advanced mode** on | + advanced parts of Settings (extension points) |
+| Technical Admin | `is_admin` with "Technical tools" on | + advanced parts of Settings (extension points) |
 
-- **Technical Admin is HA's own Advanced mode** (user profile setting), not a list stored by Share
-  Space. Nothing to store, no hand-over needed: if the Technical Admin leaves, any Space Admin turns
-  Advanced mode on and gets everything.
-- Settings shows a "Turn on advanced tools" link to the user's HA profile when Advanced mode is off.
-- To verify before coding: the panel can read the user's Advanced mode flag (`showAdvanced` in HA
-  frontend user data). Fallback if not: a Technical Admin list stored by `share_space`, where any HA
-  admin can add themselves (with a confirmation and a logbook entry saying who did it).
+- **Technical Admin is a per-user preference** stored in HA's frontend user data under the key
+  `share_space` (`{technical: true}`), via `frontend/get_user_data` / `frontend/set_user_data`: the
+  same mechanism HA used for Advanced mode (removed in recent HA). No list, no backend.
+- Any admin can turn "Technical tools" on for themselves in the Settings tab, so no hand-over is
+  needed if the Technical Admin leaves.
 - The backend still enforces HA admin for every write (`async_register_admin_service`,
   `websocket_api.require_admin`). The Space/Technical split is UI only.
 
@@ -100,7 +98,7 @@ Named hooks where a Jinja template replaces a default behaviour, e.g.:
 
 | What | Owner |
 |---|---|
-| Roles | HA (`is_admin`, Advanced mode); fallback list in `share_space` |
+| Roles | HA (`is_admin`, frontend user data key `share_space`) |
 | Area actions (what runs on occupied / empty) | `share_space` (admin-only services) |
 | Zone mode, presets, overrides, heating hooks | `share_space_heating` |
 | Rules → blueprint automations | `share_space_heating` (blueprints), HA (automations) |
@@ -119,8 +117,8 @@ Named hooks where a Jinja template replaces a default behaviour, e.g.:
 
 1. **Done in this branch:** admin-only area action services; Simple/Strategy exclusivity; presets
    and +2h default on the heating control.
-2. Roles: Settings tab, Advanced mode detection (or the fallback list), User / Space Admin /
-   Technical Admin switch in the playground.
+2. Roles: Settings tab with the "Technical tools" switch (frontend user data), User / Space Admin
+   / Technical Admin switch in the playground.
 3. Rule model + preview: `ui/src/rules` with templates equivalent to Office saver / Lunch room,
    parity fixtures, `strategyTimeline` driven by rules.
 4. Block editor components + Rules tab; save as blueprint automation; undo and reset to template.
@@ -131,4 +129,4 @@ Named hooks where a Jinja template replaces a default behaviour, e.g.:
 
 - Rule list stored as a blueprint input, shown as raw YAML in HA's automation editor: accepted,
   with the "managed by Share Space" marker.
-- Space Admin sees the Settings tab; advanced parts need Advanced mode.
+- Space Admin sees the Settings tab; advanced parts need "Technical tools" on.
