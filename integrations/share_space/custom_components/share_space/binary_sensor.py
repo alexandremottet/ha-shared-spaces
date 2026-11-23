@@ -22,7 +22,6 @@ from .const import (
     DATA_PERSON_AREA_STORE,
     DATA_PERSON_CALENDAR_STORE,
     DOMAIN,
-    SIGNAL_AREAS_CHANGED,
     SIGNAL_CALENDAR_CHANGED,
 )
 from .occupancy import compact_schedule, is_occupied, next_change, occupied_today, occupied_tomorrow

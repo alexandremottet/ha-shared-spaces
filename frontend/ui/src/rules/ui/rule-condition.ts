@@ -85,6 +85,13 @@ export class ShareSpaceRuleCondition extends LitElement {
           ${this._number("Threshold", c.than, "°C", (than) => this._patch({ than }), undefined)}
         </div>
         <div class="muted">No reading: the condition does not hold.</div>`;
+      case "state":
+        return html`<div class="row">
+          <input type="text" placeholder="binary_sensor.office_neighbors" aria-label="Entity" .value=${c.entity} @change=${(e: Event) => this._patch({ entity: (e.target as HTMLInputElement).value.trim() })} />
+          <span>is</span>
+          <input type="text" placeholder="on" aria-label="State" .value=${c.is} @change=${(e: Event) => this._patch({ is: (e.target as HTMLInputElement).value.trim() })} />
+        </div>
+        <div class="muted">Any HA entity, e.g. a group helper of other areas. Missing entity: the condition does not hold.</div>`;
     }
   }
 

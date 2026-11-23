@@ -14,6 +14,9 @@ demo:
 frontend:
   themes: !include_dir_merge_named themes
 
+# Rules are saved as UI automations in automations.yaml; without this include HA never loads them.
+automation: !include automations.yaml
+
 # Simulated devices per area, like real smart plugs + Zigbee sensors (Bureau 1 has 2 radiators).
 # Share Space builds each area's thermostat from them (Settings > Heating zones).
 input_boolean:

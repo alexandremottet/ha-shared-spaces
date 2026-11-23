@@ -5,7 +5,7 @@ import type { ScheduleRanges } from "../../heating/strategy-sim";
 import { strategyTimeline } from "../../heating/strategy-timeline";
 import { fromWall, wallTime } from "../../heating/tz";
 import { plannedSpans } from "../../heating/week-preview";
-import type { SensorReadings } from "../value";
+import type { EntityStates, SensorReadings } from "../value";
 import type { PresetTemps, RuleStrategy } from "../types";
 import { validateStrategy } from "../validate";
 
@@ -27,13 +27,15 @@ export class ShareSpaceRulePreview extends LitElement {
   @property({ attribute: false }) temps?: PresetTemps;
   /** Current sensor readings, kept for the whole week. */
   @property({ attribute: false }) readings?: SensorReadings;
+  /** Current entity states for state conditions, kept for the whole week. */
+  @property({ attribute: false }) states?: EntityStates;
   /** Segment reason to emphasise; others are dimmed. */
   @property() highlight: string | null = null;
 
   private _compute() {
     const days = previewDays(this.now, this.tz);
     if (!this.strategy || !validateStrategy(this.strategy).ok) return null;
-    return { days, planned: plannedSpans(this.schedule, days, this.tz), segments: strategyTimeline(this.strategy, this.schedule, days[0], days[PREVIEW_DAYS], this.tz, this.temps, this.readings) };
+    return { days, planned: plannedSpans(this.schedule, days, this.tz), segments: strategyTimeline(this.strategy, this.schedule, days[0], days[PREVIEW_DAYS], this.tz, this.temps, this.readings, this.states) };
   }
 
   protected render() {

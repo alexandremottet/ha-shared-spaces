@@ -11,6 +11,7 @@ export const CONDITION_LABELS: Record<ConditionType, string> = {
   time: "Time between",
   planned: "Planned during",
   sensor: "Outdoor temperature",
+  state: "Entity state",
 };
 
 export const ACTION_LABELS: Record<ActionType, string> = {
@@ -38,6 +39,8 @@ export function defaultCondition(type: ConditionType): Condition {
       return { type, windows: [{ start: "08:00", end: "12:00" }], match: "any" };
     case "sensor":
       return { type, entity: OUTDOOR, op: "below", than: 5 };
+    case "state":
+      return { type, entity: "", is: "on" };
   }
 }
 
@@ -83,6 +86,8 @@ export function describeCondition(c: Condition): string {
       return `${not}planned ${c.windows.map((w) => `${w.start}–${w.end}`).join(c.match === "any" ? " or " : " and ")}`;
     case "sensor":
       return `${not}${c.entity === OUTDOOR ? "outdoor" : shortEntity(c.entity)} ${c.op === "below" ? "<" : ">"} ${fmt(c.than)}`;
+    case "state":
+      return `${not}${shortEntity(c.entity)} is ${c.is}`;
   }
 }
 

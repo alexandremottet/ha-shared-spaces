@@ -1,5 +1,4 @@
 """Tests for share_space_space."""
-import pytest
 from homeassistant.components.frontend import DATA_PANELS
 from pytest_homeassistant_custom_component.common import MockConfigEntry
 

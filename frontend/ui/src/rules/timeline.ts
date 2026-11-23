@@ -3,7 +3,7 @@ import { occupancyTrack, toMinutes } from "../heating/strategy-sim";
 import { fromWall, wallTime } from "../heating/tz";
 import { evaluateFacts } from "./evaluate";
 import { once } from "./once";
-import type { SensorReadings } from "./value";
+import type { EntityStates, SensorReadings } from "./value";
 import { evalValue } from "./value";
 import type { PresetTemps, RuleStrategy } from "./types";
 import { DEFAULT_PRESET_TEMPS } from "./types";
@@ -35,6 +35,7 @@ export function ruleTimeline(
   tz: string,
   temps: PresetTemps = DEFAULT_PRESET_TEMPS,
   readings?: SensorReadings,
+  states?: EntityStates,
 ): Timeline {
   const track = occupancyTrack(schedule, start, end, tz);
   const cuts = [...track.slots];
@@ -55,7 +56,7 @@ export function ruleTimeline(
       const f = track.at(t);
       return evaluateFacts(
         strategy,
-        { now: t, schedule, tz, readings, occupied: () => f.occupied, nextOn: once(f.nextOn), previousOff: once(f.previousOff), wall: once(() => wallTime(t, tz)) },
+        { now: t, schedule, tz, readings, states, occupied: () => f.occupied, nextOn: once(f.nextOn), previousOff: once(f.previousOff), wall: once(() => wallTime(t, tz)) },
         temps,
       );
     },

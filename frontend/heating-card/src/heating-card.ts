@@ -13,6 +13,7 @@ import {
   findZoneStrategies,
   loadZoneStrategy,
   planningSchedule,
+  errorMessage,
 } from "ha-share-space-ui/ha";
 import { strategyTimeline } from "ha-share-space-ui";
 import type { StrategySegment } from "ha-share-space-ui";
@@ -141,7 +142,7 @@ export class ShareSpaceHeatingCard extends ShareSpaceCardBase<CardConfig> {
     try {
       await fn();
     } catch (err) {
-      this._error = err instanceof Error ? err.message : String((err as { message?: string })?.message ?? err);
+      this._error = errorMessage(err);
     }
   }
 

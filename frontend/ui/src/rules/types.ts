@@ -71,6 +71,13 @@ export interface SensorCondition extends ConditionBase {
   than: number;
 }
 
+/** Entity state equals `is` (string compare); missing entity = does not hold. */
+export interface StateCondition extends ConditionBase {
+  type: "state";
+  entity: string;
+  is: string;
+}
+
 export type Condition =
   | OccupiedCondition
   | OccupiedWithinCondition
@@ -78,7 +85,8 @@ export type Condition =
   | WeekdayCondition
   | TimeCondition
   | PlannedCondition
-  | SensorCondition;
+  | SensorCondition
+  | StateCondition;
 
 export type ConditionType = Condition["type"];
 

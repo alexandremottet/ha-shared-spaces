@@ -1,4 +1,3 @@
-import { useState } from "react";
 import { ThemePicker } from "../../ThemePicker";
 import type { MockHassController } from "../../mock/mock-hass";
 import { RoleSwitch } from "../RoleSwitch";

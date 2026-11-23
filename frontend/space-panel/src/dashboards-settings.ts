@@ -1,11 +1,10 @@
 import { LitElement, html, css, nothing } from "lit";
 import type { TemplateResult } from "lit";
 import { customElement, property, state } from "lit/decorators.js";
-import { getLovelaceConfig, getSpaceDashboards, listHaDashboards, listUsers, saveLovelaceConfig, setSpaceDashboards } from "ha-share-space-ui/ha";
+import { getLovelaceConfig, getSpaceDashboards, listHaDashboards, listUsers, saveLovelaceConfig, setSpaceDashboards, errorMessage } from "ha-share-space-ui/ha";
 import type { HaDashboard, HaUser, HomeAssistant, LovelaceConfig, LovelaceView, SpaceDashboard } from "ha-share-space-ui/ha";
 import { settingsStyles } from "./settings-styles";
 
-const msg = (err: unknown): string => (err instanceof Error ? err.message : String((err as { message?: string })?.message ?? err));
 const key = (urlPath: string | null): string => urlPath ?? "";
 
 // Settings > Dashboards: pick HA dashboards to show as tabs and who sees each view; emits `dashboards-change`.
@@ -61,7 +60,7 @@ export class ShareSpaceDashboardsSettings extends LitElement {
       this._users = users.filter((u) => !u.system_generated && u.is_active).sort((a, b) => a.name.localeCompare(b.name));
       await Promise.all(selected.map((d) => this._loadConfig(d.url_path)));
     } catch (err) {
-      this._error = msg(err);
+      this._error = errorMessage(err);
     }
   }
 
@@ -104,7 +103,7 @@ export class ShareSpaceDashboardsSettings extends LitElement {
       await fn();
       this.dispatchEvent(new CustomEvent("dashboards-change", { detail: this._selected }));
     } catch (err) {
-      this._error = msg(err);
+      this._error = errorMessage(err);
     } finally {
       this._busy = false;
     }

@@ -20,6 +20,8 @@ export interface ZoneConfig {
   frost_temp?: number;
   off_mode?: OffMode;
   target_template?: string | null;
+  /** HA area of the climate entity (the entity registry in real HA). */
+  area_id?: string | null;
 }
 
 export interface ClimateInfo {
