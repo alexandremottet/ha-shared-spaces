@@ -40,3 +40,6 @@ h2, h3, h4 { margin: 0 0 8px; font-weight: 500; }
 .zone share-space-heating-control { display: block; }
 .json { margin: 0; padding: 8px; font-size: 12px; background: var(--secondary-background-color); border-radius: 6px; overflow: auto; max-height: 360px; }
 .toast { position: fixed; bottom: 16px; left: 50%; transform: translateX(-50%); z-index: 2147483647; padding: 10px 16px; border-radius: 8px; background: rgba(20, 20, 20, 0.92); color: #fff; box-shadow: 0 6px 24px rgba(0,0,0,.3); cursor: pointer; max-width: calc(100vw - 32px); }
+/* Panel page: playground nav, then the panel bar, then the panel filling the rest of the window. */
+.app-fill { height: 100vh; display: flex; flex-direction: column; }
+.app-fill > .main { flex: 1; min-height: 0; width: 100%; max-width: none; margin: 0; padding: 0; display: flex; flex-direction: column; }

@@ -84,18 +84,18 @@ function PanelView() {
   const size = VIEWPORTS[viewport].size;
   const mount = <PanelMount key={mountKey} hass={hass} narrow={narrow} />;
   return (
-    <>
+    <div className="panel-shell">
       <Toolbar controller={controller} edit={edit} setEdit={setEdit} narrow={narrow} setNarrow={setNarrow} viewport={viewport} setViewport={setViewport} />
       {size ? (
         <div className="panel-backdrop">
-          <div className="panel-frame" style={{ width: size[0], height: Math.min(size[1], window.innerHeight - 80) }}>
+          <div className="panel-frame" style={{ width: size[0], height: size[1], maxHeight: "calc(100% - 32px)" }}>
             {mount}
           </div>
         </div>
       ) : (
         <div className="panel-full">{mount}</div>
       )}
-    </>
+    </div>
   );
 }
 

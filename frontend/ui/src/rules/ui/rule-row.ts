@@ -1,4 +1,4 @@
-import { LitElement, css, html, nothing } from "lit";
+import { LitElement, html, nothing } from "lit";
 import type { TemplateResult } from "lit";
 import { property, state } from "lit/decorators.js";
 import { safeCustomElement } from "../../define";
@@ -7,143 +7,18 @@ import type { RuleError } from "../validate";
 import { defaultCondition, describeAction, describeCondition, removeAt, replaceAt, scopeErrors } from "./edit";
 import "./rule-action";
 import "./rule-condition";
-import { haCardSurface, ruleStyles } from "./styles";
+import { chainStyles, ruleStyles } from "./styles";
 
 type Open = "head" | "then" | number | null;
 
 /**
- * One rule as a card: "#n name" on top, then IF [condition] AND … on the left and THEN [action] on the right.
- * Clicking a chip opens its editor under the card. Errors have paths relative to the rule.
- * With `fallback`, the card has no conditions and cannot move or be removed.
+ * One rule as a chain of blocks: RULE (name) — IF … AND … — + CONDITION — THEN (action).
+ * Clicking a block body opens its editor under the chain. Errors have paths relative to the rule.
+ * With `fallback`, the chain is OTHERWISE — THEN and cannot move or be removed.
  */
 @safeCustomElement("share-space-rule-row")
 export class ShareSpaceRuleRow extends LitElement {
-  static styles = [
-    ruleStyles,
-    css`
-      :host {
-        display: block;
-        container-type: inline-size;
-      }
-      .card {
-        ${haCardSurface}
-        padding: 8px 12px 12px;
-        transition: box-shadow 0.12s, border-color 0.12s;
-      }
-      :host([highlighted]) .card {
-        border-color: var(--primary-color);
-        box-shadow: 0 0 0 2px var(--primary-color);
-      }
-      .card.fallback {
-        background: transparent;
-        border-style: dashed;
-      }
-      .top {
-        display: flex;
-        align-items: center;
-        gap: 8px;
-      }
-      .fallback .top {
-        flex-wrap: wrap;
-      }
-      .fallback .then {
-        margin-left: auto;
-      }
-      .node {
-        min-height: 44px;
-        max-width: 100%;
-        padding: 8px 14px;
-        border-radius: 12px;
-        border: 1px solid var(--divider-color);
-        background: var(--card-background-color, #fff);
-        text-align: left;
-        white-space: normal;
-        overflow-wrap: anywhere;
-        line-height: 1.3;
-      }
-      .node.head {
-        font-weight: 600;
-        border-color: transparent;
-        background: transparent;
-        padding-left: 4px;
-      }
-      .num {
-        color: var(--secondary-text-color);
-        font-weight: 600;
-        margin-right: 6px;
-      }
-      .node.then {
-        border-color: var(--primary-color);
-      }
-      .node.add {
-        border-style: dashed;
-        color: var(--secondary-text-color);
-      }
-      .node.always {
-        color: var(--secondary-text-color);
-        font-style: italic;
-        display: inline-flex;
-        align-items: center;
-      }
-      .node[aria-expanded="true"] {
-        outline: 2px solid var(--primary-color);
-        outline-offset: 1px;
-      }
-      .node:focus-visible,
-      .node.add:focus-visible {
-        outline: 2px solid var(--primary-color);
-        outline-offset: 2px;
-      }
-      .node.bad {
-        border-color: var(--error-color);
-        color: var(--error-color);
-      }
-      .body {
-        display: grid;
-        grid-template-columns: minmax(0, 1fr) minmax(0, 45%);
-        gap: 8px 16px;
-        align-items: start;
-      }
-      .if,
-      .then {
-        display: flex;
-        flex-wrap: wrap;
-        align-items: center;
-        gap: 6px 8px;
-        min-width: 0;
-      }
-      .then {
-        justify-content: flex-end;
-      }
-      .kw {
-        font-size: 0.75em;
-        font-weight: 700;
-        letter-spacing: 0.05em;
-        color: var(--secondary-text-color);
-      }
-      .editor {
-        margin-top: 10px;
-        padding: 12px;
-        border: 1px solid var(--divider-color);
-        border-radius: 12px;
-        display: flex;
-        flex-direction: column;
-        gap: 8px;
-      }
-      .head-edit input.label {
-        flex: 1;
-        min-width: 140px;
-      }
-      @container (max-width: 560px) {
-        .body {
-          grid-template-columns: minmax(0, 1fr);
-        }
-        .then {
-          justify-content: flex-start;
-        }
-      }
-    `,
-  ];
+  static styles = [ruleStyles, chainStyles];
 
   @property({ attribute: false }) rule: Rule = { label: "", when: [], then: { type: "comfort" } };
   @property({ type: Number }) index = 0;
@@ -163,11 +38,32 @@ export class ShareSpaceRuleRow extends LitElement {
 
   private _toggle(node: Open): void {
     this._open = this._open === node ? null : node;
+    if (this._open !== null) this._fire("block-open");
   }
 
-  private _node(node: Open, text: TemplateResult | string, cls: string, errPrefix: string, label?: string): TemplateResult {
-    const bad = scopeErrors(this.errors, errPrefix).length > 0;
-    return html`<button class="node ${cls} ${bad ? "bad" : ""}" aria-label=${label ?? nothing} aria-expanded=${this._open === node} @click=${() => this._toggle(node)}>${bad ? "⚠ " : ""}${text}</button>`;
+  /** Closes this row's editor (the list keeps one block selected at a time). */
+  closeEditor(): void {
+    this._open = null;
+  }
+
+  private _block(o: {
+    node: Open;
+    kind: "rule" | "cond" | "then";
+    title: string;
+    body: TemplateResult | string;
+    errPrefix: string;
+    label: string;
+    remove?: { label: string; run: () => void };
+  }): TemplateResult {
+    const bad = scopeErrors(this.errors, o.errPrefix).length > 0;
+    const open = this._open === o.node;
+    return html`<div class="block ${o.kind} ${bad ? "bad" : ""} ${open ? "open" : ""}">
+      <div class="bh">
+        <span>${bad ? "⚠ " : ""}${o.title}</span>
+        ${o.remove ? html`<button class="x" aria-label=${o.remove.label} @click=${o.remove.run}>×</button>` : nothing}
+      </div>
+      <button class="bb" aria-label=${o.label} aria-expanded=${open} @click=${() => this._toggle(o.node)}>${o.body}</button>
+    </div>`;
   }
 
   private _editor(): TemplateResult | typeof nothing {
@@ -175,28 +71,27 @@ export class ShareSpaceRuleRow extends LitElement {
     const open = this._open;
     if (open === "head") {
       const labelErrors = scopeErrors(errors, ".label");
-      return html`<div class="editor"><div class="row head-edit">
+      return this._panel(html`<div class="row head-edit">
           <input class="label ${labelErrors.length ? "invalid" : ""}" type="text" aria-label="Rule name" placeholder="Rule name" .value=${rule.label} @change=${(e: Event) => this._change({ ...rule, label: (e.target as HTMLInputElement).value })} />
           ${this.fallback
             ? nothing
             : html`<button aria-label="Move rule up" ?disabled=${index === 0} @click=${() => this._fire("rule-move", { from: index, to: index - 1 })}>↑</button>
-                <button aria-label="Move rule down" ?disabled=${index >= count - 1} @click=${() => this._fire("rule-move", { from: index, to: index + 1 })}>↓</button>
-                <button class="danger" aria-label="Remove rule" @click=${() => this._fire("rule-remove")}>✕</button>`}
+                <button aria-label="Move rule down" ?disabled=${index >= count - 1} @click=${() => this._fire("rule-move", { from: index, to: index + 1 })}>↓</button>`}
         </div>
-        ${labelErrors.map((e) => html`<div class="err" role="alert">${e.message}</div>`)}</div>`;
+        ${labelErrors.map((e) => html`<div class="err" role="alert">${e.message}</div>`)}`);
     }
     if (open === "then") {
-      return html`<div class="editor"><share-space-rule-action
+      return this._panel(html`<share-space-rule-action
         .action=${rule.then}
         .errors=${scopeErrors(errors, ".then")}
         @action-change=${(e: CustomEvent<{ action: Action }>) => {
           e.stopPropagation();
           this._change({ ...rule, then: e.detail.action });
         }}
-      ></share-space-rule-action></div>`;
+      ></share-space-rule-action>`);
     }
     if (typeof open === "number" && rule.when[open]) {
-      return html`<div class="editor"><share-space-rule-condition
+      return this._panel(html`<share-space-rule-condition
         .condition=${rule.when[open]}
         .errors=${scopeErrors(errors, `.when[${open}]`)}
         @condition-change=${(e: CustomEvent<{ condition: Condition }>) => {
@@ -205,42 +100,100 @@ export class ShareSpaceRuleRow extends LitElement {
         }}
         @condition-remove=${(e: Event) => {
           e.stopPropagation();
-          this._open = null;
-          this._change({ ...rule, when: removeAt(rule.when, open) });
+          this._removeCondition(open);
         }}
-      ></share-space-rule-condition></div>`;
+      ></share-space-rule-condition>`);
     }
     return nothing;
   }
 
+  private _panel(content: TemplateResult): TemplateResult {
+    const open = this._open;
+    const kind = open === "head" ? "rule" : open === "then" ? "then" : "cond";
+    return html`<div class="editor ${kind}">${content}</div>`;
+  }
+
+  private _caretObserver?: ResizeObserver;
+
+  connectedCallback(): void {
+    super.connectedCallback();
+    this._caretObserver ??= new ResizeObserver(() => this._placeCaret());
+    this._caretObserver.observe(this);
+  }
+
+  disconnectedCallback(): void {
+    super.disconnectedCallback();
+    this._caretObserver?.disconnect();
+  }
+
+  protected updated(): void {
+    this._placeCaret();
+  }
+
+  /** Points the editor's caret at the centre of the open block (blocks wrap, so it is measured). */
+  private _placeCaret(): void {
+    const root = this.renderRoot as ShadowRoot;
+    const editor = root.querySelector<HTMLElement>(".editor");
+    const block = root.querySelector<HTMLElement>(".block.open");
+    if (!editor || !block) return;
+    const e = editor.getBoundingClientRect();
+    const b = block.getBoundingClientRect();
+    editor.style.setProperty("--caret-x", `${Math.max(16, Math.min(e.width - 16, b.left + b.width / 2 - e.left))}px`);
+  }
+
+  private _removeCondition(i: number): void {
+    const open = this._open;
+    if (open === i) this._open = null;
+    else if (typeof open === "number" && open > i) this._open = open - 1;
+    this._change({ ...this.rule, when: removeAt(this.rule.when, i) });
+  }
+
   protected render() {
     const { rule, index } = this;
-    const addCondition = () => {
-      this._change({ ...rule, when: [...rule.when, defaultCondition("occupied")] });
-      this._open = rule.when.length;
-    };
-    const then = this._node("then", describeAction(rule.then), "then", ".then");
-    const group = this.fallback ? `Fallback: ${rule.label}` : `Rule ${index + 1}: ${rule.label}`;
+    const link = html`<span class="link" aria-hidden="true"></span>`;
+    const then = this._block({ node: "then", kind: "then", title: "Then", body: describeAction(rule.then), errPrefix: ".then", label: `Action: ${describeAction(rule.then)}` });
     if (this.fallback) {
-      const head = this._node("head", html`<span class="num">Otherwise</span>${rule.label}`, "head", ".label", `Fallback name: ${rule.label}`);
-      return html`<div class="card fallback" role="group" aria-label=${group}>
-        <div class="top">${head}<div class="then"><span class="kw">THEN</span>${then}</div></div>
+      const head = this._block({ node: "head", kind: "rule", title: "Otherwise", body: rule.label, errPrefix: ".label", label: `Fallback name: ${rule.label}` });
+      return html`<div class="wrap" role="group" aria-label=${`Fallback: ${rule.label}`}>
+        <div class="chain">${head}${link}${then}</div>
         ${this._editor()}
       </div>`;
     }
-    const head = this._node("head", html`<span class="num">#${index + 1}</span>${rule.label}`, "head", ".label", `Rule ${index + 1} name: ${rule.label}`);
-    return html`<div class="card" role="group" aria-label=${group}>
-      <div class="top">${head}</div>
-      <div class="body">
-        <div class="if">
-          <span class="kw">IF</span>
-          ${rule.when.length === 0 ? html`<span class="node always">always</span>` : nothing}
-          ${rule.when.map((c, i) => html`${i > 0 ? html`<span class="kw">AND</span>` : nothing}${this._node(i, describeCondition(c), "cond", `.when[${i}]`)}`)}
-          <button class="node add" aria-label="Add condition" @click=${addCondition}>+ condition</button>
+    const head = this._block({
+      node: "head",
+      kind: "rule",
+      title: `Rule ${index + 1}`,
+      body: rule.label,
+      errPrefix: ".label",
+      label: `Rule ${index + 1} name: ${rule.label}`,
+      remove: { label: "Remove rule", run: () => this._fire("rule-remove") },
+    });
+    const addCondition = () => {
+      this._change({ ...rule, when: [...rule.when, defaultCondition("occupied")] });
+      this._open = rule.when.length;
+      this._fire("block-open");
+    };
+    return html`<div class="wrap" role="group" aria-label=${`Rule ${index + 1}: ${rule.label}`}>
+      <div class="chain">
+        ${head}${link}
+        <div class="conds">
+          ${rule.when.map(
+            (c, i) => html`${this._block({
+              node: i,
+              kind: "cond",
+              title: i === 0 ? "If" : "And",
+              body: describeCondition(c),
+              errPrefix: `.when[${i}]`,
+              label: `Condition ${i + 1}: ${describeCondition(c)}`,
+              remove: { label: `Remove condition ${i + 1}`, run: () => this._removeCondition(i) },
+            })}${this._open === i ? this._editor() : nothing}`,
+          )}
+          <button class="slot" aria-label="Add condition" @click=${addCondition}>+ ${rule.when.length === 0 ? "If" : "And"}</button>
         </div>
-        <div class="then"><span class="kw">THEN</span>${then}</div>
+        ${link}${then}
       </div>
-      ${this._editor()}
+      ${rule.when.length === 0 ? html`<div class="muted always">No condition: always applies</div>` : nothing}
+      ${typeof this._open === "number" ? nothing : this._editor()}
     </div>`;
   }
 }

@@ -89,10 +89,12 @@ function Shell() {
   return (
     <>
       <NavigateToast />
-      <Nav path={route.path} />
-      <main className="main">
-        <route.Page />
-      </main>
+      <div className={route.path === "panel" ? "app app-fill" : "app"}>
+        <Nav path={route.path} />
+        <main className="main">
+          <route.Page />
+        </main>
+      </div>
     </>
   );
 }

@@ -297,7 +297,7 @@ export const COMPONENTS: ComponentDef[] = [
     id: "rule-row",
     tag: "share-space-rule-row",
     group: "Rules",
-    description: "A When / Then rule with name, conditions, action and move / remove buttons.",
+    description: "One rule as chained blocks: RULE, IF / AND conditions, + slot, THEN. Click a block to edit, × to remove.",
     props: [
       { name: "rule", kind: "json", value: sampleStrategy.rules[1] },
       { name: "index", kind: "number", value: 1 },
