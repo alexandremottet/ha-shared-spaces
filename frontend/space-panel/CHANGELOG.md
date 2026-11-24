@@ -1,5 +1,18 @@
 # ha-share-space-space-panel
 
+## 1.4.0
+
+### Minor Changes
+
+- 59e10c8: Plannings page: a Space Admin or Technical Admin can pick a person and edit their weekly planning for them, saved in that person's own Schedule helper.
+
+### Patch Changes
+
+- Updated dependencies [ee4787a]
+  - ha-share-space-ui@1.3.0
+  - ha-share-space-planning-cards@0.3.0
+  - ha-share-space-heating-card@1.0.3
+
 ## 1.3.0
 
 ### Minor Changes
