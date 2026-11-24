@@ -1,16 +1,16 @@
 import { LitElement, css, html, nothing } from "lit";
 import type { PropertyValues, TemplateResult } from "lit";
 import { customElement, property, state } from "lit/decorators.js";
-import type { Calendar, ScheduleRanges } from "ha-share-space-ui";
-import { getCalendar, getPersonArea, hassNow, hassTimeZone } from "ha-share-space-ui/ha";
+import type { Calendar, RosterPerson, ScheduleRanges } from "ha-share-space-ui";
+import { getCalendar, getPersonArea } from "ha-share-space-ui/ha";
 import type { HomeAssistant } from "ha-share-space-ui/ha";
 import { haCardSurface } from "ha-share-space-ui";
-import { PLANNED_ONLY } from "./overview-planning";
 
 interface PersonPlanning {
   id: string;
   name: string;
   area: string | null;
+  calendar: Partial<Calendar>;
   schedule: ScheduleRanges;
 }
 
@@ -47,23 +47,19 @@ export class ShareSpacePeoplePlanning extends LitElement {
     .muted {
       color: var(--secondary-text-color);
     }
-    details {
-      border-top: 1px solid var(--divider-color);
-      padding: 8px 0;
-    }
-    summary {
-      cursor: pointer;
-      min-height: 36px;
-      display: flex;
-      align-items: center;
-      gap: 8px;
-    }
-    summary .area {
-      color: var(--secondary-text-color);
-      font-size: 0.9em;
-    }
     .list {
       margin-top: 8px;
+      --day-schedule-label-width: 120px;
+      --day-schedule-track-height: 24px;
+      --day-schedule-row-padding: 3px 0;
+    }
+    .who {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 4px 16px;
+      margin-top: 8px;
+      color: var(--secondary-text-color);
+      font-size: 0.9em;
     }
   `;
 
@@ -84,7 +80,7 @@ export class ShareSpacePeoplePlanning extends LitElement {
       const people = await Promise.all(
         ids.map(async (id) => {
           const [calendar, area] = await Promise.all([getCalendar(hass, id), getPersonArea(hass, id).catch(() => null)]);
-          return { id, name: String(hass.states[id]?.attributes.friendly_name ?? id), area, schedule: toRanges(calendar ?? {}) };
+          return { id, name: String(hass.states[id]?.attributes.friendly_name ?? id), area, calendar: calendar ?? {}, schedule: toRanges(calendar ?? {}) };
         }),
       );
       this._people = people.sort((a, b) => a.name.localeCompare(b.name));
@@ -109,24 +105,23 @@ export class ShareSpacePeoplePlanning extends LitElement {
   protected render(): TemplateResult | typeof nothing {
     const hass = this.hass;
     if (!hass) return nothing;
-    const now = hassNow(hass);
-    const tz = hassTimeZone(hass);
+    const people: RosterPerson[] = (this._people ?? []).map((p) => ({
+      id: p.id,
+      label: p.name,
+      calendar: p.calendar as Calendar,
+    }));
     return html`<section class="card"><h3>Everyone's planning</h3>
-      <div class="muted">Read only, for admins: each person's own planning, which the area plannings merge.</div>
+      <div class="muted">Read only, for admins: the whole week, then each person's own planning, which the area plannings merge.</div>
       ${this._error ? html`<div class="muted" role="alert">${this._error}</div>` : nothing}
       ${this._people === null && !this._error ? html`<div class="muted">Loading…</div>` : nothing}
       ${this._people?.length === 0 ? html`<div class="muted">No person in Home Assistant yet.</div>` : nothing}
-      <div class="list">
+      <div class="who">
         ${(this._people ?? []).map(
-          (p) => html`<details data-person=${p.id}>
-            <summary>
-              <strong>${p.name}</strong>
-              <span class="area">${p.area ? (hass.areas?.[p.area]?.name ?? p.area) : "No area"} · ${this._hours(p.schedule)} h a week</span>
-            </summary>
-            <share-space-rule-preview .strategy=${PLANNED_ONLY} .schedule=${p.schedule} .now=${now} .tz=${tz}></share-space-rule-preview>
-          </details>`,
+          (p) => html`<span><strong>${p.name}</strong> ${p.area ? (hass.areas?.[p.area]?.name ?? p.area) : "No area"} · ${this._hours(p.schedule)} h a week</span>`,
         )}
-      </div></section>`;
+      </div>
+      ${people.length ? html`<area-roster-view class="list" view-mode="lanes" .people=${people} totalLabel="Everyone"></area-roster-view>` : nothing}
+    </section>`;
   }
 }
 

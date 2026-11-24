@@ -1,6 +1,6 @@
 import { safeCustomElement } from "../define";
 import { LitElement, html, css } from "lit";
-import { query, state } from "lit/decorators.js";
+import { query } from "lit/decorators.js";
 import { PeriodEditController } from "../period-edit-controller";
 import type { TimeOfDay, TimeRange, WeekDay } from "../types";
 import "./ha-time-field";
@@ -18,15 +18,6 @@ export class HaPeriodEditDialog extends LitElement {
   private _controller = new PeriodEditController(this);
 
   @query("ha-dialog") private _dialogEl!: HaDialogElement;
-
-  @state() private _haTimeInputReady = false;
-
-  connectedCallback(): void {
-    super.connectedCallback();
-    customElements.whenDefined("ha-time-input").then(() => {
-      this._haTimeInputReady = true;
-    });
-  }
 
   static styles = css`
     .field {
@@ -61,25 +52,19 @@ export class HaPeriodEditDialog extends LitElement {
     this._close();
   }
 
-  private _renderTimeField(value: TimeOfDay, onChange: (value: TimeOfDay) => void) {
-    if (this._haTimeInputReady) {
-      return html`<ha-time-field
-        .value=${value}
-        @change=${(event: Event) => onChange((event.target as { value?: string }).value ?? value)}
-      ></ha-time-field>`;
-    }
-    return html`<input
-      type="time"
+  private _renderTimeField(label: string, value: TimeOfDay, onChange: (value: TimeOfDay) => void) {
+    return html`<ha-time-field
+      .label=${label}
       .value=${value}
-      @change=${(event: Event) => onChange((event.target as HTMLInputElement).value)}
-    />`;
+      @change=${(event: Event) => onChange((event.target as { value?: string }).value ?? value)}
+    ></ha-time-field>`;
   }
 
   protected render() {
     return html`
       <ha-dialog header-title="Edit period">
-        <div class="field">${this._renderTimeField(this._controller.start, (value) => this._controller.setStart(value))}</div>
-        <div class="field">${this._renderTimeField(this._controller.end, (value) => this._controller.setEnd(value))}</div>
+        <div class="field">${this._renderTimeField("Start", this._controller.start, (value) => this._controller.setStart(value))}</div>
+        <div class="field">${this._renderTimeField("End", this._controller.end, (value) => this._controller.setEnd(value))}</div>
         <div slot="footer" class="footer">
           <ha-button variant="danger" @click=${this._onDelete}>Delete</ha-button>
           <span>
