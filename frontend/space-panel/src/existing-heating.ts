@@ -3,7 +3,7 @@ import type { PropertyValues, TemplateResult } from "lit";
 import { customElement, property, state } from "lit/decorators.js";
 import { haCardSurface, removeAt, replaceAt } from "ha-share-space-ui";
 import type { Rule } from "ha-share-space-ui";
-import { errorMessage, loadExistingHeating, saveExistingHeating, setExistingEnabled } from "ha-share-space-ui/ha";
+import { errorMessage, findCardView, loadExistingHeating, saveExistingHeating, setExistingEnabled } from "ha-share-space-ui/ha";
 import type { ExistingHeating, HeatingTarget, HomeAssistant } from "ha-share-space-ui/ha";
 
 const SOURCE: Record<ExistingHeating["kind"], string> = { automation: "Automation", scheduler: "Scheduler" };
@@ -99,7 +99,10 @@ export class ShareSpaceExistingHeating extends LitElement {
     if (!this.hass || !this.target) return;
     this._items = null;
     this._drafts = {};
-    this._items = await loadExistingHeating(this.hass, this.target).catch(() => []);
+    const items = await loadExistingHeating(this.hass, this.target).catch(() => []);
+    // Scheduler items have no page of their own in HA: open the dashboard showing the Scheduler card.
+    const card = items.some((i) => i.kind === "scheduler") ? await findCardView(this.hass, "custom:scheduler-card") : null;
+    this._items = card ? items.map((i) => (i.kind === "scheduler" ? { ...i, haPath: card } : i)) : items;
   }
 
   private _open(path: string): void {

@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { getDefaultPanel, opensShareSpaceForEveryone, setMyDefaultPanel, setOpensShareSpaceForEveryone } from "./ws";
+import { findCardView, getDefaultPanel, opensShareSpaceForEveryone, setMyDefaultPanel, setOpensShareSpaceForEveryone } from "./ws";
 import type { HomeAssistant } from "./hass";
 
 function fakeHass(system: Record<string, unknown> | null, user: Record<string, unknown> | null = null) {
@@ -42,5 +42,22 @@ describe("page HA opens after login", () => {
     expect(await getDefaultPanel(hass)).toBe("lovelace");
     await setMyDefaultPanel(hass, "share-space");
     expect(await getDefaultPanel(hass)).toBe("share-space");
+  });
+});
+
+describe("where a card is shown", () => {
+  it("finds the dashboard view holding the Scheduler card", async () => {
+    const configs: Record<string, unknown> = {
+      lovelace: { views: [{ title: "Home", cards: [] }] },
+      "le-portemine": { views: [{ title: "Home", cards: [{ type: "vertical-stack", cards: [{ type: "custom:scheduler-card" }] }] }] },
+    };
+    const hass = {
+      callWS: vi.fn(async (msg: { type: string; url_path?: string | null }) => {
+        if (msg.type === "lovelace/dashboards/list") return [{ url_path: "le-portemine", title: "Le Portemine" }];
+        return configs[msg.url_path ?? "lovelace"];
+      }),
+    } as unknown as HomeAssistant;
+    expect(await findCardView(hass, "custom:scheduler-card")).toBe("/le-portemine/0");
+    expect(await findCardView(hass, "custom:other-card")).toBeNull();
   });
 });

@@ -625,6 +625,21 @@ export const saveLovelaceConfig = (hass: HomeAssistant, urlPath: string | null, 
 export const getLovelaceConfig = (hass: HomeAssistant, urlPath: string | null): Promise<LovelaceConfig> =>
   hass.callWS<LovelaceConfig>({ type: "lovelace/config", url_path: urlPath });
 
+/**
+ * Path of the first dashboard view holding a card of `cardType` (e.g. the Scheduler card, where Scheduler items
+ * are edited in HA); null when no dashboard shows one.
+ */
+export async function findCardView(hass: HomeAssistant, cardType: string): Promise<string | null> {
+  const dashboards = [{ url_path: null as string | null }, ...(await listHaDashboards(hass).catch(() => []))];
+  for (const d of dashboards) {
+    const config = await getLovelaceConfig(hass, d.url_path).catch(() => null);
+    const views = config?.views ?? [];
+    const i = views.findIndex((v) => JSON.stringify(v).includes(`"${cardType}"`));
+    if (i >= 0) return `/${d.url_path ?? "lovelace"}/${views[i].path ?? i}`;
+  }
+  return null;
+}
+
 // Views shown to this user, following HA's per-view visibility.
 export const visibleViews = (config: LovelaceConfig | null, userId: string | undefined): LovelaceView[] =>
   (config?.views ?? []).filter(
