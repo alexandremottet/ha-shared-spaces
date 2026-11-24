@@ -541,9 +541,18 @@ private _prefsFor = "";
       position: static;
       flex: none;
     }
+    .user {
+      min-width: 0;
+      max-width: 160px;
+      font-weight: 500;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    /* phones: the tabs become a menu button, so the header keeps one row */
     @media (max-width: 720px) {
       .top {
-        grid-template-columns: minmax(0, 1fr) auto;
+        grid-template-columns: auto minmax(0, 1fr);
       }
       .title {
         display: none;
@@ -846,6 +855,7 @@ private _prefsFor = "";
         <h1 class="title">${this.hass?.config?.location_name ?? "Share Space"}</h1>
         <div class="actions">
           <share-space-theme-picker .hass=${this.hass}></share-space-theme-picker>
+          ${this.hass?.user?.name ? html`<span class="user" title=${this.hass.user.name}>${this.hass.user.name}</span>` : nothing}
           <button class="fab logout" aria-label="Log out" title="Log out" @click=${this._logout}>${ICON_LOGOUT}</button>
         </div>
       </div>
