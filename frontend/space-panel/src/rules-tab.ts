@@ -38,6 +38,8 @@ export class ShareSpaceRulesTab extends LitElement {
   @property({ type: Boolean }) missingShared = false;
   @property({ attribute: false }) users: Record<string, string[]> = {};
   @property({ type: Boolean }) switching = false;
+  /** HA automations or Scheduler items heating this area, turned off when these rules are saved. */
+  @property({ attribute: false }) turnsOff: string[] = [];
   @state() private _confirmNew = false;
   @state() private _naming: "share" | "rename" | null = null;
   @state() private _name = "";
@@ -512,6 +514,9 @@ export class ShareSpaceRulesTab extends LitElement {
         <button ?disabled=${this.busy || (!dirty && !!this.saved && !this.startingNew && !this.switching)} @click=${() => this._emit("discard")}>Discard</button>
         ${dirty && this.saved ? html`<span class="muted">Unsaved changes</span>` : nothing}
       </div>
+      ${canSave && this.turnsOff.length
+        ? html`<p class="muted" role="note">Saving turns off in Home Assistant: ${this.turnsOff.join(", ")}. These rules become the only heating for this area.</p>`
+        : nothing}
     `;
   }
 

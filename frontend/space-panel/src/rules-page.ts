@@ -73,6 +73,8 @@ export class ShareSpaceRulesPage extends LitElement {
   @state() private _detected: DetectedArea[] = [];
   /** HA automations or Scheduler items copied into the rules, turned off once the rules are saved. */
   @state() private _replacing: ExistingHeating[] = [];
+  /** Heating for this area already in HA (automations, Scheduler items), as the list below shows it. */
+  @state() private _existing: ExistingHeating[] = [];
   @state() private _existingVersion = 0;
   private _started = false;
   private _sig = "";
@@ -191,6 +193,7 @@ export class ShareSpaceRulesPage extends LitElement {
     this._startingNew = false;
     this._choice = "";
     this._replacing = [];
+    this._existing = [];
     if (!this.hass || !entityId) return;
     this._loading = true;
     await this._load(entityId);
@@ -286,10 +289,21 @@ export class ShareSpaceRulesPage extends LitElement {
       await before?.(hass);
       await saveZoneRules(hass, zone, area, source, id);
       if (opts.exclusive) await useZoneStrategy(() => this.hass ?? hass, zone, id);
-      for (const item of this._replacing) await setExistingEnabled(hass, item, false);
-      if (this._replacing.length) this._existingVersion++;
-      this._replacing = [];
+      await this._turnOffExisting(hass);
     });
+  }
+
+  private _existingOn(): ExistingHeating[] {
+    const hass = this.hass;
+    return this._existing.filter((i) => (hass?.states[i.entityId] ? hass.states[i.entityId].state !== "off" : i.enabled));
+  }
+
+  // Share Space rules replace the area's other heating: one place to edit it, nothing acting twice.
+  private async _turnOffExisting(hass: HomeAssistant): Promise<void> {
+    const on = this._existingOn();
+    for (const item of on) await setExistingEnabled(hass, item, false);
+    if (on.length) this._existingVersion++;
+    this._replacing = [];
   }
 
   private _save(): void {
@@ -338,6 +352,7 @@ export class ShareSpaceRulesPage extends LitElement {
         if (!area) return;
         await saveZoneRules(hass, zone, area, { strategy: created, name }, id);
         await useZoneStrategy(() => this.hass ?? hass, zone, id);
+        await this._turnOffExisting(hass);
       },
       () => {
         if (created && this._choice !== created) this._choose(created);
@@ -450,6 +465,7 @@ export class ShareSpaceRulesPage extends LitElement {
       .missingShared=${!!zoneOn && !this._sharedById(zoneOn)}
       .users=${users}
       .switching=${switching}
+      .turnsOff=${this._existingOn().map((i) => i.name)}
       @zone-select=${(e: CustomEvent<string>) => void this._select(e.detail)}
       @draft-change=${(e: CustomEvent<RuleStrategy>) => (this._draft = e.detail)}
       @save=${() => this._save()}
@@ -472,6 +488,7 @@ export class ShareSpaceRulesPage extends LitElement {
         .rulesActive=${!!active}
         .replacing=${this._replacing.map((r) => r.entityId)}
         @replace-with-rules=${(e: CustomEvent<ExistingHeating>) => this._replace(e.detail)}
+        @existing-loaded=${(e: CustomEvent<ExistingHeating[]>) => (this._existing = e.detail)}
       ></share-space-existing-heating>`;
   }
 }

@@ -990,7 +990,11 @@ private _systemData: Record<string, unknown> = {};
       },
       true
     );
-    ws("scheduler", null, () => clone(this._schedulerItems));
+    // Scheduler items are on/off through their own switch entity, as in HA.
+    for (const item of this._schedulerItems) {
+      if (item.entity_id && !this._entities.get(item.entity_id)) this._setEntity(item.entity_id, item.enabled ? "on" : "off", { friendly_name: item.name });
+    }
+    ws("scheduler", null, () => clone(this._schedulerItems).map((i) => ({ ...i, enabled: this._entities.get(i.entity_id ?? "")?.state !== "off" })));
     svc(
       "scheduler.edit",
       null,

@@ -103,6 +103,7 @@ export class ShareSpaceExistingHeating extends LitElement {
     // Scheduler items have no page of their own in HA: open the dashboard showing the Scheduler card.
     const card = items.some((i) => i.kind === "scheduler") ? await findCardView(this.hass, "custom:scheduler-card") : null;
     this._items = card ? items.map((i) => (i.kind === "scheduler" ? { ...i, haPath: card } : i)) : items;
+    this.dispatchEvent(new CustomEvent("existing-loaded", { detail: this._items }));
   }
 
   private _open(path: string): void {
@@ -219,7 +220,8 @@ export class ShareSpaceExistingHeating extends LitElement {
     return html`<h3>Already in Home Assistant</h3>
       <div class="muted">
         Schedules and automations that already heat this area. Changes are saved into them, so Home Assistant shows the same. What Share
-        Space cannot show as rules is read only: edit it in Home Assistant, or replace it with Share Space rules or a shared strategy.
+        Space cannot show as rules is read only. Saving Share Space rules for this area turns all of these off: the rules then are the
+        area's only heating. "Replace with Share Space rules" copies one into them first.
       </div>
       ${this.rulesActive && running
         ? html`<div class="banner" role="status">Share Space rules are on too: both act on the radiators. Turn one of them off.</div>`
