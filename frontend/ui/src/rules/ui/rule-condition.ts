@@ -76,7 +76,7 @@ export class ShareSpaceRuleCondition extends LitElement {
       case "time":
         return html`<div class="row">${this._time("From", c.start, (start) => this._patch({ start }))}<span>to</span>${this._time("To", c.end, (end) => this._patch({ end }))}</div>`;
       case "planned":
-        return this._planned(c.windows, c.match);
+        return this._planned(c.windows, c.match, c.who ?? "area");
       case "sensor":
         return html`<div class="row">
           ${sensorField(c.entity, (entity) => this._patch({ entity }))}
@@ -108,11 +108,15 @@ export class ShareSpaceRuleCondition extends LitElement {
     }
   }
 
-  private _planned(windows: TimeWindow[], match: "all" | "any"): TemplateResult {
+  private _planned(windows: TimeWindow[], match: "all" | "any", who: "area" | "anyone"): TemplateResult {
     const set = (i: number, patch: Partial<TimeWindow>) => this._patch({ windows: replaceAt(windows, i, { ...windows[i], ...patch }) });
     return html`<div class="windows">
       <div class="row">
-        <span>a planned slot starts in</span>
+        <select aria-label="Whose planning" @change=${(e: Event) => this._patch({ who: (e.target as HTMLSelectElement).value === "anyone" ? "anyone" : undefined })}>
+          <option value="area" ?selected=${who === "area"}>this area's planning</option>
+          <option value="anyone" ?selected=${who === "anyone"}>one person's planning</option>
+        </select>
+        <span>has a slot starting in</span>
         <select aria-label="Match" @change=${(e: Event) => this._patch({ match: (e.target as HTMLSelectElement).value })}>
           <option value="all" ?selected=${match === "all"}>all windows</option>
           <option value="any" ?selected=${match === "any"}>any window</option>

@@ -1749,31 +1749,32 @@
     ]
   },
   {
-    "name": "starter Lunch room - occupied end of morning and start of afternoon",
     "tz": "Europe/Paris",
+    "name": "starter Lunch room - someone here 8:00-18:00",
     "schedule": {
       "monday": [],
-      "tuesday": [
-        [
-          "09:00",
-          "12:00"
-        ],
-        [
-          "13:00",
-          "17:00"
-        ]
-      ],
+      "tuesday": [],
       "wednesday": [],
       "thursday": [],
       "friday": [],
       "saturday": [],
       "sunday": []
     },
+    "plannings": {
+      "person.a": {
+        "tuesday": [
+          [
+            "08:00",
+            "18:00"
+          ]
+        ]
+      }
+    },
     "strategy": {
       "version": 1,
       "rules": [
         {
-          "label": "Lunch",
+          "label": "Here morning and afternoon",
           "when": [
             {
               "type": "time",
@@ -1782,17 +1783,43 @@
             },
             {
               "type": "planned",
+              "who": "anyone",
+              "match": "all",
               "windows": [
                 {
-                  "start": "11:00",
+                  "start": "06:00",
                   "end": "12:00"
                 },
                 {
-                  "start": "13:00",
+                  "start": "14:00",
+                  "end": "20:00"
+                }
+              ]
+            }
+          ],
+          "then": {
+            "type": "temperature",
+            "value": 20.0
+          }
+        },
+        {
+          "label": "Here at lunch",
+          "when": [
+            {
+              "type": "time",
+              "start": "11:00",
+              "end": "14:00"
+            },
+            {
+              "type": "planned",
+              "who": "anyone",
+              "match": "any",
+              "windows": [
+                {
+                  "start": "12:00",
                   "end": "14:00"
                 }
-              ],
-              "match": "all"
+              ]
             }
           ],
           "then": {
@@ -1834,14 +1861,14 @@
         "expected": {
           "target": 20
         },
-        "reason": "Lunch"
+        "reason": "Here morning and afternoon"
       },
       {
         "now": "2026-11-17T13:59:00+01:00",
         "expected": {
           "target": 20
         },
-        "reason": "Lunch"
+        "reason": "Here morning and afternoon"
       },
       {
         "now": "2026-11-17T14:00:00+01:00",
@@ -1860,27 +1887,40 @@
     ]
   },
   {
-    "name": "starter Lunch room - morning only is not enough with match all",
     "tz": "Europe/Paris",
+    "name": "starter Lunch room - one in the morning and another in the afternoon is not enough",
     "schedule": {
       "monday": [],
-      "tuesday": [
-        [
-          "08:00",
-          "11:30"
-        ]
-      ],
+      "tuesday": [],
       "wednesday": [],
       "thursday": [],
       "friday": [],
       "saturday": [],
       "sunday": []
     },
+    "plannings": {
+      "person.a": {
+        "tuesday": [
+          [
+            "08:00",
+            "11:30"
+          ]
+        ]
+      },
+      "person.b": {
+        "tuesday": [
+          [
+            "14:30",
+            "18:00"
+          ]
+        ]
+      }
+    },
     "strategy": {
       "version": 1,
       "rules": [
         {
-          "label": "Lunch",
+          "label": "Here morning and afternoon",
           "when": [
             {
               "type": "time",
@@ -1889,17 +1929,43 @@
             },
             {
               "type": "planned",
+              "who": "anyone",
+              "match": "all",
               "windows": [
                 {
-                  "start": "11:00",
+                  "start": "06:00",
                   "end": "12:00"
                 },
                 {
-                  "start": "13:00",
+                  "start": "14:00",
+                  "end": "20:00"
+                }
+              ]
+            }
+          ],
+          "then": {
+            "type": "temperature",
+            "value": 20.0
+          }
+        },
+        {
+          "label": "Here at lunch",
+          "when": [
+            {
+              "type": "time",
+              "start": "11:00",
+              "end": "14:00"
+            },
+            {
+              "type": "planned",
+              "who": "anyone",
+              "match": "any",
+              "windows": [
+                {
+                  "start": "12:00",
                   "end": "14:00"
                 }
-              ],
-              "match": "all"
+              ]
             }
           ],
           "then": {
@@ -1939,27 +2005,32 @@
     ]
   },
   {
-    "name": "starter Lunch room - afternoon only is not enough with match all",
     "tz": "Europe/Paris",
+    "name": "starter Lunch room - someone planned at lunch",
     "schedule": {
       "monday": [],
-      "tuesday": [
-        [
-          "13:30",
-          "18:00"
-        ]
-      ],
+      "tuesday": [],
       "wednesday": [],
       "thursday": [],
       "friday": [],
       "saturday": [],
       "sunday": []
     },
+    "plannings": {
+      "person.a": {
+        "tuesday": [
+          [
+            "12:00",
+            "13:00"
+          ]
+        ]
+      }
+    },
     "strategy": {
       "version": 1,
       "rules": [
         {
-          "label": "Lunch",
+          "label": "Here morning and afternoon",
           "when": [
             {
               "type": "time",
@@ -1968,17 +2039,43 @@
             },
             {
               "type": "planned",
+              "who": "anyone",
+              "match": "all",
               "windows": [
                 {
-                  "start": "11:00",
+                  "start": "06:00",
                   "end": "12:00"
                 },
                 {
-                  "start": "13:00",
+                  "start": "14:00",
+                  "end": "20:00"
+                }
+              ]
+            }
+          ],
+          "then": {
+            "type": "temperature",
+            "value": 20.0
+          }
+        },
+        {
+          "label": "Here at lunch",
+          "when": [
+            {
+              "type": "time",
+              "start": "11:00",
+              "end": "14:00"
+            },
+            {
+              "type": "planned",
+              "who": "anyone",
+              "match": "any",
+              "windows": [
+                {
+                  "start": "12:00",
                   "end": "14:00"
                 }
-              ],
-              "match": "all"
+              ]
             }
           ],
           "then": {
@@ -2009,11 +2106,11 @@
     },
     "checks": [
       {
-        "now": "2026-11-17T13:45:00+01:00",
+        "now": "2026-11-17T11:30:00+01:00",
         "expected": {
-          "off": true
+          "target": 20
         },
-        "reason": "No lunch today"
+        "reason": "Here at lunch"
       }
     ]
   },

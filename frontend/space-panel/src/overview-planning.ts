@@ -3,7 +3,7 @@ import type { PropertyValues, TemplateResult } from "lit";
 import { customElement, property, state } from "lit/decorators.js";
 import { entityStates, sensorReadings } from "ha-share-space-ui";
 import type { RuleStrategy } from "ha-share-space-ui";
-import { EVERYONE_AREA, hassNow, hassTimeZone, listStrategies, listZones, loadZoneRules, planningSchedule } from "ha-share-space-ui/ha";
+import { EVERYONE_AREA, hassNow, hassTimeZone, listStrategies, listZones, loadZoneRules, personPlannings, planningSchedule } from "ha-share-space-ui/ha";
 import type { HeatingZone, HomeAssistant } from "ha-share-space-ui/ha";
 import { selectStyles } from "./select-styles";
 
@@ -156,6 +156,7 @@ export class ShareSpaceOverviewPlanning extends LitElement {
       <share-space-rule-preview
         .strategy=${strategy}
         .schedule=${schedule}
+        .plannings=${personPlannings(hass)}
         .now=${now}
         .tz=${tz}
         .temps=${attrs ? { comfort: Number(attrs.comfort_temp ?? 21), eco: Number(attrs.eco_temp ?? 17) } : undefined}

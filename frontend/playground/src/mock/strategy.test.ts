@@ -150,11 +150,11 @@ describe("automation config API and runner", () => {
     });
     expect(attrs(KITCHEN).active_rule).toBe("Outside lunch hours");
     c.clock.set(at(17, 11, 30));
-    expect(attrs(KITCHEN)).toMatchObject({ active_rule: "Lunch", mode: "automation" });
+    expect(attrs(KITCHEN)).toMatchObject({ active_rule: "Here morning and afternoon", mode: "automation" });
     expect(c.hass.states[KITCHEN].state).toBe("20");
     c.clock.set(at(17, 14));
     expect(attrs(KITCHEN).active_rule).toBe("Outside lunch hours");
-    c.clock.set(at(16, 11, 30)); // Monday: morning only
+    c.clock.set(at(22, 11, 30)); // Sunday: nobody planned
     expect(attrs(KITCHEN).active_rule).toBe("No lunch today");
     expect(c.hass.states[KITCHEN].state).toBe("7");
   });

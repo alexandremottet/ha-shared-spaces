@@ -1,4 +1,5 @@
 import type { WeekDay } from "../types";
+import type { ScheduleRanges } from "../heating/strategy-sim";
 
 /** "HH:MM" local wall time; "24:00" allowed as an end. */
 export type HHMM = string;
@@ -61,7 +62,12 @@ export interface PlannedCondition extends ConditionBase {
   type: "planned";
   windows: TimeWindow[];
   match: "all" | "any";
+  /** "anyone": one person's own planning must match, whatever area they work in (default: the area's planning). */
+  who?: "area" | "anyone";
 }
+
+/** Each person's own planning, by person entity. */
+export type PersonPlannings = Record<string, ScheduleRanges>;
 
 /** Numeric reading strictly below / above a threshold; no reading = does not hold. */
 export interface SensorCondition extends ConditionBase {

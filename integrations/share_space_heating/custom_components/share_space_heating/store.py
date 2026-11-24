@@ -44,6 +44,10 @@ STARTERS_FILE = Path(__file__).parent / "starters.json"
 _LEGACY_STARTERS = ["office_saver", "lunch_room"]
 
 
+# Starter rules as shipped before, by id: a copy nobody edited follows the starter's new rules.
+_OLD_STARTER_RULES = {"lunch_room": [{"version": 1, "rules": [{"label": "Lunch", "when": [{"type": "time", "start": "11:00", "end": "14:00"}, {"type": "planned", "windows": [{"start": "11:00", "end": "12:00"}, {"start": "13:00", "end": "14:00"}], "match": "all"}], "then": {"type": "temperature", "value": 20.0}}, {"label": "No lunch today", "when": [{"type": "time", "start": "11:00", "end": "14:00"}], "then": {"type": "off"}}], "fallback": {"label": "Outside lunch hours", "then": {"type": "off"}}}]}
+
+
 def _read_starters() -> list[dict]:
     return json.loads(STARTERS_FILE.read_text())
 
@@ -68,7 +72,13 @@ class StrategyStore:
         new = [s for s in starters if s["id"] not in offered and s["id"] not in self._data]
         for s in new:
             self._data[s["id"]] = {"name": s["name"], "rules": s["rules"], "previous": None}
-        if new or stored is None:
+        upgraded = [
+            s for s in starters
+            if s["id"] in self._data and self._data[s["id"]]["rules"] in _OLD_STARTER_RULES.get(s["id"], [])
+        ]
+        for s in upgraded:
+            self._data[s["id"]] = {**self._data[s["id"]], "rules": s["rules"]}
+        if new or upgraded or stored is None:
             await self._store.async_save(self._data)
         all_ids = sorted({*offered, *(s["id"] for s in starters)})
         if all_ids != sorted(offered):

@@ -19,6 +19,7 @@ import {
   loadZoneRules,
   nextRulesId,
   planningSchedule,
+  personPlannings,
   saveStrategy,
   saveZoneRules,
   strategyAutomationId,
@@ -524,6 +525,7 @@ export class ShareSpaceRulesPage extends LitElement {
       .draft=${this._draft}
       .saved=${this._saved}
       .schedule=${schedule}
+      .plannings=${hass ? personPlannings(hass) : undefined}
       .readings=${hass && this._draft ? sensorReadings(this._draft, hass.states, (attrs?.outdoor_entity as string | null | undefined) ?? null) : undefined}
       .states=${hass && this._draft ? { ...entityStates(this._draft, hass.states), ...this._heatedStates(this._draft) } : undefined}
       .areaNames=${Object.fromEntries(Object.values(hass?.areas ?? {}).filter((a) => a.area_id !== this._area).map((a) => [a.area_id, a.name]))}

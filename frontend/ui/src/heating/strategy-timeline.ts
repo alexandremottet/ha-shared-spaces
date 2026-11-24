@@ -2,7 +2,7 @@ import type { ScheduleRanges, StrategySegment } from "./strategy-sim";
 import { buildSegments } from "./strategy-sim";
 import { ruleTimeline } from "../rules/timeline";
 import type { EntityStates, SensorReadings } from "../rules/value";
-import type { PresetTemps, RuleStrategy } from "../rules/types";
+import type { PersonPlannings, PresetTemps, RuleStrategy } from "../rules/types";
 
 /** Exact strategy segments over [start, end) for a rule strategy. */
 export function strategyTimeline(
@@ -14,6 +14,7 @@ export function strategyTimeline(
   temps?: PresetTemps,
   readings?: SensorReadings,
   states?: EntityStates,
+  plannings?: PersonPlannings,
 ): StrategySegment[] {
-  return buildSegments(ruleTimeline(strategy, schedule, start, end, tz, temps, readings, states), start, end);
+  return buildSegments(ruleTimeline(strategy, schedule, start, end, tz, temps, readings, states, plannings), start, end);
 }

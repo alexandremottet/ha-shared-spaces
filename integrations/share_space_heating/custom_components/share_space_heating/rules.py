@@ -3,7 +3,7 @@ from __future__ import annotations
 
 import math
 from collections.abc import Callable
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import datetime
 
 from homeassistant.const import STATE_ON, STATE_UNAVAILABLE, STATE_UNKNOWN
@@ -27,6 +27,7 @@ class Facts:
     read: Callable[[str], float | None]
     state: Callable[[str], str | None] = lambda _entity_id: None
     heated: Callable[[str], bool] = lambda _area: False
+    plannings: dict = field(default_factory=dict)
 
 
 @dataclass(frozen=True)
@@ -107,9 +108,14 @@ def _holds(c: dict, f: Facts) -> bool:
         a, b = _minutes(c["start"]), _minutes(c["end"])
         return a <= m < b if a < b else (m >= a or m < b)
     if kind == "planned":
-        slots = _slot_starts(f.schedule, day)
-        hits = [any(_minutes(w["start"]) <= s < _minutes(w["end"]) for s in slots) for w in c["windows"]]
-        return any(hits) if c["match"] == "any" else all(hits)
+        # "anyone": one same person must match, each person's planning on its own
+        schedules = f.plannings.values() if c.get("who") == "anyone" else [f.schedule]
+        for schedule in schedules:
+            slots = _slot_starts(schedule, day)
+            hits = [any(_minutes(w["start"]) <= s < _minutes(w["end"]) for s in slots) for w in c["windows"]]
+            if any(hits) if c["match"] == "any" else all(hits):
+                return True
+        return False
     raise ValueError(f"unknown condition {kind!r}")
 
 
@@ -181,13 +187,23 @@ def _timestamp(hass: HomeAssistant, entity_id: str) -> float | None:
 
 
 def planning_facts(hass: HomeAssistant, area: str) -> Facts | None:
-    """Facts for now, or None while the area's planning entities are not loaded."""
-    if hass.states.get(f"binary_sensor.share_space_{area}") is None:
-        area = EVERYONE_AREA
+    """Facts for now, or None while the planning entities are not loaded."""
+    everyone = hass.states.get(f"binary_sensor.share_space_{EVERYONE_AREA}")
+    plannings = everyone.attributes.get("plannings") or {} if everyone else {}
     main = hass.states.get(f"binary_sensor.share_space_{area}")
+    if main is None:
+        if everyone is None or everyone.state in (STATE_UNKNOWN, STATE_UNAVAILABLE):
+            return None
+        # nobody works in the area (a kitchen): no planning of its own, only rules about people
+        return Facts(
+            now=dt_util.now(), occupied=False, next_on=None, previous_off=None, schedule={}, plannings=plannings,
+            read=lambda entity_id: sensor_reading(hass, entity_id),
+            state=lambda entity_id: entity_state(hass, entity_id),
+            heated=lambda other: area_heated(hass, other),
+        )
     next_id, prev_id = f"sensor.share_space_{area}_next_on", f"sensor.share_space_{area}_previous_off"
     nxt, prv = hass.states.get(next_id), hass.states.get(prev_id)
-    if main is None or main.state in (STATE_UNKNOWN, STATE_UNAVAILABLE):
+    if main.state in (STATE_UNKNOWN, STATE_UNAVAILABLE):
         return None
     if nxt is None or prv is None or STATE_UNAVAILABLE in (nxt.state, prv.state):
         return None
@@ -200,4 +216,5 @@ def planning_facts(hass: HomeAssistant, area: str) -> Facts | None:
         read=lambda entity_id: sensor_reading(hass, entity_id),
         state=lambda entity_id: entity_state(hass, entity_id),
         heated=lambda other: area_heated(hass, other),
+        plannings=plannings,
     )

@@ -59,7 +59,7 @@
       "version": 1,
       "rules": [
         {
-          "label": "Lunch",
+          "label": "Here morning and afternoon",
           "when": [
             {
               "type": "time",
@@ -68,17 +68,43 @@
             },
             {
               "type": "planned",
+              "who": "anyone",
+              "match": "all",
               "windows": [
                 {
-                  "start": "11:00",
+                  "start": "06:00",
                   "end": "12:00"
                 },
                 {
-                  "start": "13:00",
+                  "start": "14:00",
+                  "end": "20:00"
+                }
+              ]
+            }
+          ],
+          "then": {
+            "type": "temperature",
+            "value": 20.0
+          }
+        },
+        {
+          "label": "Here at lunch",
+          "when": [
+            {
+              "type": "time",
+              "start": "11:00",
+              "end": "14:00"
+            },
+            {
+              "type": "planned",
+              "who": "anyone",
+              "match": "any",
+              "windows": [
+                {
+                  "start": "12:00",
                   "end": "14:00"
                 }
-              ],
-              "match": "all"
+              ]
             }
           ],
           "then": {

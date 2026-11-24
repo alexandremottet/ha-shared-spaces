@@ -108,7 +108,7 @@ class Checker {
       if (this.has(v, "type", path)) this.err(`${path}.type`, "unknown_kind", `unknown condition "${String(kind)}"`);
       return;
     }
-    this.obj(v, path, ["type", "negate", ...FIELDS[kind]]);
+    this.obj(v, path, ["type", "negate", ...FIELDS[kind], ...(kind === "planned" ? ["who"] : [])]);
     if ("negate" in v && typeof v.negate !== "boolean") this.err(`${path}.negate`, "type", "must be a boolean");
     for (const f of FIELDS[kind]) if (!this.has(v, f, path)) return;
     switch (kind as Condition["type"]) {
@@ -136,6 +136,7 @@ class Checker {
         return;
       case "planned":
         if (v.match !== "all" && v.match !== "any") this.err(`${path}.match`, "unknown_kind", 'must be "all" or "any"');
+        if (v.who !== undefined && v.who !== "area" && v.who !== "anyone") this.err(`${path}.who`, "unknown_kind", 'must be "area" or "anyone"');
         if (!Array.isArray(v.windows)) return void this.err(`${path}.windows`, "type", "must be a list");
         if (!v.windows.length) this.err(`${path}.windows`, "empty", "needs at least one window");
         v.windows.forEach((w, i) => {

@@ -86,7 +86,7 @@ export function describeCondition(c: Condition, areaNames: Record<string, string
     case "time":
       return `${not}${c.start}–${c.end}`;
     case "planned":
-      return `${not}planned ${c.windows.map((w) => `${w.start}–${w.end}`).join(c.match === "any" ? " or " : " and ")}`;
+      return `${not}${c.who === "anyone" ? "someone planned" : "planned"} ${c.windows.map((w) => `${w.start}–${w.end}`).join(c.match === "any" ? " or " : " and ")}`;
     case "sensor":
       return `${not}${c.entity === OUTDOOR ? "outdoor" : shortEntity(c.entity)} ${c.op === "below" ? "<" : ">"} ${fmt(c.than)}`;
     case "state":

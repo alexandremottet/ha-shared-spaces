@@ -266,3 +266,20 @@ def test_fixture_starter_cases_use_starter_rules():
     assert len(starter_cases) == 6
     for case in starter_cases:
         assert case["strategy"] == next(r for p, r in by_prefix.items() if case["name"].startswith(p))
+
+
+@pytest.mark.parametrize("edited", [False, True])
+async def test_unedited_old_lunch_room_gets_new_rules(hass, hass_storage, edited):
+    from custom_components.share_space_heating.store import _OLD_STARTER_RULES
+
+    old = json.loads(json.dumps(_OLD_STARTER_RULES["lunch_room"][0]))
+    if edited:
+        old["rules"][0]["then"]["value"] = 19.0
+    hass_storage["share_space_heating.strategies"] = {
+        "version": 1, "key": "share_space_heating.strategies",
+        "data": {"lunch_room": {"name": "Lunch room", "rules": old, "previous": None}},
+    }
+    store = StrategyStore(hass)
+    await store.async_load()
+    new = next(s for s in STARTERS if s["id"] == "lunch_room")["rules"]
+    assert store.get("lunch_room")["rules"] == (old if edited else new)

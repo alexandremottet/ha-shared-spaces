@@ -22,7 +22,7 @@ describe("rule cases", () => {
             climateHeated({ state: s.state, attributes: { preset_mode: s.preset_mode } }) ? "on" : "off",
           ]),
         );
-        const got = evaluateRules(c.strategy, c.schedule, Date.parse(check.now), c.tz, c.temps, check.readings, { ...check.states, ...heated });
+        const got = evaluateRules(c.strategy, c.schedule, Date.parse(check.now), c.tz, c.temps, check.readings, { ...check.states, ...heated }, c.plannings);
         expect(flat(got), check.now).toEqual({ ...check.expected, reason: check.reason });
       }
     });
@@ -30,7 +30,7 @@ describe("rule cases", () => {
 });
 
 describe("rule timeline matches evaluateRules", () => {
-  type Case = { name: string; tz: string; schedule: never; strategy: never; temps?: never; start: number };
+  type Case = { name: string; tz: string; schedule: never; strategy: never; temps?: never; plannings?: never; start: number };
   const novStart = Date.parse("2026-11-20T00:07:00Z");
   const office = ruleCases.find((c: { name: string }) => c.name.startsWith("starter Office saver"));
   const all: Case[] = [
@@ -41,7 +41,7 @@ describe("rule timeline matches evaluateRules", () => {
     it(c.name, () => {
       const end = c.start + 7 * 86400000;
       const t = performance.now();
-      const segs = strategyTimeline(c.strategy, c.schedule, c.start, end, c.tz, c.temps);
+      const segs = strategyTimeline(c.strategy, c.schedule, c.start, end, c.tz, c.temps, undefined, undefined, c.plannings);
       expect(performance.now() - t).toBeLessThan(200);
       expect(segs[0].start).toBe(c.start);
       expect(segs[segs.length - 1].end).toBe(end);
@@ -49,7 +49,7 @@ describe("rule timeline matches evaluateRules", () => {
       for (let now = c.start; now < end; now += 41 * 60000) {
         const seg = segs.find((s) => s.start <= now && now < s.end)!;
         if (seg.start === now) continue;
-        expect({ ...seg.result, reason: seg.reason }, new Date(now).toISOString()).toEqual(flat(evaluateRules(c.strategy, c.schedule, now, c.tz, c.temps)));
+        expect({ ...seg.result, reason: seg.reason }, new Date(now).toISOString()).toEqual(flat(evaluateRules(c.strategy, c.schedule, now, c.tz, c.temps, undefined, undefined, c.plannings)));
       }
     });
   }

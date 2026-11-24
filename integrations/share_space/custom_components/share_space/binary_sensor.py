@@ -16,6 +16,7 @@ from homeassistant.helpers.script import Script
 from homeassistant.util import dt as dt_util
 
 from .area_schedule import compute_area_schedule, list_area_person_calendars
+from .calendar_merge import merge_calendars
 from .const import (
     DATA_AREA_ACTIONS_STORE,
     DATA_AREA_LOCKS,
@@ -89,6 +90,9 @@ class AreaOccupancySensor(BinarySensorEntity):
             "next_change": following.isoformat() if following else None,
             "schedule": compact_schedule(schedule),
         }
+        if self._area_id == EVERYONE:
+            calendars = list_area_person_calendars(self._data[DATA_PERSON_AREA_STORE], self._data[DATA_PERSON_CALENDAR_STORE], EVERYONE)
+            attrs["plannings"] = {p: compact_schedule(merge_calendars([c])) for p, c in calendars.items()}
         return is_occupied(schedule, now), attrs
 
     @callback
