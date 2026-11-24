@@ -4,6 +4,7 @@ import { property } from "lit/decorators.js";
 import { WEEK_DAYS } from "./types";
 import type { Calendar, TimeOfDay, WeekDay } from "./types";
 import "./person-lane-track";
+import type { TimesPlacement } from "./period-text";
 import "./overlap-track";
 import type { OverlapSegment } from "./overlap-track";
 import { mergeAdjacentPeriods } from "./merge-periods";
@@ -102,6 +103,8 @@ export class AreaRosterView extends LitElement {
   @property({ type: String }) viewMode: RosterViewMode = "lanes";
   /** Lanes view: first lane of each day merges everyone, under this label. */
   @property({ type: String }) totalLabel?: string;
+  /** "bar": times on the blocks (beside the short ones); "below": as text under each lane. */
+  @property({ type: String }) times: TimesPlacement = "bar";
 
   static styles = css`
     :host {
@@ -169,11 +172,12 @@ export class AreaRosterView extends LitElement {
       return html`
         <div class="day-heading">${day}</div>
         ${this.totalLabel
-          ? html`<person-lane-track class="total" .label=${this.totalLabel} .color=${"var(--area-roster-total-color, var(--primary-color))"} .periods=${computeMergedPeriods(this.people, day)}></person-lane-track>`
+          ? html`<person-lane-track class="total" .times=${this.times} .label=${this.totalLabel} .color=${"var(--area-roster-total-color, var(--primary-color))"} .periods=${computeMergedPeriods(this.people, day)}></person-lane-track>`
           : null}
         ${this.people.map(
           (person) => html`
             <person-lane-track
+              .times=${this.times}
               .label=${person.label}
               .periods=${person.calendar[day] ?? []}
               .color=${this._colorFor(person.id)}

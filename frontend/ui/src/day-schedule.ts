@@ -6,6 +6,9 @@ import type { TimeOfDay, TimeRange, WeekDay } from "./types";
 import "./hour-period";
 import type { PeriodChangedDetail } from "./hour-period";
 import "./time-axis";
+import "./period-times";
+import { periodsText } from "./period-text";
+import type { TimesPlacement } from "./period-text";
 import { mergeAdjacentPeriods } from "./merge-periods";
 
 const MINUTES_PER_DAY = 24 * 60;
@@ -44,6 +47,8 @@ export interface PeriodSelectRequestDetail {
 export class DaySchedule extends LitElement {
   @property({ type: String }) day!: WeekDay;
   @property({ type: Array }) periods: TimeRange[] = [];
+  /** "bar": times on the blocks (beside the short ones); "below": as text under the track. */
+  @property({ type: String }) times: TimesPlacement = "bar";
   @property({ type: Number }) selectedIndex: number | null = null;
 
   @state() private _draftStart: number | null = null;
@@ -64,10 +69,23 @@ export class DaySchedule extends LitElement {
       flex: none;
       font-weight: var(--day-schedule-label-font-weight, 600);
       text-transform: capitalize;
+      align-self: flex-start;
+      line-height: var(--day-schedule-track-height, 32px);
     }
+    .lane {
+      flex: 1;
+      min-width: 0;
+    }
+    .times {
+      margin-top: 2px;
+      font-size: var(--day-schedule-times-font-size, 12px);
+      line-height: 1.3;
+      font-variant-numeric: tabular-nums;
+      color: var(--day-schedule-times-color, var(--secondary-text-color, inherit));
+    }
+
     .track {
       position: relative;
-      flex: 1;
       height: var(--day-schedule-track-height, 32px);
       border-radius: var(--day-schedule-track-radius, 4px);
       overflow: hidden;
@@ -78,6 +96,9 @@ export class DaySchedule extends LitElement {
     @media (pointer: coarse) {
       .track {
         height: var(--day-schedule-track-height, 40px);
+      }
+      .label {
+        line-height: var(--day-schedule-track-height, 40px);
       }
     }
   `;
@@ -184,6 +205,7 @@ export class DaySchedule extends LitElement {
     return html`
       <div class="row">
         <span class="label">${this.day}</span>
+        <div class="lane">
         <div
           class="track"
           @pointerdown=${this._onTrackPointerDown}
@@ -209,6 +231,9 @@ export class DaySchedule extends LitElement {
               `
             : null}
           <time-axis aria-hidden="true"></time-axis>
+          ${this.times === "bar" && this._draftStart === null ? html`<period-times aria-hidden="true" .periods=${this.periods}></period-times>` : null}
+        </div>
+        ${this.times === "below" && this.periods.length ? html`<div class="times">${periodsText(this.periods)}</div>` : null}
         </div>
       </div>
     `;
