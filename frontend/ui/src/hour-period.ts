@@ -67,6 +67,10 @@ export class HourPeriod extends LitElement {
       height: 100%;
       background: var(--hour-period-absent-color, #b0bec5);
     }
+    /* above the hour ticks */
+    :host([status="present"]) {
+      z-index: 1;
+    }
     :host([status="present"]) .segment {
       background: var(--hour-period-present-color, #4caf50);
     }
@@ -118,6 +122,29 @@ export class HourPeriod extends LitElement {
       height: var(--hour-period-handle-grip-height, 16px);
       border-radius: var(--hour-period-handle-grip-radius, 2px);
       background: var(--hour-period-selected-color, #f3f3f3);
+    }
+    /* times shown while the block is dragged */
+    .time {
+      position: absolute;
+      top: 50%;
+      transform: translateY(-50%);
+      z-index: 1;
+      padding: 1px 4px;
+      border-radius: 3px;
+      font-size: var(--hour-period-time-font-size, 11px);
+      font-weight: 700;
+      line-height: 1.2;
+      font-variant-numeric: tabular-nums;
+      white-space: nowrap;
+      pointer-events: none;
+      color: var(--hour-period-time-color, #fff);
+      background: var(--hour-period-time-background, rgba(0, 0, 0, 0.55));
+    }
+    .time.start {
+      right: calc(100% + 3px);
+    }
+    .time.end {
+      left: calc(100% + 3px);
     }
   `;
 
@@ -191,6 +218,7 @@ export class HourPeriod extends LitElement {
     this._previewStart = newStart;
     this._previewEnd = newEnd;
     this._applyGeometry(newStart, newEnd);
+    this.requestUpdate();
   }
 
   private _onPointerUp() {
@@ -215,6 +243,15 @@ export class HourPeriod extends LitElement {
     }
   }
 
+  private _times() {
+    // while it is being edited, following the drag (the row's period-times shows them otherwise)
+    if (this.status !== "present" || !this.selected || this.readonly || this._previewStart === null) return null;
+    const start = toTimeOfDay(this._previewStart ?? toMinutes(this.start));
+    const end = toTimeOfDay(this._previewEnd ?? toMinutes(this.end));
+    const short = (t: TimeOfDay) => t.replace(/^0(\d)/, "$1");
+    return html`<span class="time start">${short(start)}</span><span class="time end">${short(end)}</span>`;
+  }
+
   protected render() {
     return html`
       <div
@@ -223,6 +260,7 @@ export class HourPeriod extends LitElement {
         @pointermove=${this.readonly ? nothing : this._onPointerMove}
         @pointerup=${this.readonly ? nothing : this._onPointerUp}
       >
+        ${this._times()}
         ${this.selected && !this.readonly
           ? html`
               <span class="handle start" @pointerdown=${this._onStartHandlePointerDown} @pointermove=${this._onPointerMove} @pointerup=${this._onPointerUp}></span>

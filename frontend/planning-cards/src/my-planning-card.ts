@@ -15,6 +15,8 @@ import { cardStyles, message } from "./shared";
 interface CardConfig {
   type: string;
   show_area_picker?: boolean;
+  /** Where the times show: on the blocks (default) or as text under each day. */
+  times?: "bar" | "below";
 }
 
 @safeCustomElement("share-space-my-planning-card")
@@ -86,7 +88,7 @@ export class ShareSpaceMyPlanningCard extends ShareSpaceScheduleView {
         ${this._calendar === null
           ? html`<p class="placeholder">Loading…</p>`
           : html`
-              <week-schedule .calendar=${this._calendar} @calendar-changed=${this._onChanged}>
+              <week-schedule .calendar=${this._calendar} .times=${this._config?.times ?? "bar"} @calendar-changed=${this._onChanged}>
                 ${this._haDialogReady ? html`<ha-period-edit-dialog slot="dialog"></ha-period-edit-dialog>` : null}
               </week-schedule>
             `}
@@ -99,7 +101,15 @@ export class ShareSpaceMyPlanningCard extends ShareSpaceScheduleView {
   }
 
   static getConfigForm(): LovelaceConfigForm {
-    return { schema: [{ name: "show_area_picker", selector: { boolean: {} } }] };
+    return {
+      schema: [
+        { name: "show_area_picker", selector: { boolean: {} } },
+        {
+          name: "times",
+          selector: { select: { mode: "dropdown", options: [{ value: "bar", label: "On the blocks" }, { value: "below", label: "Under each day" }] } },
+        },
+      ],
+    };
   }
 
   public getGridOptions(): LovelaceGridOptions {

@@ -4,6 +4,7 @@ import { property, state } from "lit/decorators.js";
 import { WEEK_DAYS } from "./types";
 import type { Calendar, TimeRange, WeekDay } from "./types";
 import "./day-schedule";
+import type { TimesPlacement } from "./period-text";
 import "./period-edit-dialog";
 import type { PeriodEditRequestDetail, PeriodSelectRequestDetail, PeriodsChangedDetail } from "./day-schedule";
 import type { PeriodDeletedDetail, PeriodSavedDetail } from "./period-edit-dialog";
@@ -30,6 +31,8 @@ function emptyCalendar(): Calendar {
 @safeCustomElement("week-schedule")
 export class WeekSchedule extends LitElement {
   @property({ attribute: false }) calendar: Calendar = emptyCalendar();
+  /** "bar": times on the blocks (beside the short ones); "below": as text under each day. */
+  @property({ type: String }) times: TimesPlacement = "bar";
 
   /** Enforces at most one selected period across the whole week, not just within one day. */
   @state() private _selectedDay: WeekDay | null = null;
@@ -128,6 +131,7 @@ export class WeekSchedule extends LitElement {
           <day-schedule
             .day=${day}
             .periods=${this.calendar[day] ?? []}
+            .times=${this.times}
             .selectedIndex=${this._selectedDay === day ? this._selectedIndex : null}
             @periods-changed=${this._onPeriodsChanged}
             @period-edit-request=${this._onPeriodEditRequest}

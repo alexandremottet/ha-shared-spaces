@@ -1,5 +1,5 @@
 import { createElement, useEffect, useMemo, useRef, useState } from "react";
-import type { ComponentDef, PropDef } from "./registry";
+import type { ComponentDef, GalleryCase, PropDef } from "./registry";
 
 interface LogEntry {
   n: number;
@@ -44,6 +44,21 @@ function PropControl({ p, raw, onChange }: { p: PropDef; raw: unknown; onChange:
     return <textarea className={bad ? "invalid" : ""} rows={6} spellCheck={false} value={String(raw)} onChange={(e) => onChange(e.target.value)} />;
   }
   return <input type="text" value={String(raw ?? "")} onChange={(e) => onChange(e.target.value)} />;
+}
+
+function GalleryItem({ tag, c }: { tag: string; c: GalleryCase }) {
+  const ref = useRef<HTMLElement | null>(null);
+  useEffect(() => {
+    if (ref.current) Object.assign(ref.current, c.props);
+  }, [c]);
+  return (
+    <figure className="cmp-case" style={{ width: c.width ? `min(${c.width}px, 100%)` : undefined }}>
+      <figcaption className="muted">{c.label}</figcaption>
+      <div className="cmp-stage real" style={c.stage}>
+        {createElement(tag, { ref })}
+      </div>
+    </figure>
+  );
 }
 
 export function ComponentStage({ def }: { def: ComponentDef }) {
@@ -100,6 +115,16 @@ export function ComponentStage({ def }: { def: ComponentDef }) {
           </div>
         )}
       </section>
+      {def.gallery && (
+        <section className="panel">
+          <h4>Cases</h4>
+          <div className="cmp-gallery">
+            {def.gallery.map((c) => (
+              <GalleryItem key={c.label} tag={def.tag} c={c} />
+            ))}
+          </div>
+        </section>
+      )}
       <div className="cmp-lower">
         <section className="panel">
           <h4>Props</h4>

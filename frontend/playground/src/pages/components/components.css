@@ -16,3 +16,5 @@
 .cmp-log { font-size: 12px; max-height: 320px; overflow: auto; margin-top: 8px; }
 .cmp-log div { padding: 2px 0; word-break: break-all; }
 @media (max-width: 900px) { .cmp, .cmp-lower { grid-template-columns: 1fr; } .cmp-list { position: static; } }
+.cmp-gallery { display: flex; flex-wrap: wrap; gap: 16px; align-items: flex-start; }
+.cmp-case { margin: 0; display: flex; flex-direction: column; gap: 4px; }
