@@ -1,7 +1,7 @@
 import { LitElement, html, css, nothing } from "lit";
 import type { TemplateResult } from "lit";
 import { customElement, property, state } from "lit/decorators.js";
-import { createAreaZone, deleteZone, listZones, errorMessage } from "ha-share-space-ui/ha";
+import { createAreaZone, deleteZone, detectAreaHeating, entityAreaId, listZones, errorMessage } from "ha-share-space-ui/ha";
 import type { HeatingZone, HomeAssistant } from "ha-share-space-ui/ha";
 import { settingsStyles } from "./settings-styles";
 
@@ -96,13 +96,9 @@ export class ShareSpaceZonesSettings extends LitElement {
   // Entities of a domain, this area's first, then by name.
   private _options(filter: (id: string, attrs: Record<string, unknown>) => boolean, area: string): Option[] {
     const hass = this.hass!;
-    const areaOf = (id: string): string | null => {
-      const e = hass.entities?.[id];
-      return e?.area_id ?? (e?.device_id ? hass.devices?.[e.device_id]?.area_id ?? null : null);
-    };
     return Object.values(hass.states)
       .filter((s) => filter(s.entity_id, s.attributes))
-      .map((s) => ({ id: s.entity_id, name: String(s.attributes.friendly_name ?? s.entity_id), area: areaOf(s.entity_id) }))
+      .map((s) => ({ id: s.entity_id, name: String(s.attributes.friendly_name ?? s.entity_id), area: entityAreaId(hass, s.entity_id) }))
       .sort((a, b) => Number(b.area === area) - Number(a.area === area) || a.name.localeCompare(b.name));
   }
 
@@ -195,15 +191,28 @@ export class ShareSpaceZonesSettings extends LitElement {
           const here = zones.filter((z) => z.area_id === area.area_id);
           const zone = here[0];
           const editing = this._draft?.area === area.area_id;
+          const found = zone || editing ? null : detectAreaHeating(hass, area.area_id, zones);
+          const foundText = found
+            ? [
+                ...(found.source === "thermostat" ? [found.thermostat] : found.heaters).map((id) => this._label(id)),
+                ...(found.sensor ? [`Sensor: ${this._label(found.sensor)}`] : []),
+              ].join(" · ")
+            : "";
           return html`<div class="row">
             <span class="name">${area.name}</span>
             ${zone
               ? this._renderZone(zone)
               : editing
                 ? nothing
-                : html`<span class="info muted">No heating</span>
+                : html`<span class="info muted">${found ? `Found in Home Assistant: ${foundText}` : "No heating"}</span>
                     <span class="actions">
-                      <button ?disabled=${this._zones === null} @click=${() => (this._draft = { area: area.area_id, source: "heaters", heaters: [], sensor: "", thermostat: "" })}>Add heating</button>
+                      <button
+                        ?disabled=${this._zones === null}
+                        @click=${() =>
+                          (this._draft = { area: area.area_id, ...(found ?? { source: "heaters", heaters: [], sensor: "", thermostat: "" }) })}
+                      >
+                        ${found ? "Set up heating" : "Add heating"}
+                      </button>
                     </span>`}
             ${editing ? this._renderForm(this._draft!) : nothing}
             ${here.length > 1

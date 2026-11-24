@@ -305,7 +305,9 @@ export class ShareSpaceRulesTab extends LitElement {
         <option value="" ?selected=${this.zone === ""}>Choose an area</option>
         ${zones.map((z) => html`<option value=${z.entity_id} ?selected=${z.entity_id === this.zone}>${this._areaName(z)}</option>`)}
       </select></label
-    >`;
+      >${this.zones && !this.zones.length
+        ? html`<div class="banner" role="status">No heating yet: set it up in Settings → Heating.</div>`
+        : nothing}`;
   }
 
   // Why the selected heating cannot take rules: HA gives its thermostat no area, or the area has several.

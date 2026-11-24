@@ -8,7 +8,7 @@ export interface HassEntity {
 
 export interface HomeAssistant {
   states: Record<string, HassEntity>;
-  areas?: Record<string, { area_id: string; name: string }>;
+  areas?: Record<string, { area_id: string; name: string; temperature_entity_id?: string | null }>;
   entities?: Record<string, { entity_id: string; area_id?: string | null; device_id?: string | null }>;
   devices?: Record<string, { id: string; area_id?: string | null }>;
   user?: { id: string; name: string; is_admin: boolean } | null;
