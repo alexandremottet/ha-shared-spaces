@@ -2,8 +2,8 @@ import { LitElement, html, css, nothing } from "lit";
 import type { PropertyValues, TemplateResult } from "lit";
 import { customElement, property, state } from "lit/decorators.js";
 import { haCardSurface } from "ha-share-space-ui";
-import { findMyPerson, errorMessage, listDetectedAreas } from "ha-share-space-ui/ha";
-import type { DetectedArea } from "ha-share-space-ui/ha";
+import { findMyPerson, errorMessage, listDetectedAreas, listZones } from "ha-share-space-ui/ha";
+import type { DetectedArea, HeatingZone } from "ha-share-space-ui/ha";
 import type { HomeAssistant } from "ha-share-space-ui/ha";
 import { zoneViewModel } from "ha-share-space-heating-card/view-model";
 import type { ZoneViewModel } from "ha-share-space-heating-card/view-model";
@@ -11,6 +11,7 @@ import "ha-share-space-planning-cards/my-planning-card";
 import "ha-share-space-planning-cards/work-area-card";
 import { HEATING_SENSOR_PREFIX, renderHeatingControl } from "./heating";
 import "./overview-planning";
+import "./ha-card";
 
 type CardEl = HTMLElement & { hass?: HomeAssistant; setConfig(config: Record<string, unknown>): void };
 
@@ -25,6 +26,23 @@ function entityArea(hass: HomeAssistant, entityId: string | null): string | null
   const entry = entityId ? hass.entities?.[entityId] : undefined;
   if (!entry) return null;
   return entry.area_id ?? (entry.device_id ? hass.devices?.[entry.device_id]?.area_id ?? null : null);
+}
+
+// Temperature sensor to graph for an area: the zone's own, the area's setting, else one in the area.
+function areaTemperatureSensor(hass: HomeAssistant, area: string | null, own?: string | null): string | null {
+  if (own && hass.states[own]) return own;
+  if (!area) return null;
+  const set = hass.areas?.[area]?.temperature_entity_id;
+  if (set && hass.states[set]) return set;
+  return (
+    Object.values(hass.states).find(
+      (s) =>
+        s.entity_id.startsWith("sensor.") &&
+        !s.entity_id.startsWith(HEATING_SENSOR_PREFIX) &&
+        s.attributes.device_class === "temperature" &&
+        entityArea(hass, s.entity_id) === area,
+    )?.entity_id ?? null
+  );
 }
 
 // Area I'm assigned to, read from the occupancy sensors' `persons` attribute.
@@ -47,6 +65,8 @@ export class ShareSpaceOverview extends LitElement {
   @state() private _error = "";
   /** Heating found in HA areas that have no Share Space zone yet: shown with their own thermostat. */
   @state() private _detected: DetectedArea[] = [];
+  /** Share Space zones as the integration lists them, whatever their sensors are named. */
+  @state() private _zones: HeatingZone[] = [];
   private _detectedFor: string | null = null;
   private _retryAt = 0;
 
@@ -104,6 +124,9 @@ export class ShareSpaceOverview extends LitElement {
     .top .zone {
       width: auto;
     }
+    .graph {
+      margin: 0 12px 12px;
+    }
     /* both columns end on the same line */
     .top section > :last-child {
       flex: 1;
@@ -129,8 +152,11 @@ export class ShareSpaceOverview extends LitElement {
       const zones = Object.keys(this.hass.states).filter((id) => id.startsWith(HEATING_SENSOR_PREFIX)).sort().join();
       if (zones !== this._detectedFor && Date.now() >= this._retryAt) {
         this._detectedFor = zones;
-        void listDetectedAreas(this.hass)
-          .then((d) => (this._detected = d))
+        void Promise.all([listDetectedAreas(this.hass), listZones(this.hass)])
+          .then(([d, z]) => {
+            this._detected = d;
+            this._zones = z.filter((zone) => !zone.pending);
+          })
           .catch(() => {
             // asked too early (integration still loading), or no heating integration: try again later
             this._detectedFor = null;
@@ -150,14 +176,27 @@ export class ShareSpaceOverview extends LitElement {
   }
 
   private _zone(hass: HomeAssistant, vm: ZoneViewModel): TemplateResult {
-    return html`<div class="zone">${renderHeatingControl(hass, vm, (fn) => void this._run(fn))}</div>`;
+    const zone = this._zones.find((z) => z.entity_id === vm.entityId);
+    const area = zone?.area_id ?? entityArea(hass, vm.climateEntity);
+    const found = this._detected.find((d) => d.area_id === area);
+    const own = zone?.temperature_sensor ?? (found && "temperature_sensor" in found ? found.temperature_sensor : null);
+    const sensor = areaTemperatureSensor(hass, area, own);
+    return html`<div class="zone">
+      ${renderHeatingControl(hass, vm, (fn) => void this._run(fn))}
+      ${sensor
+        ? html`<share-space-ha-card
+            class="graph"
+            .hass=${hass}
+            .config=${{ type: "sensor", entity: sensor, graph: "line", detail: 1, hours_to_show: 24, name: "Temperature" }}
+          ></share-space-ha-card>`
+        : nothing}
+    </div>`;
   }
 
   protected render(): TemplateResult {
     const hass = this.hass;
     if (!hass) return html``;
-    const zones = Object.keys(hass.states)
-      .filter((id) => id.startsWith(HEATING_SENSOR_PREFIX))
+    const zones = [...new Set([...this._zones.map((z) => z.entity_id), ...Object.keys(hass.states).filter((id) => id.startsWith(HEATING_SENSOR_PREFIX))])]
       .sort()
       .map((id) => zoneViewModel(hass, id))
       .filter((vm): vm is ZoneViewModel => vm !== null);

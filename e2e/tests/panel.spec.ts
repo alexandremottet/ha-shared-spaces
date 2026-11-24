@@ -57,3 +57,12 @@ test("Overview shows heating before the Planning card", async ({ page }) => {
   const [h, p] = [await heating.boundingBox(), await planning.boundingBox()];
   expect(h!.y).toBeLessThan(p!.y);
 });
+
+test("each heating zone on Overview has its temperature graph", async ({ page }) => {
+  await logIn(page, SPACE_ADMIN);
+  await page.goto("/share-space");
+  const zones = page.locator("share-space-overview .zone");
+  await expect(zones.first()).toBeVisible();
+  const count = await zones.count();
+  await expect(page.locator("share-space-overview .zone share-space-ha-card hui-sensor-card")).toHaveCount(count);
+});
