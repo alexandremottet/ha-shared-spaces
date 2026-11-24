@@ -1,4 +1,3 @@
-import { ThemePicker } from "../../ThemePicker";
 import type { MockHassController } from "../../mock/mock-hass";
 import { RoleSwitch } from "../RoleSwitch";
 import { HaAutomationControls } from "./HaAutomationControls";
@@ -26,7 +25,6 @@ export function Toolbar({ controller, edit, setEdit, narrow, setNarrow, viewport
   const isAdmin = controller?.state.persons.find((p) => p.userId === userId)?.isAdmin ?? true;
   return (
     <div className="panel-toolbar">
-      <a href="#/logic">Back to playground</a>
       {controller && <RoleSwitch controller={controller} />}
       {controller && (
         <label>
@@ -60,7 +58,6 @@ export function Toolbar({ controller, edit, setEdit, narrow, setNarrow, viewport
           ))}
         </select>
       </label>
-      <ThemePicker />
     </div>
   );
 }

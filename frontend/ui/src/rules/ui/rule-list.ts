@@ -1,4 +1,4 @@
-import { LitElement, css, html } from "lit";
+import { LitElement, css, html, nothing } from "lit";
 import { property } from "lit/decorators.js";
 import { safeCustomElement } from "../../define";
 import type { Rule, RuleStrategy } from "../types";
@@ -10,25 +10,38 @@ import { ruleStyles } from "./styles";
 
 const EMPTY: RuleStrategy = { version: 1, rules: [], fallback: { label: "Otherwise", then: { type: "off" } } };
 
-/** Rules as stacked cards (first match wins), ending with the fallback; emits the whole strategy on every edit, and `rule-hover` {label|null}. */
+/** Rules as a vertical chain of block rows joined by ELSE IF (first match wins), ending with the fallback; emits the whole strategy on every edit, and `rule-hover` {label|null}. */
 @safeCustomElement("share-space-rule-list")
 export class ShareSpaceRuleList extends LitElement {
   static styles = [
     ruleStyles,
     css`
-      .flow {
-        display: flex;
-        flex-direction: column;
-        gap: 10px;
-      }
       .legend {
         margin-bottom: 8px;
       }
-      .add-row {
+      .vlink {
         display: flex;
+        align-items: center;
+        gap: 10px;
+        min-height: 28px;
+        margin-left: 20px;
+        padding-left: 10px;
+        border-left: 2px solid color-mix(in srgb, var(--primary-color) 55%, transparent);
+        font-size: 0.75em;
+        font-weight: 700;
+        letter-spacing: 0.06em;
+        color: var(--primary-color);
       }
-      .add-row button {
-        border-style: dashed;
+      .slot {
+        min-height: 44px;
+        padding: 0 12px;
+        border: 2px dashed color-mix(in srgb, var(--primary-color) 55%, transparent);
+        border-radius: 8px;
+        color: var(--primary-color);
+        font-size: 0.75em;
+        font-weight: 700;
+        letter-spacing: 0.06em;
+        text-transform: uppercase;
       }
     `,
   ];
@@ -50,6 +63,11 @@ export class ShareSpaceRuleList extends LitElement {
     this.dispatchEvent(new CustomEvent("rule-hover", { detail: { label }, bubbles: true, composed: true }));
   }
 
+  private _closeOthers(e: Event): void {
+    e.stopPropagation();
+    this.renderRoot.querySelectorAll("share-space-rule-row").forEach((row) => row !== e.target && row.closeEditor());
+  }
+
   private _setRules(rules: Rule[]): void {
     this._emit({ ...this.strategy, rules });
   }
@@ -60,9 +78,9 @@ export class ShareSpaceRuleList extends LitElement {
     const hover = (label: string) => ({ enter: () => this._hover(label), leave: () => this._hover(null) });
     const fb = hover(s.fallback.label);
     return html`<div class="muted legend">First matching rule wins (top to bottom)</div>
-      <div class="flow">
+      <div class="flow" @block-open=${this._closeOthers}>
         ${s.rules.map(
-          (rule, i) => html`<share-space-rule-row
+          (rule, i) => html`${i > 0 ? html`<div class="vlink" aria-hidden="true">ELSE IF</div>` : nothing}<share-space-rule-row
               ?highlighted=${this.highlight !== null && this.highlight === rule.label}
               @mouseenter=${() => this._hover(rule.label)}
               @mouseleave=${() => this._hover(null)}
@@ -86,7 +104,9 @@ export class ShareSpaceRuleList extends LitElement {
               }}
             ></share-space-rule-row>`,
         )}
-        <div class="add-row"><button aria-label="Add rule" @click=${() => this._setRules([...s.rules, blankRule()])}>+ Add rule</button></div>
+        ${s.rules.length ? html`<div class="vlink" aria-hidden="true">ELSE IF</div>` : nothing}
+        <div><button class="slot" aria-label="Add rule" @click=${() => this._setRules([...s.rules, blankRule()])}>+ Rule</button></div>
+        <div class="vlink" aria-hidden="true">ELSE</div>
         <share-space-rule-row
           fallback
           ?highlighted=${this.highlight !== null && this.highlight === s.fallback.label}
