@@ -29,6 +29,12 @@ export class ShareSpaceThemePicker extends LitElement {
       color: var(--primary-text-color);
       font: inherit;
       font-size: 0.9em;
+      min-width: 0;
+      flex: 0 1 auto;
+    }
+    /* the theme name gives way first; the short mode select stays whole */
+    select:last-of-type {
+      flex: none;
     }
   `;
 

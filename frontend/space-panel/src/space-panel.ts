@@ -541,12 +541,34 @@ private _prefsFor = "";
       position: static;
       flex: none;
     }
+    .user {
+      min-width: 0;
+      max-width: 160px;
+      font-weight: 500;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    /* phones: settings on their own row, the tabs below scroll sideways instead of being covered */
     @media (max-width: 720px) {
       .top {
-        grid-template-columns: minmax(0, 1fr) auto;
+        grid-template-columns: minmax(0, 1fr);
+        gap: 0;
       }
       .title {
         display: none;
+      }
+      .actions {
+        order: -1;
+        padding-bottom: 0;
+      }
+      .actions share-space-theme-picker {
+        flex: 1;
+        min-width: 0;
+      }
+      /* the Back button sits at the top left */
+      .top.inset .actions {
+        padding-left: 60px;
       }
     }
     /* tab pages scroll inside the fixed host */
@@ -831,7 +853,7 @@ private _prefsFor = "";
     const tab = this._activeTab;
     return html`
       ${this._fullHa ? html`<button class="fab exit" aria-label="Back" @click=${this._exit}>${ICON_BACK}</button>` : nothing}
-      <div class="top">
+      <div class="top ${this._fullHa ? "inset" : ""}">
       ${this._tabs.length > 1
         ? html`<share-space-panel-tabs
             ?inset=${!!this._fullHa}
@@ -846,6 +868,7 @@ private _prefsFor = "";
         <h1 class="title">${this.hass?.config?.location_name ?? "Share Space"}</h1>
         <div class="actions">
           <share-space-theme-picker .hass=${this.hass}></share-space-theme-picker>
+          ${this.hass?.user?.name ? html`<span class="user" title=${this.hass.user.name}>${this.hass.user.name}</span>` : nothing}
           <button class="fab logout" aria-label="Log out" title="Log out" @click=${this._logout}>${ICON_LOGOUT}</button>
         </div>
       </div>
