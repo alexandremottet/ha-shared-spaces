@@ -6,7 +6,7 @@ import { wallTime } from "../heating/tz";
 import type { Action, Condition, PresetTemps, RuleStrategy, TimeWindow } from "./types";
 import { DEFAULT_PRESET_TEMPS } from "./types";
 import { once } from "./once";
-import type { SensorReadings } from "./value";
+import type { EntityStates, SensorReadings } from "./value";
 import { evalValue, temperatureOf } from "./value";
 
 const HOUR = 3600000;
@@ -17,18 +17,20 @@ export interface RuleFacts {
   schedule: ScheduleRanges;
   tz: string;
   readings?: SensorReadings;
+  states?: EntityStates;
   occupied(): boolean;
   nextOn(): number | null;
   previousOff(): number | null;
   wall(): WallTime;
 }
 
-export function factsAt(schedule: ScheduleRanges, now: number, tz: string, readings?: SensorReadings): RuleFacts {
+export function factsAt(schedule: ScheduleRanges, now: number, tz: string, readings?: SensorReadings, states?: EntityStates): RuleFacts {
   return {
     now,
     schedule,
     tz,
     readings,
+    states,
     occupied: once(() => occupiedAt(schedule, now, tz)),
     nextOn: once(() => nextOn(schedule, now, tz)),
     previousOff: once(() => previousOff(schedule, now, tz)),
@@ -68,6 +70,8 @@ function holds(c: Condition, f: RuleFacts): boolean {
       if (r === undefined || !Number.isFinite(r)) return false;
       return c.op === "below" ? r < c.than : r > c.than;
     }
+    case "state":
+      return f.states?.[c.entity] === c.is;
   }
 }
 
@@ -99,6 +103,7 @@ export function evaluateRules(
   tz: string,
   temps: PresetTemps = DEFAULT_PRESET_TEMPS,
   readings?: SensorReadings,
+  states?: EntityStates,
 ): StrategyEvaluation {
-  return evaluateFacts(strategy, factsAt(schedule, now, tz, readings), temps);
+  return evaluateFacts(strategy, factsAt(schedule, now, tz, readings, states), temps);
 }

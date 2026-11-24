@@ -1,12 +1,10 @@
 import { LitElement, css, html, nothing } from "lit";
-import type { PropertyValues } from "lit";
 import { property, state } from "lit/decorators.js";
 import { safeCustomElement } from "../define";
-import { hassNow, hassTimeZone } from "../ha/hass";
+import { errorMessage, hassNow, hassTimeZone } from "../ha/hass";
 import type { HomeAssistant } from "../ha/hass";
 import {
   findZoneStrategies,
-  listAreas,
   listStrategies,
   listZones,
   loadZoneRules,
@@ -19,7 +17,7 @@ import {
 import type { HeatingZone, SharedStrategy, ZoneRules } from "../ha/ws";
 import { haTheme } from "../ha/theme";
 import type { RuleStrategy } from "../rules/types";
-import { sensorReadings } from "../rules/value";
+import { entityStates, sensorReadings } from "../rules/value";
 import { strategyTimeline } from "./strategy-timeline";
 import { plannedSpans } from "./week-preview";
 import type { Span } from "./week-preview";
@@ -28,7 +26,6 @@ import { fromWall, wallTime } from "./tz";
 
 const CUSTOM = "__custom__";
 const PANEL_PATH = "/share-space?tab=rules";
-const slug = (s: string) => s.toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_+|_+$/g, "");
 
 // Zone strategy chooser: pick a shared strategy, preview the week, save; rule editing lives in the panel.
 @safeCustomElement("share-space-strategy-editor")
@@ -110,14 +107,11 @@ export class ShareSpaceStrategyEditor extends LitElement {
 
   @property({ attribute: false }) hass?: HomeAssistant;
   @property() zone = "";
-  @property() area = "";
 
   @state() private _shared: SharedStrategy[] = [];
   @state() private _current: ZoneRules | null = null;
   @state() private _zoneInfo: HeatingZone | undefined;
-  @state() private _areas: Array<{ area_id: string; name: string }> = [];
   @state() private _choice = "";
-  @state() private _areaId = "";
   @state() private _busy = false;
   @state() private _error = "";
   @state() private _notice = "";
@@ -137,25 +131,24 @@ export class ShareSpaceStrategyEditor extends LitElement {
     return this._current?.id ?? strategyAutomationId(this.zone);
   }
 
+  /** HA's area of the zone's thermostat: the area whose planning drives the rules. */
+  private get _areaId(): string {
+    return this._zoneInfo?.area_id ?? "";
+  }
+
   private get _custom(): boolean {
     return !!this._current?.rules && !this._current.strategy;
   }
 
-  protected willUpdate(changed: PropertyValues): void {
+  protected willUpdate(): void {
     if (this.hass && this.zone && this._isAdmin && this._initFor !== this.zone) {
       this._initFor = this.zone;
       void this._init();
     }
-    if (changed.has("area") && this.area && !this._current) this._areaId = this.area;
   }
 
   private async _init(): Promise<void> {
     const hass = this.hass!;
-    try {
-      this._areas = (await listAreas(hass)).map((a) => ({ area_id: a.area_id, name: a.name }));
-    } catch {
-      this._areas = Object.values(hass.areas ?? {}).map((a) => ({ area_id: a.area_id, name: a.name }));
-    }
     this._zoneInfo = (await listZones(hass).catch(() => [])).find((z) => z.entity_id === this.zone);
     await this._load();
   }
@@ -167,22 +160,9 @@ export class ShareSpaceStrategyEditor extends LitElement {
       this._shared = shared;
       this._current = current;
       this._choice = current?.strategy ?? (this._custom ? CUSTOM : (shared[0]?.id ?? ""));
-      this._areaId = current?.area || this._defaultArea();
     } catch (err) {
-      this._error = this._msg(err);
+      this._error = errorMessage(err);
     }
-  }
-
-  private _defaultArea(): string {
-    if (this.area) return this.area;
-    const zoneSlug = slug(this._zoneName);
-    const match = this._areas.find((a) => a.area_id === zoneSlug || slug(a.name) === zoneSlug);
-    return (match ?? this._areas[0])?.area_id ?? "";
-  }
-
-  private _msg(err: unknown): string {
-    const e = err as { message?: string; body?: { message?: string } } | null;
-    return e?.body?.message ?? e?.message ?? String(err);
   }
 
   private get _zoneRef(): Pick<HeatingZone, "entity_id" | "entry_id" | "presence_entity"> {
@@ -198,7 +178,7 @@ export class ShareSpaceStrategyEditor extends LitElement {
       await this._load();
       this.dispatchEvent(new CustomEvent("strategy-changed", { bubbles: true, composed: true }));
     } catch (err) {
-      this._error = this._msg(err);
+      this._error = errorMessage(err);
     } finally {
       this._busy = false;
     }
@@ -251,9 +231,10 @@ export class ShareSpaceStrategyEditor extends LitElement {
     const attrs = hass.states[this.zone]?.attributes;
     const temps = { comfort: Number(attrs?.comfort_temp ?? 21), eco: Number(attrs?.eco_temp ?? 17) };
     const readings = sensorReadings(rules, hass.states, (attrs?.outdoor_entity as string | null | undefined) ?? null);
-    const key = JSON.stringify([rules, schedule, days[0], temps, readings]);
+    const states = entityStates(rules, hass.states);
+    const key = JSON.stringify([rules, schedule, days[0], temps, readings, states]);
     if (this._memo?.key !== key) {
-      this._memo = { key, days, planned: plannedSpans(schedule, days, tz), segments: strategyTimeline(rules, schedule, days[0], days[7], tz, temps, readings) };
+      this._memo = { key, days, planned: plannedSpans(schedule, days, tz), segments: strategyTimeline(rules, schedule, days[0], days[7], tz, temps, readings, states) };
     }
     const m = this._memo;
     return html`<share-space-week-preview .segments=${m.segments} .planned=${m.planned} .days=${m.days} .now=${now} .tz=${tz}></share-space-week-preview>`;
@@ -270,25 +251,27 @@ export class ShareSpaceStrategyEditor extends LitElement {
     if (this._current && this._current.state !== "managed") {
       return html`<div class="wrap"><div class="muted">This zone's automation was changed outside Share Space.</div><div class="row">${link}</div></div>`;
     }
-    const areas = [...this._areas];
-    if (this._areaId && !areas.some((a) => a.area_id === this._areaId)) areas.push({ area_id: this._areaId, name: this._areaId });
+    const areaName = this.hass.areas?.[this._areaId]?.name ?? this._areaId;
     const savedChoice = this._current?.strategy ?? (this._custom ? CUSTOM : "");
     const shared = this._shared.some((x) => x.id === this._choice);
     const unchanged = this._choice === savedChoice && this._areaId === this._current?.area;
+    const noArea = this._zoneInfo && !this._areaId;
+    const conflict = !!this._zoneInfo?.area_conflict;
     return html`<div class="wrap">
       <div class="row">
         <label>Strategy<select .value=${this._choice} ?disabled=${this._busy} @change=${(e: Event) => (this._choice = (e.target as HTMLSelectElement).value)}>
           ${this._custom ? html`<option value=${CUSTOM} ?selected=${this._choice === CUSTOM}>Custom (edit in panel)</option>` : nothing}
           ${this._shared.map((x) => html`<option value=${x.id} ?selected=${x.id === this._choice}>${x.name}</option>`)}
         </select></label>
-        <label>Area<select .value=${this._areaId} ?disabled=${this._busy || this._choice === CUSTOM} @change=${(e: Event) => (this._areaId = (e.target as HTMLSelectElement).value)}>
-          <option value="">Choose…</option>
-          ${areas.map((a) => html`<option value=${a.area_id} ?selected=${a.area_id === this._areaId}>${a.name}</option>`)}
-        </select></label>
+        ${this._areaId ? html`<span class="muted">Area: <strong>${areaName}</strong></span>` : nothing}
       </div>
+      ${noArea
+        ? html`<div class="err">This thermostat has no area. Assign <strong>${this._zoneInfo!.climate_entity}</strong> to an area in Home Assistant (Settings → Entities).</div>`
+        : nothing}
+      ${conflict ? html`<div class="err">Another heating zone is in ${areaName}. Keep one thermostat per area in Home Assistant.</div>` : nothing}
       ${this._renderPreview()}
       <div class="row">
-        ${shared ? html`<button class="primary" ?disabled=${this._busy || !this._areaId || (unchanged && !!auto?.enabled)} @click=${() => this._save()}>Save</button>` : nothing}
+        ${shared ? html`<button class="primary" ?disabled=${this._busy || !this._areaId || conflict || (unchanged && !!auto?.enabled)} @click=${() => this._save()}>Save</button>` : nothing}
         ${auto && this._choice === savedChoice ? html`<button ?disabled=${this._busy} @click=${() => this._toggle(!auto.enabled)}>${auto.enabled ? "Disable" : "Enable"}</button>` : nothing}
         ${link}
       </div>

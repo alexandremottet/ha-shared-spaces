@@ -10,7 +10,7 @@ from pytest_homeassistant_custom_component.common import MockConfigEntry, async_
 from custom_components.share_space_heating.const import DATA_STRATEGIES, DOMAIN
 from custom_components.share_space_heating.store import StrategyStore
 
-from .helpers import CLIMATE, SENSOR, _spy_base, setup_zone
+from .helpers import SENSOR, _spy_base, setup_zone
 from .test_rules_blueprint import BLUEPRINT
 
 ECO = {"version": 1, "rules": [], "fallback": {"label": "Eco all day", "then": {"type": "eco"}}}
@@ -201,9 +201,9 @@ async def test_two_zones_share_one_strategy_with_own_planning(hass, freezer):
     assert [c["reason"] for c in base_b] == ["Empty"]
 
 
-def test_rules_blueprint_v3_inputs():
+def test_rules_blueprint_v4_inputs():
     text = BLUEPRINT.read_text()
-    assert text.startswith("# share_space_blueprint_version: 3\n")
+    assert text.startswith("# share_space_blueprint_version: 4\n")
     assert "      rules: !input rules\n      strategy: !input strategy\n" in text
 
 

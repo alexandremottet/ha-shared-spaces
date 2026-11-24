@@ -18,6 +18,7 @@ import {
   saveHeatingSettings,
   setMyDefaultPanel,
   SHARE_SPACE_PANEL,
+  errorMessage,
 } from "ha-share-space-ui/ha";
 import type { SharePrefs, HomeAssistant, Floorplan, Hotspot, AreaInfo, SpaceDashboard } from "ha-share-space-ui/ha";
 import { zoneViewModel } from "ha-share-space-heating-card/view-model";
@@ -234,7 +235,7 @@ private _prefsFor = "";
       this._error = "";
       if (!this._planId && this._plans[0]) this._planId = this._plans[0].id;
     } catch (err) {
-      this._error = err instanceof Error ? err.message : String((err as { message?: string })?.message ?? err);
+      this._error = errorMessage(err);
       this._plans = [];
     }
   }
@@ -366,7 +367,7 @@ private _prefsFor = "";
     try {
       await fn();
     } catch (err) {
-      this._actionError = err instanceof Error ? err.message : String((err as { message?: string })?.message ?? err);
+      this._actionError = errorMessage(err);
     }
   }
 
@@ -395,7 +396,7 @@ private _prefsFor = "";
       this._planId = saved.id;
       this._cancelEdit();
     } catch (err) {
-      this._error = err instanceof Error ? err.message : String((err as { message?: string })?.message ?? err);
+      this._error = errorMessage(err);
     } finally {
       this._saving = false;
     }

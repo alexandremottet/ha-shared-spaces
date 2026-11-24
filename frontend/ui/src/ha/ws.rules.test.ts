@@ -75,7 +75,7 @@ describe("rules automations", () => {
       {
         alias: "Share Space · Zone A · Custom rules",
         description: expect.stringMatching(/^Managed by Share Space · [0-9a-f]{8}$/),
-        use_blueprint: { path: "share_space/rules.yaml", input: { zone: "sensor.zone_a", area: "office", rules, previous_rules: null } },
+        use_blueprint: { path: "share_space/rules.yaml", input: { area: "office", rules, previous_rules: null } },
       },
     ]);
   });

@@ -20,17 +20,17 @@ export interface SharedSource {
 
 export const isSharedSource = (s: RulesSource): s is SharedSource => "strategy" in s;
 
-/** HA automation config (blueprint inputs zone, area, then rules + previous_rules or strategy) for a zone's rules. */
+/** HA automation config (blueprint inputs area, then rules + previous_rules or strategy); HA finds the heating from the area. */
 export function rulesAutomationConfig(zone: { entity_id: string; name: string }, area: string, source: RulesSource): StrategyAutomationConfig {
   if (isSharedSource(source)) {
     return stampManaged({
       alias: `Share Space · ${zone.name} · ${source.name}`,
-      use_blueprint: { path: RULES_BLUEPRINT_PATH, input: { zone: zone.entity_id, area, strategy: source.strategy } },
+      use_blueprint: { path: RULES_BLUEPRINT_PATH, input: { area, strategy: source.strategy } },
     });
   }
   return stampManaged({
     alias: `Share Space · ${zone.name} · Custom rules`,
-    use_blueprint: { path: RULES_BLUEPRINT_PATH, input: { zone: zone.entity_id, area, rules: source.rules, previous_rules: source.previous } },
+    use_blueprint: { path: RULES_BLUEPRINT_PATH, input: { area, rules: source.rules, previous_rules: source.previous } },
   });
 }
 

@@ -36,7 +36,10 @@ export interface HeatingZone {
   target_template?: string | null;
   template_result?: string | null;
   template_error?: string | null;
+  /** HA area of the climate entity (entity registry, else device); the provisioning area only when HA has none. */
   area_id?: string | null;
+  /** Another heating zone resolves to the same area: rules for that area fail until fixed in HA. */
+  area_conflict?: boolean;
   /** Set when Share Space built the thermostat from heater switches + a sensor. */
   heaters?: string[] | null;
   heater_switch?: string | null;

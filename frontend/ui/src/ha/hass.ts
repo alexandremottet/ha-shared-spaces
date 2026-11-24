@@ -30,3 +30,10 @@ export const hassNow = (hass: HomeAssistant): number => hass.now?.() ?? Date.now
 
 export const hassTimeZone = (hass: HomeAssistant): string =>
   hass.config?.time_zone ?? Intl.DateTimeFormat().resolvedOptions().timeZone;
+
+/** Readable text of a thrown value: Error, HA WS error ({message}) or REST error ({body: {message}}). */
+export function errorMessage(err: unknown): string {
+  if (err instanceof Error) return err.message;
+  const e = err as { message?: string; body?: { message?: string } } | null;
+  return e?.body?.message ?? e?.message ?? String(err);
+}

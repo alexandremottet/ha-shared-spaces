@@ -9,11 +9,10 @@ from homeassistant.components import websocket_api
 from homeassistant.core import HomeAssistant
 from homeassistant.exceptions import TemplateError
 from homeassistant.helpers import config_validation as cv
-from homeassistant.helpers import device_registry as dr
 from homeassistant.helpers import entity_registry as er
 from homeassistant.helpers.template import Template
 
-from .provision import CONF_AREA, CONF_HEATER_SWITCH, CONF_HEATERS, CONF_MANAGED_ENTRIES, CONF_TEMPERATURE_SENSOR, ProvisionError, async_create_area_zone
+from .provision import CONF_HEATER_SWITCH, CONF_HEATERS, CONF_MANAGED_ENTRIES, CONF_TEMPERATURE_SENSOR, ProvisionError, async_create_area_zone
 from .const import (
     CONF_CLIMATE_ENTITY,
     CONF_COMFORT_TEMP,
@@ -74,7 +73,7 @@ def _template_error(hass: HomeAssistant, msg: dict) -> str | None:
     return None
 
 
-def _summary(hass: HomeAssistant, entry_id: str, zone) -> dict:
+def _summary(hass: HomeAssistant, entry_id: str, zone, zones) -> dict:
     return {
         "entry_id": entry_id,
         "name": zone.entry.title,
@@ -88,22 +87,13 @@ def _summary(hass: HomeAssistant, entry_id: str, zone) -> dict:
         "template_result": zone.template_result,
         "template_error": zone.template_error,
         "override_until": zone.override_until.isoformat() if zone.override_active else None,
-        "area_id": zone.entry.data.get(CONF_AREA) or _entity_area(hass, zone.climate_entity),
+        "area_id": zone.area,
+        "area_conflict": zone.area is not None and sum(z.area == zone.area for z in zones) > 1,
         "heaters": zone.entry.data.get(CONF_HEATERS),
         "heater_switch": zone.entry.data.get(CONF_HEATER_SWITCH),
         "temperature_sensor": zone.entry.data.get(CONF_TEMPERATURE_SENSOR),
         "managed": bool(zone.entry.data.get(CONF_MANAGED_ENTRIES)),
     }
-
-
-def _entity_area(hass: HomeAssistant, entity_id: str) -> str | None:
-    ent = er.async_get(hass).async_get(entity_id)
-    if ent is None:
-        return None
-    if ent.area_id or not ent.device_id:
-        return ent.area_id
-    device = dr.async_get(hass).async_get(ent.device_id)
-    return device.area_id if device else None
 
 
 def _zone_entity_id(hass: HomeAssistant, entry_id: str) -> str | None:
@@ -114,7 +104,7 @@ def _zone_entity_id(hass: HomeAssistant, entry_id: str) -> str | None:
 @websocket_api.async_response
 async def ws_list_zones(hass: HomeAssistant, connection, msg: dict) -> None:
     zones = hass.data.get(DOMAIN, {}).get(DATA_ZONES, {})
-    connection.send_result(msg["id"], [_summary(hass, entry_id, zone) for entry_id, zone in zones.items()])
+    connection.send_result(msg["id"], [_summary(hass, entry_id, zone, zones.values()) for entry_id, zone in zones.items()])
 
 
 @websocket_api.require_admin
@@ -181,7 +171,7 @@ async def ws_update_zone(hass: HomeAssistant, connection, msg: dict) -> None:
         except TimeoutError:
             connection.send_error(msg["id"], "reload_timeout", "Zone reload timed out")
             return
-    connection.send_result(msg["id"], _summary(hass, entry.entry_id, zones[entry.entry_id]))
+    connection.send_result(msg["id"], _summary(hass, entry.entry_id, zones[entry.entry_id], zones.values()))
 
 
 def _valid_rules(rules: dict) -> bool:

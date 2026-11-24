@@ -6,6 +6,9 @@ export const OUTDOOR = "outdoor";
 /** Numeric readings by entity id; a missing entry means no reading. */
 export type SensorReadings = Record<string, number>;
 
+/** Raw entity states by entity id, for state conditions; a missing entry means no entity. */
+export type EntityStates = Record<string, string>;
+
 export const TEMP_LIMITS: [number, number] = [5, 35];
 
 /** Fixed number, or the sensor reading mapped through the curve points (linear between, flat outside). */
@@ -41,6 +44,20 @@ export function strategySensors(strategy: RuleStrategy): string[] {
       if (c.type === "sensor") out.add(c.entity);
     }
   return [...out];
+}
+
+/** Entity ids read by state conditions. */
+export function strategyStateEntities(strategy: RuleStrategy): string[] {
+  const out = new Set<string>();
+  for (const r of strategy.rules) for (const c of r.when) if (c.type === "state") out.add(c.entity);
+  return [...out];
+}
+
+/** Current raw states for every entity a state condition reads. */
+export function entityStates(strategy: RuleStrategy, states: Record<string, { state: string }>): EntityStates {
+  const out: EntityStates = {};
+  for (const id of strategyStateEntities(strategy)) if (states[id]) out[id] = states[id].state;
+  return out;
 }
 
 /** Number from an HA state: weather.* attribute temperature, else the numeric state. */

@@ -2,7 +2,7 @@ import { LitElement, html, css, nothing } from "lit";
 import type { PropertyValues, TemplateResult } from "lit";
 import { customElement, property, state } from "lit/decorators.js";
 import { haCardSurface } from "ha-share-space-ui";
-import { findMyPerson } from "ha-share-space-ui/ha";
+import { findMyPerson, errorMessage } from "ha-share-space-ui/ha";
 import type { HomeAssistant } from "ha-share-space-ui/ha";
 import { zoneViewModel } from "ha-share-space-heating-card/view-model";
 import type { ZoneViewModel } from "ha-share-space-heating-card/view-model";
@@ -128,7 +128,7 @@ export class ShareSpaceOverview extends LitElement {
     try {
       await fn();
     } catch (err) {
-      this._error = err instanceof Error ? err.message : String((err as { message?: string })?.message ?? err);
+      this._error = errorMessage(err);
     }
   }
 
@@ -165,7 +165,7 @@ export class ShareSpaceOverview extends LitElement {
             <div class="zones">${others.map((vm) => this._zone(hass, vm))}</div>
           </section>`
         : nothing}
-      ${zones.length ? nothing : html`<div class="muted">No heating zone yet.</div>`}
+      ${zones.length ? nothing : html`<div class="muted">No heated area yet.</div>`}
       ${this._error ? html`<div class="error">${this._error}</div>` : nothing}
     `;
   }
