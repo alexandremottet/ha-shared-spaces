@@ -1,0 +1,63 @@
+name: Release
+
+# Push to main: release v<root package.json version> if new, plus every component
+# whose <component>-v<version> release is new. Bump versions with `pnpm version-packages`
+# (and the root package.json for a new global release), merge, done.
+# Tag v<version>: same, pinned to that tag. Tag <component>-v<version>: that component only.
+on:
+  push:
+    branches: [main]
+    tags:
+      - "v*"
+      - "share_space*-v*"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Resolve tag
+        id: tag
+        run: |
+          if [ "$GITHUB_REF_TYPE" = tag ]; then
+            echo "name=$GITHUB_REF_NAME" >> "$GITHUB_OUTPUT"
+          else
+            echo "name=v$(jq -r .version package.json)" >> "$GITHUB_OUTPUT"
+          fi
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      # space-panel builds into share_space_space/frontend, which is gitignored
+      - run: pnpm build
+      - name: Package
+        id: package
+        run: echo "plan=$(node scripts/release.mjs "${{ steps.tag.outputs.name }}")" >> "$GITHUB_OUTPUT"
+      - name: Publish
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PLAN: ${{ steps.package.outputs.plan }}
+        run: |
+          release() { # tag title notes assets...
+            local tag=$1 title=$2 notes=$3; shift 3
+            if gh release view "$tag" >/dev/null 2>&1; then
+              echo "$tag already released, skipping"
+              return
+            fi
+            gh release create "$tag" "$@" --title "$title" --notes-file "$notes" --target "$GITHUB_SHA"
+          }
+          mapfile -t assets < <(jq -r '.assets[]' <<<"$PLAN")
+          release "$(jq -r .tag <<<"$PLAN")" "$(jq -r .title <<<"$PLAN")" "$(jq -r .notes <<<"$PLAN")" "${assets[@]}"
+          jq -c '.components[]' <<<"$PLAN" | while read -r component; do
+            release "$(jq -r .tag <<<"$component")" "$(jq -r .title <<<"$component")" \
+              "$(jq -r .notes <<<"$component")" "$(jq -r .asset <<<"$component")"
+          done

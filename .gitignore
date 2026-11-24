@@ -12,3 +12,4 @@ frontend/playground/dist/
 
 # Claude Code sub-agent worktrees
 .claude/worktrees/
+dist/

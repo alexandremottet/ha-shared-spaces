@@ -1,14 +1,18 @@
 {
   "domain": "share_space_heating",
   "name": "Share Space Heating",
-  "codeowners": ["@alexandremottet"],
+  "codeowners": [
+    "@alexandremottet"
+  ],
   "config_flow": true,
   "dependencies": [],
-  "after_dependencies": ["climate"],
+  "after_dependencies": [
+    "climate"
+  ],
   "documentation": "https://github.com/alexandremottet/ha-share-space",
   "issue_tracker": "https://github.com/alexandremottet/ha-share-space/issues",
   "iot_class": "calculated",
   "integration_type": "helper",
   "requirements": [],
-  "version": "0.1.0"
+  "version": "1.0.0"
 }
