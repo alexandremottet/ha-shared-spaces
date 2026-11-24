@@ -1,5 +1,21 @@
 import { expect, test } from "@playwright/test";
+import type { Page } from "@playwright/test";
 import { SPACE_ADMIN, USER, logIn } from "./login";
+
+// Pages are a tab strip on wide screens and a menu behind the "Pages" button on phones.
+async function pageButtons(page: Page) {
+  await page.locator("share-space-panel-tabs button:visible").first().waitFor();
+  const menu = page.getByRole("button", { name: "Pages" });
+  if (await menu.isVisible()) {
+    await menu.click();
+    return page.getByRole("menu");
+  }
+  return page.locator("share-space-panel-tabs");
+}
+
+async function openPage(page: Page, name: string) {
+  await (await pageButtons(page)).getByRole("button", { name }).click();
+}
 
 for (const [who, account] of [
   ["Space Admin", SPACE_ADMIN],
@@ -31,7 +47,7 @@ for (const [who, account] of [
 test("Space Admin sees everyone's planning", async ({ page }) => {
   await logIn(page, SPACE_ADMIN);
   await page.goto("/share-space");
-  await page.getByRole("button", { name: "Plannings" }).click();
+  await openPage(page, "Plannings");
   const people = page.locator("share-space-people-planning");
   await expect(people.getByRole("heading", { name: "Everyone's planning" })).toBeVisible();
   const roster = people.locator("area-roster-view");
@@ -43,7 +59,7 @@ test("Space Admin sees everyone's planning", async ({ page }) => {
 test("Space Admin can open someone's planning to edit it", async ({ page }) => {
   await logIn(page, SPACE_ADMIN);
   await page.goto("/share-space");
-  await page.getByRole("button", { name: "Plannings" }).click();
+  await openPage(page, "Plannings");
   const people = page.locator("share-space-people-planning");
   await people.getByRole("combobox", { name: "Person" }).selectOption({ label: "User 1" });
   await expect(people.locator("week-schedule day-schedule")).toHaveCount(7);
@@ -53,7 +69,7 @@ test("a user does not see other people's planning", async ({ page }) => {
   await logIn(page, USER);
   await page.goto("/share-space");
   await expect(page.locator("share-space-overview-planning").getByRole("heading", { name: "Planning" })).toBeVisible();
-  await expect(page.getByRole("button", { name: "Plannings" })).toHaveCount(0);
+  await expect(page.locator("share-space-panel-tabs").getByText("Plannings")).toHaveCount(0);
   await expect(page.getByRole("heading", { name: "Everyone's planning" })).toHaveCount(0);
 });
 
