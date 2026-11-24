@@ -3,7 +3,7 @@ import type { PropertyValues, TemplateResult } from "lit";
 import { customElement, property, state } from "lit/decorators.js";
 import "ha-share-space-ui";
 import { haCardSurface, isDirty, validateStrategy } from "ha-share-space-ui";
-import type { EntityStates, ManagedState, SensorReadings, PresetTemps, RuleStrategy, SavedRules, ScheduleRanges } from "ha-share-space-ui";
+import type { EntityStates, ManagedState, SensorReadings, PersonPlannings, PresetTemps, RuleStrategy, SavedRules, ScheduleRanges } from "ha-share-space-ui";
 import { nameTaken } from "ha-share-space-ui/ha";
 import type { AreaInfo, HeatingZone, SharedStrategy } from "ha-share-space-ui/ha";
 
@@ -20,6 +20,8 @@ export class ShareSpaceRulesTab extends LitElement {
   @property({ attribute: false }) draft: RuleStrategy | null = null;
   @property({ attribute: false }) saved: SavedRules | null = null;
   @property({ attribute: false }) schedule: ScheduleRanges | null = null;
+  /** Each person's own planning, for rules about one person. */
+  @property({ attribute: false }) plannings?: PersonPlannings;
   @property({ attribute: false }) temps?: PresetTemps;
   @property({ attribute: false }) readings?: SensorReadings;
   @property({ attribute: false }) states?: EntityStates;
@@ -484,10 +486,11 @@ export class ShareSpaceRulesTab extends LitElement {
       <div class="cols">
         <div class="preview-col">
           <h4>Preview</h4>
-          ${this.schedule
+          ${this.area
             ? html`<share-space-rule-preview
                 .strategy=${draft}
-                .schedule=${this.schedule}
+                .schedule=${this.schedule ?? {}}
+                .plannings=${this.plannings}
                 .now=${this.now}
                 .tz=${this.tz}
                 .temps=${this.temps}
@@ -496,7 +499,7 @@ export class ShareSpaceRulesTab extends LitElement {
                 .highlight=${this._hl}
                 @segment-hover=${(e: CustomEvent<{ reason: string | null }>) => (this._hl = e.detail.reason)}
               ></share-space-rule-preview>`
-            : html`<div class="muted">${this.area ? "No planning for this area yet." : "Choose an area to see the preview."}</div>`}
+            : html`<div class="muted">Choose an area to see the preview.</div>`}
         </div>
         <div class="rules-col">
           <share-space-rule-list

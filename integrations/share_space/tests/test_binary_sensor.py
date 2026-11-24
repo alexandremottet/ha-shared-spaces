@@ -60,3 +60,19 @@ async def test_area_entity_appears_dynamically(hass, freezer):
     assert hass.states.get("binary_sensor.share_space_lab") is None
     await _assign(hass, area="lab")
     assert hass.states.get("binary_sensor.share_space_lab") is not None
+
+
+async def test_everyone_merges_all_plannings(hass, freezer):
+    freezer.move_to("2026-01-05 10:15:00+00:00")
+    await _setup(hass)
+    await hass.services.async_call(DOMAIN, "set_calendar", {"person": "person.a", "calendar": CAL}, blocking=True)
+    await _assign(hass, "person.a", "office")
+    await hass.services.async_call(
+        DOMAIN, "set_calendar", {"person": "person.b", "calendar": {"monday": [{"start": "12:00", "end": "13:00"}]}}, blocking=True
+    )
+    state = hass.states.get("binary_sensor.share_space_everyone")
+    assert state.name == "Everyone"
+    assert state.state == "on"
+    assert state.attributes["persons"] == ["person.a", "person.b"]
+    assert state.attributes["schedule"]["monday"] == [["10:00", "11:00"], ["12:00", "13:00"]]
+    assert hass.states.get("sensor.share_space_everyone_next_on") is not None

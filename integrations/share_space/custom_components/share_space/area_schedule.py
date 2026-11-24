@@ -10,6 +10,7 @@ just hand back the raw per-person calendars themselves).
 from __future__ import annotations
 
 from .calendar_merge import merge_calendars
+from .const import EVERYONE
 from .calendar_types import Calendar, Schedule, TimeRange, WeekDay
 from .people import PersonAreas, PersonPlannings
 
@@ -33,9 +34,12 @@ def list_area_person_calendars(
     area: str,
 ) -> dict[str, Calendar]:
     """Every person assigned to `area`, each with their own raw (unmerged) calendar."""
+    persons = person_area_store.persons_in_area(area)
+    if area == EVERYONE:
+        persons = sorted(set(persons) | person_calendar_store.persons())
     return {
         person: _parse_calendar(raw_calendar)
-        for person in person_area_store.persons_in_area(area)
+        for person in persons
         if (raw_calendar := person_calendar_store.get(person)) is not None
     }
 

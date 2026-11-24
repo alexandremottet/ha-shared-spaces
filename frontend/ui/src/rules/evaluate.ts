@@ -3,7 +3,7 @@ import type { ScheduleRanges, StrategyEvaluation, StrategyResult } from "../heat
 import { nextOn, occupiedAt, previousOff, toMinutes, windowMatches } from "../heating/strategy-sim";
 import type { WallTime } from "../heating/tz";
 import { wallTime } from "../heating/tz";
-import type { Action, Condition, PresetTemps, RuleStrategy, TimeWindow } from "./types";
+import type { Action, Condition, PersonPlannings, PresetTemps, RuleStrategy, TimeWindow } from "./types";
 import { DEFAULT_PRESET_TEMPS } from "./types";
 import { once } from "./once";
 import type { EntityStates, SensorReadings } from "./value";
@@ -18,19 +18,21 @@ export interface RuleFacts {
   tz: string;
   readings?: SensorReadings;
   states?: EntityStates;
+  plannings?: PersonPlannings;
   occupied(): boolean;
   nextOn(): number | null;
   previousOff(): number | null;
   wall(): WallTime;
 }
 
-export function factsAt(schedule: ScheduleRanges, now: number, tz: string, readings?: SensorReadings, states?: EntityStates): RuleFacts {
+export function factsAt(schedule: ScheduleRanges, now: number, tz: string, readings?: SensorReadings, states?: EntityStates, plannings?: PersonPlannings): RuleFacts {
   return {
     now,
     schedule,
     tz,
     readings,
     states,
+    plannings,
     occupied: once(() => occupiedAt(schedule, now, tz)),
     nextOn: once(() => nextOn(schedule, now, tz)),
     previousOff: once(() => previousOff(schedule, now, tz)),
@@ -62,8 +64,12 @@ function holds(c: Condition, f: RuleFacts): boolean {
     }
     case "planned": {
       const day = WEEK_DAYS[f.wall().weekday];
-      const hit = (w: TimeWindow) => windowMatches(f.schedule, day, w.start, w.end, f.tz);
-      return c.match === "any" ? c.windows.some(hit) : c.windows.every(hit);
+      // "anyone": one same person must match, each person's planning on its own
+      const schedules = c.who === "anyone" ? Object.values(f.plannings ?? {}) : [f.schedule];
+      return schedules.some((s) => {
+        const hit = (w: TimeWindow) => windowMatches(s, day, w.start, w.end, f.tz);
+        return c.match === "any" ? c.windows.some(hit) : c.windows.every(hit);
+      });
     }
     case "sensor": {
       const r = f.readings?.[c.entity];
@@ -106,6 +112,7 @@ export function evaluateRules(
   temps: PresetTemps = DEFAULT_PRESET_TEMPS,
   readings?: SensorReadings,
   states?: EntityStates,
+  plannings?: PersonPlannings,
 ): StrategyEvaluation {
-  return evaluateFacts(strategy, factsAt(schedule, now, tz, readings, states), temps);
+  return evaluateFacts(strategy, factsAt(schedule, now, tz, readings, states, plannings), temps);
 }

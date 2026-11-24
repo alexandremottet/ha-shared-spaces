@@ -18,6 +18,7 @@ from homeassistant.helpers.storage import Store
 
 from .calendar_types import WEEK_DAYS
 from .const import (
+    EVERYONE,
     STORAGE_KEY_PERSON_AREAS,
     STORAGE_KEY_PERSON_CALENDARS,
     STORAGE_KEY_PERSON_PLANNINGS,
@@ -52,7 +53,13 @@ class PersonAreas:
         return self._all().get(person)
 
     def persons_in_area(self, area: str) -> list[str]:
+        if area == EVERYONE:
+            return self.everyone()
         return sorted(p for p, a in self._all().items() if a == area)
+
+    def everyone(self) -> list[str]:
+        people = {e.entity_id for e in self._registry().entities.values() if e.domain == "person"}
+        return sorted(people | set(self._legacy))
 
     def areas(self) -> set[str]:
         return set(self._all().values())
@@ -124,6 +131,9 @@ class PersonPlannings:
     def _item(self, person: str) -> dict | None:
         item_id = self._links.get(person)
         return _schedule_collection(self._hass).data.get(item_id) if item_id else None
+
+    def persons(self) -> set[str]:
+        return set(self._links) | set(self._legacy)
 
     def get(self, person: str) -> dict | None:
         item = self._item(person)

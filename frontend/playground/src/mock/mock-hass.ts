@@ -174,6 +174,11 @@ export class MockHassController {
     return out;
   }
 
+  /** Each person's own planning, as share_space's Everyone sensor gives it. */
+  personPlannings(): Record<string, ScheduleRanges> {
+    return Object.fromEntries(Object.entries(this._state.calendars).map(([p, cal]) => [p, scheduleToRanges(mergeCalendars([cal]))]));
+  }
+
   areaOccupancy(area: string): { on: boolean; next_change: string | null } | null {
     return this._knownAreas.has(area) ? this._occupancy(area) : null;
   }
@@ -578,6 +583,7 @@ export class MockHassController {
   }
 
   private _settlePlanning(): void {
+    this._setEntity("binary_sensor.share_space_everyone", "off", { friendly_name: "Everyone", plannings: this.personPlannings() });
     for (const area of this._knownAreas) {
       const occ = this._occupancy(area);
       const forced = this._state.forcedPresence[area];
@@ -651,7 +657,7 @@ export class MockHassController {
     if (!rules) return null;
     try {
       const cfg = this._rulesZone(input, area).config;
-      return evaluateRules(rules, this._ranges(area), now, this.tz, { comfort: cfg.comfort_temp, eco: cfg.eco_temp }, sensorReadings(rules, Object.fromEntries(this._entities), this._outdoorEntity));
+      return evaluateRules(rules, this._ranges(area), now, this.tz, { comfort: cfg.comfort_temp, eco: cfg.eco_temp }, sensorReadings(rules, Object.fromEntries(this._entities), this._outdoorEntity), undefined, this.personPlannings());
     } catch {
       return null;
     }

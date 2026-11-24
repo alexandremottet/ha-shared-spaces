@@ -533,6 +533,14 @@ export async function stopZoneStrategies(hass: HomeAssistant, zoneEntity: string
   await setBaseTarget(hass, zoneEntity, {});
 }
 
+export const EVERYONE_AREA = "everyone";
+
+/** Each person's own planning, for rules about one person ("someone is here morning and afternoon"). */
+export function personPlannings(hass: HomeAssistant): Record<string, ScheduleRanges> {
+  const p = hass.states[`binary_sensor.share_space_${EVERYONE_AREA}`]?.attributes.plannings;
+  return p && typeof p === "object" ? (p as Record<string, ScheduleRanges>) : {};
+}
+
 export function planningSchedule(hass: HomeAssistant, area: string): ScheduleRanges | null {
   const s = hass.states[`binary_sensor.share_space_${area}`]?.attributes.schedule;
   return s && typeof s === "object" ? (s as ScheduleRanges) : null;
