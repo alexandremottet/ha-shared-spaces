@@ -1,5 +1,12 @@
 # ha-share-space-playground
 
+## 1.0.5
+
+### Patch Changes
+
+- Updated dependencies [d1ca355]
+  - ha-share-space-space-panel@1.4.1
+
 ## 1.0.4
 
 ### Patch Changes
