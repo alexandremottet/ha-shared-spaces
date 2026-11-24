@@ -13,10 +13,10 @@ CURVE = {"type": "curve", "entity": OUTDOOR_ALIAS, "default": 10, "points": [{"a
 
 async def test_ws_settings_round_trip_and_zone_attribute(hass, hass_ws_client, hass_storage):
     await setup_zone(hass)
-    assert (await _ws(hass, hass_ws_client, "get_settings"))["result"] == {"outdoor_entity": None}
+    assert (await _ws(hass, hass_ws_client, "get_settings"))["result"] == {"outdoor_entity": None, "ignored_areas": []}
     saved = await _ws(hass, hass_ws_client, "save_settings", outdoor_entity="weather.home")
     assert saved["result"] == {"outdoor_entity": "weather.home"}
-    assert (await _ws(hass, hass_ws_client, "get_settings"))["result"] == {"outdoor_entity": "weather.home"}
+    assert (await _ws(hass, hass_ws_client, "get_settings"))["result"] == {"outdoor_entity": "weather.home", "ignored_areas": []}
     assert hass.states.get(SENSOR).attributes["outdoor_entity"] == "weather.home"
     assert hass_storage["share_space_heating.settings"]["data"] == {"outdoor_entity": "weather.home"}
     reloaded = SettingsStore(hass)

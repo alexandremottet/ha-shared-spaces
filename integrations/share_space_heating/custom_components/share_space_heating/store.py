@@ -96,7 +96,7 @@ class StrategyStore:
 
 
 class SettingsStore:
-    """Space-wide heating settings: `{outdoor_entity}`."""
+    """Space-wide heating settings: `{outdoor_entity, ignored_areas}`."""
 
     def __init__(self, hass: HomeAssistant) -> None:
         self._store: Store[dict] = Store(hass, STORAGE_VERSION, STORAGE_KEY_SETTINGS)
@@ -111,4 +111,17 @@ class SettingsStore:
 
     async def async_set_outdoor_entity(self, entity_id: str | None) -> None:
         self._data["outdoor_entity"] = entity_id
+        await self._store.async_save(self._data)
+
+    @property
+    def ignored_areas(self) -> list[str]:
+        """Areas whose heating the admin removed: Share Space does not set them up again."""
+        return list(self._data.get("ignored_areas") or [])
+
+    async def async_set_ignored(self, area_id: str, ignored: bool) -> None:
+        areas = set(self.ignored_areas)
+        if (area_id in areas) == ignored:
+            return
+        areas.symmetric_difference_update({area_id})
+        self._data["ignored_areas"] = sorted(areas)
         await self._store.async_save(self._data)

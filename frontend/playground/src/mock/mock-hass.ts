@@ -870,7 +870,8 @@ export class MockHassController {
       true
     );
 
-    ws("share_space_heating/get_settings", "heating", () => ({ outdoor_entity: this._outdoorEntity }));
+    ws("share_space_heating/get_settings", "heating", () => ({ outdoor_entity: this._outdoorEntity, ignored_areas: [] }));
+    ws("share_space_heating/manage_area", "heating", () => ({}), true);
     ws(
       "share_space_heating/save_settings",
       "heating",

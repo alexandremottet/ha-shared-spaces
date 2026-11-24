@@ -15,6 +15,7 @@ from homeassistant.util import slugify
 from .area import zone_area
 from .climate import BAD_STATES, ClimateDriver, matches_requested
 from .const import (
+    CONF_AUTO,
     CONF_COMFORT_TEMP,
     CONF_DEFAULT_OVERRIDE_HOURS,
     CONF_ECO_TEMP,
@@ -170,7 +171,9 @@ class Zone:
             return MODE_TEMPLATE
         if self.base.active:
             return MODE_AUTOMATION
-        return MODE_MANUAL_ONLY if self.presence_entity is None else MODE_SCHEDULE
+        # an automatic zone leaves the radiators alone until its first rule runs
+        hands_off = self.presence_entity is None or self._conf.get(CONF_AUTO)
+        return MODE_MANUAL_ONLY if hands_off else MODE_SCHEDULE
 
     # --- target resolution
 

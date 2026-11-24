@@ -17,6 +17,7 @@ from homeassistant.helpers import area_registry as ar
 from homeassistant.helpers import config_validation as cv
 from homeassistant.helpers import device_registry as dr
 from homeassistant.helpers import entity_registry as er
+from homeassistant.helpers.start import async_at_started
 
 from . import websocket_api
 from .area import zone_area, zone_climate, zone_presence
@@ -33,6 +34,7 @@ from .const import (
     SERVICE_SET_BASE_TARGET,
     SERVICE_SET_OVERRIDE,
 )
+from .detect import async_schedule_auto_zones
 from .rules import decide, planning_facts
 from .provision import async_remove_managed
 from .store import OverrideStore, SettingsStore, StrategyStore
@@ -128,6 +130,7 @@ async def async_setup(hass: HomeAssistant, config: dict) -> bool:
     hass.data[DOMAIN] = {DATA_STORE: store, DATA_ZONES: {}, DATA_STRATEGIES: strategies, DATA_SETTINGS: settings}
     _register_services(hass)
     _follow_registries(hass)
+    async_at_started(hass, callback(lambda _hass: async_schedule_auto_zones(hass)))
     await hass.async_add_executor_job(
         _install_blueprints, Path(hass.config.path(BLUEPRINT_DIR))
     )
@@ -217,6 +220,8 @@ def _follow_registries(hass: HomeAssistant) -> None:
 
     @callback
     def _changed(_event: Event) -> None:
+        if hass.is_running:
+            async_schedule_auto_zones(hass)
         areas = ar.async_get(hass)
         for entry in hass.config_entries.async_entries(DOMAIN):
             if entry.entry_id in pending:

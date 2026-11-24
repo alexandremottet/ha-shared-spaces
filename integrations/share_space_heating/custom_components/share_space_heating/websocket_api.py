@@ -12,7 +12,8 @@ from homeassistant.helpers import config_validation as cv
 from homeassistant.helpers import entity_registry as er
 from homeassistant.helpers.template import Template
 
-from .area import managed_devices
+from .area import managed_devices, zone_area
+from . import detect
 from .provision import ProvisionError, async_create_area_zone
 from .const import (
     CONF_CLIMATE_ENTITY,
@@ -42,6 +43,7 @@ def async_register(hass: HomeAssistant) -> None:
     websocket_api.async_register_command(hass, ws_delete_zone)
     websocket_api.async_register_command(hass, ws_get_settings)
     websocket_api.async_register_command(hass, ws_save_settings)
+    websocket_api.async_register_command(hass, ws_manage_area)
 
 
 def _presence_entity(value):
@@ -200,7 +202,8 @@ async def ws_delete_strategy(hass: HomeAssistant, connection, msg: dict) -> None
 @websocket_api.websocket_command({vol.Required("type"): f"{DOMAIN}/get_settings"})
 @websocket_api.async_response
 async def ws_get_settings(hass: HomeAssistant, connection, msg: dict) -> None:
-    connection.send_result(msg["id"], {"outdoor_entity": hass.data[DOMAIN][DATA_SETTINGS].outdoor_entity})
+    settings = hass.data[DOMAIN][DATA_SETTINGS]
+    connection.send_result(msg["id"], {"outdoor_entity": settings.outdoor_entity, "ignored_areas": settings.ignored_areas})
 
 
 def _outdoor_entity(value):
@@ -252,6 +255,7 @@ def _domain_entity(*domains: str):
 )
 @websocket_api.async_response
 async def ws_create_area_zone(hass: HomeAssistant, connection, msg: dict) -> None:
+    await hass.data[DOMAIN][DATA_SETTINGS].async_set_ignored(msg["area_id"], False)
     try:
         entry = await async_create_area_zone(
             hass,
@@ -274,5 +278,17 @@ async def ws_delete_zone(hass: HomeAssistant, connection, msg: dict) -> None:
     if entry is None or entry.domain != DOMAIN:
         connection.send_error(msg["id"], websocket_api.ERR_NOT_FOUND, "Zone not found")
         return
+    # removed by the admin: not set up again on its own
+    await hass.data[DOMAIN][DATA_SETTINGS].async_set_ignored(zone_area(entry), True)
     await hass.config_entries.async_remove(entry.entry_id)
+    connection.send_result(msg["id"], {})
+
+
+@websocket_api.require_admin
+@websocket_api.websocket_command({vol.Required("type"): f"{DOMAIN}/manage_area", vol.Required("area_id"): str})
+@websocket_api.async_response
+async def ws_manage_area(hass: HomeAssistant, connection, msg: dict) -> None:
+    """Undo a removal: the area's heating is set up again from what HA holds."""
+    await hass.data[DOMAIN][DATA_SETTINGS].async_set_ignored(msg["area_id"], False)
+    await detect.async_auto_zones(hass)
     connection.send_result(msg["id"], {})

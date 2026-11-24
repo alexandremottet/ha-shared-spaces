@@ -10,7 +10,7 @@ from homeassistant.helpers import area_registry as ar
 from homeassistant.helpers import entity_registry as er
 
 from .area import area_entities, entity_area
-from .const import CONF_AREA, CONF_CLIMATE_ENTITY, CONF_MANAGED_ENTRIES, DOMAIN
+from .const import CONF_AREA, CONF_AUTO, CONF_CLIMATE_ENTITY, CONF_MANAGED_ENTRIES, DOMAIN
 
 
 class ProvisionError(HomeAssistantError):
@@ -56,6 +56,7 @@ async def async_create_area_zone(
     climate_entity: str | None = None,
     heaters: list[str] | None = None,
     temperature_sensor: str | None = None,
+    auto: bool = False,
 ) -> ConfigEntry:
     """Zone for an area: an existing thermostat, or one built from heater switches + a sensor."""
     area = ar.async_get(hass).async_get_area(area_id)
@@ -65,6 +66,8 @@ async def async_create_area_zone(
         raise ProvisionError("already_configured", f"{area.name} already has a heating zone")
     managed: list[str] = []
     data: dict = {CONF_AREA: area_id}
+    if auto:
+        data[CONF_AUTO] = True
     try:
         if climate_entity is None:
             if not heaters or not temperature_sensor:

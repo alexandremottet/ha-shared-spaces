@@ -152,7 +152,7 @@ export type AreaZoneInput = { area_id: string } & (
 export const createAreaZone = (hass: HomeAssistant, input: AreaZoneInput) =>
   hass.callWS<{ entry_id: string; entity_id: string }>({ type: "share_space_heating/create_area_zone", ...input });
 
-/** Removes the zone and the helpers Share Space built for it. */
+/** Removes the zone and the helpers Share Space built for it; the area is not set up again on its own. */
 export const deleteZone = (hass: HomeAssistant, entryId: string) =>
   hass.callWS<Record<string, never>>({ type: "share_space_heating/delete_zone", entry_id: entryId });
 
@@ -415,6 +415,8 @@ export const nameTaken = (shared: Array<{ id: string; name: string }>, name: str
 
 export interface HeatingSettings {
   outdoor_entity: string | null;
+  /** Areas whose heating the admin removed: not set up again on their own. */
+  ignored_areas?: string[];
 }
 
 export const getHeatingSettings = (hass: HomeAssistant) =>
@@ -422,7 +424,11 @@ export const getHeatingSettings = (hass: HomeAssistant) =>
 
 /** Admin only; `null` clears the outdoor sensor. */
 export const saveHeatingSettings = (hass: HomeAssistant, settings: HeatingSettings) =>
-  hass.callWS<HeatingSettings>({ type: "share_space_heating/save_settings", ...settings });
+  hass.callWS<HeatingSettings>({ type: "share_space_heating/save_settings", outdoor_entity: settings.outdoor_entity });
+
+/** Undo a removal: Share Space sets the area's heating up again from what HA holds. */
+export const manageArea = (hass: HomeAssistant, areaId: string) =>
+  hass.callWS<Record<string, never>>({ type: "share_space_heating/manage_area", area_id: areaId });
 
 export const listStrategies = (hass: HomeAssistant) =>
   hass.callWS<SharedStrategy[]>({ type: "share_space_heating/list_strategies" });
