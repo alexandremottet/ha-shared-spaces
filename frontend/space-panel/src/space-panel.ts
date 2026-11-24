@@ -17,6 +17,8 @@ import {
   getHeatingSettings,
   saveHeatingSettings,
   setMyDefaultPanel,
+  opensShareSpaceForEveryone,
+  setOpensShareSpaceForEveryone,
   SHARE_SPACE_PANEL,
   errorMessage,
 } from "ha-share-space-ui/ha";
@@ -28,6 +30,9 @@ import "./rules-page";
 import "./extension-points-page";
 import "./overview-page";
 import "./theme-picker";
+import "./people-planning";
+
+const DEFAULT_THEME = "Le Portemine";
 import "./zones-settings";
 import "./users-settings";
 import "./dashboard-tab";
@@ -84,6 +89,7 @@ export class ShareSpaceSpace extends LitElement {
   @state() private _tab = "overview";
   // Admins only: null until known; false = Share Space is their home page.
   @state() private _fullHa: boolean | null = null;
+  @state() private _everyone = false;
   @state() private _outdoor: string | null = null;
   @state() private _dashboards: SpaceDashboard[] = [];
 @state() private _prefs: SharePrefs | null = null;
@@ -145,6 +151,7 @@ private _prefsFor = "";
       } catch {
         this._fullHa = true;
       }
+      this._everyone = await opensShareSpaceForEveryone(this.hass).catch(() => false);
       this._outdoor = await getHeatingSettings(this.hass)
         .then((s) => s.outdoor_entity)
         .catch(() => null);
@@ -184,6 +191,17 @@ private _prefsFor = "";
     }
   }
 
+  private async _setEveryone(on: boolean): Promise<void> {
+    if (!this.hass) return;
+    this._everyone = on;
+    try {
+      await setOpensShareSpaceForEveryone(this.hass, on);
+      this._fullHa = (await getDefaultPanel(this.hass)) !== SHARE_SPACE_PANEL;
+    } catch {
+      this._everyone = !on;
+    }
+  }
+
   private async _setTechnical(technical: boolean): Promise<void> {
     if (!this.hass) return;
     const prev = this._prefs;
@@ -205,7 +223,14 @@ private _prefsFor = "";
     if (this._role === "user") {
       return [overview, ...(this._plans?.length ? [{ id: "space", label: "Space" }] : []), ...dashboards];
     }
-    return [overview, { id: "space", label: "Space" }, ...dashboards, { id: "rules", label: "Rules" }, { id: "settings", label: "Settings" }];
+    return [
+      overview,
+      { id: "space", label: "Space" },
+      ...dashboards,
+      { id: "plannings", label: "Plannings", admin: true },
+      { id: "rules", label: "Areas", admin: true },
+      { id: "settings", label: "Settings", admin: true },
+    ];
   }
 
   private get _activeTab(): string {
@@ -218,7 +243,16 @@ private _prefsFor = "";
     return plans.find((p) => p.id === this._planId) ?? plans[0] ?? null;
   }
 
+  private _themeDefaulted = false;
+
   protected willUpdate(changed: PropertyValues): void {
+    // a browser that never picked a theme starts on Le Portemine, when it is installed
+    if (changed.has("hass") && this.hass && !this._themeDefaulted) {
+      this._themeDefaulted = true;
+      if (!this.hass.selectedTheme?.theme && this.hass.themes?.themes?.[DEFAULT_THEME]) {
+        this.dispatchEvent(new CustomEvent("settheme", { detail: { theme: DEFAULT_THEME }, bubbles: true, composed: true }));
+      }
+    }
     if (changed.has("hass") && this.hass && !this._loadedFor) {
       this._loadedFor = this.hass;
       void this._load();
@@ -496,6 +530,13 @@ private _prefsFor = "";
       gap: 8px;
       padding: 8px 0;
     }
+    /* admin pages: same layout, the theme's admin colour in place of the primary one */
+    .admin-page {
+      display: contents;
+      --primary-color: var(--share-space-admin-color, var(--accent-color));
+      --dark-primary-color: var(--share-space-admin-color, var(--accent-color));
+      --light-primary-color: var(--share-space-admin-light-color, var(--light-primary-color));
+    }
     .fab.logout {
       position: static;
       flex: none;
@@ -522,6 +563,7 @@ private _prefsFor = "";
     share-space-overview,
     share-space-dashboard,
     share-space-rules-page,
+    share-space-people-planning,
     share-space-settings {
       box-sizing: border-box;
       width: 100%;
@@ -804,9 +846,7 @@ private _prefsFor = "";
         <h1 class="title">${this.hass?.config?.location_name ?? "Share Space"}</h1>
         <div class="actions">
           <share-space-theme-picker .hass=${this.hass}></share-space-theme-picker>
-          ${this._fullHa
-            ? nothing
-            : html`<button class="fab logout" aria-label="Log out" title="Log out" @click=${this._logout}>${ICON_LOGOUT}</button>`}
+          <button class="fab logout" aria-label="Log out" title="Log out" @click=${this._logout}>${ICON_LOGOUT}</button>
         </div>
       </div>
       <div class="space" ?hidden=${tab !== "space"}>
@@ -822,16 +862,19 @@ private _prefsFor = "";
           ? html`<share-space-dashboard .hass=${this.hass} .urlPath=${d.url_path}></share-space-dashboard>`
           : nothing,
       )}
-      ${tab === "rules" ? html`<share-space-rules-page .hass=${this.hass}></share-space-rules-page>` : nothing}
+      ${tab === "plannings" ? html`<div class="admin-page"><share-space-people-planning .hass=${this.hass}></share-space-people-planning></div>` : nothing}
+      ${tab === "rules" ? html`<div class="admin-page"><share-space-rules-page .hass=${this.hass}></share-space-rules-page></div>` : nothing}
       ${tab === "settings"
-        ? html`<share-space-settings
+        ? html`<div class="admin-page"><share-space-settings
             .role=${this._role}
             .fullHa=${!!this._fullHa}
+            .everyone=${this._everyone}
             .outdoorEntity=${this._outdoor}
             .outdoorOptions=${this._outdoorOptions}
             @outdoor-change=${(e: CustomEvent<string | null>) => void this._setOutdoor(e.detail)}
             @technical-change=${(e: CustomEvent<boolean>) => void this._setTechnical(e.detail)}
             @full-ha-change=${(e: CustomEvent<boolean>) => void this._setFullHa(e.detail)}
+            @everyone-change=${(e: CustomEvent<boolean>) => void this._setEveryone(e.detail)}
           >
             ${this._isAdmin
               ? html`<share-space-zones-settings slot="zones" .hass=${this.hass}></share-space-zones-settings>
@@ -847,7 +890,7 @@ private _prefsFor = "";
             ${this._role === "technical_admin"
               ? html`<share-space-extension-points slot="extension-points" .hass=${this.hass}></share-space-extension-points>`
               : nothing}
-          </share-space-settings>`
+          </share-space-settings></div>`
         : nothing}
     `;
   }

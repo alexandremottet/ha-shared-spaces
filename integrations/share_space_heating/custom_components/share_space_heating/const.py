@@ -14,6 +14,8 @@ CONF_MAX_OVERRIDE_HOURS = "max_override_hours"
 CONF_FROST_TEMP = "frost_temp"
 CONF_OFF_MODE = "off_mode"
 CONF_TARGET_TEMPLATE = "target_template"
+# Zone Share Space created on its own for an area HA already heats; hands-off until its first rule runs.
+CONF_AUTO = "auto"
 
 DEFAULT_COMFORT_TEMP = 21.0
 DEFAULT_ECO_TEMP = 17.0

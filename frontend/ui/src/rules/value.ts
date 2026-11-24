@@ -60,6 +60,23 @@ export function entityStates(strategy: RuleStrategy, states: Record<string, { st
   return out;
 }
 
+/** Key in EntityStates holding "on" when an area is heated (heated conditions). */
+export const heatedKey = (area: string) => `heated:${area}`;
+
+/** Presets that keep an area cool; mirrors LOW_PRESETS in share_space_heating/rules.py. */
+export const LOW_PRESETS = ["eco", "away", "sleep", "frost", "frost_protection", "hors_gel"];
+
+/** Whether a thermostat state warms its area now (the relay is not used: it is off once the room is warm). */
+export const climateHeated = (state?: { state: string; attributes?: Record<string, unknown> }): boolean =>
+  !!state && !["off", "unavailable", "unknown"].includes(state.state) && !LOW_PRESETS.includes(String(state.attributes?.preset_mode ?? "").toLowerCase());
+
+/** Areas read by heated conditions. */
+export function strategyHeatedAreas(strategy: RuleStrategy): string[] {
+  const out = new Set<string>();
+  for (const r of strategy.rules) for (const c of r.when) if (c.type === "heated") c.areas.forEach((a) => out.add(a));
+  return [...out];
+}
+
 /** Number from an HA state: weather.* attribute temperature, else the numeric state. */
 export function readingOf(entityId: string, state?: { state: string; attributes?: Record<string, unknown> }): number | undefined {
   if (!state) return undefined;

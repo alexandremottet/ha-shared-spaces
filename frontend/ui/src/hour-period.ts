@@ -96,6 +96,18 @@ export class HourPeriod extends LitElement {
     .handle.end {
       right: calc(var(--hour-period-handle-width, 14px) / -2);
     }
+    /* fingers need a bigger target than the grip shows */
+    @media (pointer: coarse) {
+      .handle {
+        width: var(--hour-period-handle-width, 28px);
+      }
+      .handle.start {
+        left: calc(var(--hour-period-handle-width, 28px) / -2);
+      }
+      .handle.end {
+        right: calc(var(--hour-period-handle-width, 28px) / -2);
+      }
+    }
     .handle::after {
       content: "";
       position: absolute;

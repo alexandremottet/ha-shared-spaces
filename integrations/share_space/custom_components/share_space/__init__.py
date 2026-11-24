@@ -3,10 +3,10 @@ from __future__ import annotations
 
 import voluptuous as vol
 from homeassistant.config_entries import ConfigEntry
-from homeassistant.core import HomeAssistant, ServiceCall, SupportsResponse, callback
+from homeassistant.core import Event, HomeAssistant, ServiceCall, SupportsResponse, callback
 from homeassistant.helpers import config_validation as cv
+from homeassistant.helpers import entity_registry as er
 from homeassistant.helpers.dispatcher import async_dispatcher_send
-from homeassistant.helpers.service import async_register_admin_service
 from homeassistant.util import dt as dt_util
 
 from .area_schedule import compute_area_schedule
@@ -15,11 +15,7 @@ from .occupancy import window_matches
 from .const import (
     ATTR_AREA,
     ATTR_CALENDAR,
-    ATTR_ENABLED,
-    ATTR_OFF_ACTIONS,
-    ATTR_ON_ACTIONS,
     ATTR_PERSON,
-    ATTR_STATE,
     DATA_AREA_ACTIONS_STORE,
     DATA_AREA_LOCKS,
     DATA_PERSON_AREA_STORE,
@@ -29,14 +25,12 @@ from .const import (
     EVENT_PERSON_AREA_ASSIGNED,
     SERVICE_ASSIGN_PERSON_AREA,
     SERVICE_QUERY_OCCUPANCY,
-    SERVICE_RUN_AREA_ACTIONS,
-    SERVICE_SET_AREA_ACTIONS,
     SERVICE_SET_CALENDAR,
     SIGNAL_AREAS_CHANGED,
     SIGNAL_CALENDAR_CHANGED,
 )
-from .binary_sensor import async_run_area_actions
-from .store import AreaActionsStore, PersonAreaStore, PersonCalendarStore
+from .people import PersonAreas, PersonPlannings
+from .store import AreaActionsStore
 from .websocket_api import async_register_websocket_commands
 
 _TIME_OF_DAY = vol.Match(r"^([01]\d|2[0-3]):[0-5]\d$|^24:00$")
@@ -70,23 +64,7 @@ SET_CALENDAR_SCHEMA = vol.Schema(
 ASSIGN_PERSON_AREA_SCHEMA = vol.Schema(
     {
         vol.Required(ATTR_PERSON): cv.entity_domain("person"),
-        vol.Required(ATTR_AREA): cv.string,
-    }
-)
-
-SET_AREA_ACTIONS_SCHEMA = vol.Schema(
-    {
-        vol.Required(ATTR_AREA): cv.string,
-        vol.Optional(ATTR_ON_ACTIONS): cv.SCRIPT_SCHEMA,
-        vol.Optional(ATTR_OFF_ACTIONS): cv.SCRIPT_SCHEMA,
-        vol.Optional(ATTR_ENABLED): cv.boolean,
-    }
-)
-
-RUN_AREA_ACTIONS_SCHEMA = vol.Schema(
-    {
-        vol.Required(ATTR_AREA): cv.string,
-        vol.Required(ATTR_STATE): vol.In(["on", "off"]),
+        vol.Required(ATTR_AREA): vol.Any(None, cv.string),
     }
 )
 
@@ -111,9 +89,9 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     """Set up integration from a config entry."""
     hass.data.setdefault(DOMAIN, {})
 
-    person_calendar_store = PersonCalendarStore(hass)
+    person_calendar_store = PersonPlannings(hass)
     await person_calendar_store.async_load()
-    person_area_store = PersonAreaStore(hass)
+    person_area_store = PersonAreas(hass)
     await person_area_store.async_load()
     area_actions_store = AreaActionsStore(hass)
     await area_actions_store.async_load()
@@ -130,6 +108,24 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
     entry.async_on_unload(_drop_entry_data)
 
+    @callback
+    def _plannings_changed() -> None:
+        async_dispatcher_send(hass, SIGNAL_CALENDAR_CHANGED)
+
+    entry.async_on_unload(person_calendar_store.async_listen(_plannings_changed))
+
+    @callback
+    def _person_area_changed(event: Event[er.EventEntityRegistryUpdatedData]) -> None:
+        data = event.data
+        if not data["entity_id"].startswith("person."):
+            return
+        if data["action"] == "update" and "area_id" not in data.get("changes", {}):
+            return
+        async_dispatcher_send(hass, SIGNAL_AREAS_CHANGED)
+        async_dispatcher_send(hass, SIGNAL_CALENDAR_CHANGED)
+
+    entry.async_on_unload(hass.bus.async_listen(er.EVENT_ENTITY_REGISTRY_UPDATED, _person_area_changed))
+
     async def _handle_set_calendar(call: ServiceCall) -> None:
         person = call.data[ATTR_PERSON]
         calendar = call.data[ATTR_CALENDAR]
@@ -142,15 +138,6 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         area = call.data[ATTR_AREA]
         await person_area_store.async_set(person, area)
         hass.bus.async_fire(EVENT_PERSON_AREA_ASSIGNED, {ATTR_PERSON: person, ATTR_AREA: area})
-        async_dispatcher_send(hass, SIGNAL_AREAS_CHANGED)
-        async_dispatcher_send(hass, SIGNAL_CALENDAR_CHANGED)
-
-    async def _handle_set_area_actions(call: ServiceCall) -> None:
-        changes = {k: call.data[k] for k in (ATTR_ON_ACTIONS, ATTR_OFF_ACTIONS, ATTR_ENABLED) if k in call.data}
-        await area_actions_store.async_update(call.data[ATTR_AREA], changes)
-
-    async def _handle_run_area_actions(call: ServiceCall) -> None:
-        await async_run_area_actions(hass, hass.data[DOMAIN][entry.entry_id], call.data[ATTR_AREA], call.data[ATTR_STATE])
 
     async def _handle_query_occupancy(call: ServiceCall) -> dict:
         schedule = compute_area_schedule(person_area_store, person_calendar_store, call.data[ATTR_AREA])
@@ -177,14 +164,6 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
             _handle_assign_person_area,
             schema=ASSIGN_PERSON_AREA_SCHEMA,
         )
-
-        # Stored actions run arbitrary services, so only admins may write or trigger them.
-        async_register_admin_service(
-            hass, DOMAIN, SERVICE_SET_AREA_ACTIONS, _handle_set_area_actions, schema=SET_AREA_ACTIONS_SCHEMA
-        )
-        async_register_admin_service(
-            hass, DOMAIN, SERVICE_RUN_AREA_ACTIONS, _handle_run_area_actions, schema=RUN_AREA_ACTIONS_SCHEMA
-        )
         hass.services.async_register(
             DOMAIN,
             SERVICE_QUERY_OCCUPANCY,
@@ -204,6 +183,6 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     """Unload a config entry."""
     if not await hass.config_entries.async_unload_platforms(entry, PLATFORMS):
         return False
-    for service in (SERVICE_SET_CALENDAR, SERVICE_ASSIGN_PERSON_AREA, SERVICE_SET_AREA_ACTIONS, SERVICE_RUN_AREA_ACTIONS, SERVICE_QUERY_OCCUPANCY):
+    for service in (SERVICE_SET_CALENDAR, SERVICE_ASSIGN_PERSON_AREA, SERVICE_QUERY_OCCUPANCY):
         hass.services.async_remove(DOMAIN, service)
     return True

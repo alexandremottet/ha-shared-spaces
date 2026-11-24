@@ -6,13 +6,14 @@ import asyncio
 import voluptuous as vol
 
 from homeassistant.components import websocket_api
-from homeassistant.core import HomeAssistant
+from homeassistant.core import HomeAssistant, callback
 from homeassistant.exceptions import TemplateError
 from homeassistant.helpers import config_validation as cv
 from homeassistant.helpers import entity_registry as er
 from homeassistant.helpers.template import Template
 
 from .area import managed_devices
+from . import detect
 from .provision import ProvisionError, async_create_area_zone
 from .const import (
     CONF_CLIMATE_ENTITY,
@@ -42,6 +43,7 @@ def async_register(hass: HomeAssistant) -> None:
     websocket_api.async_register_command(hass, ws_delete_zone)
     websocket_api.async_register_command(hass, ws_get_settings)
     websocket_api.async_register_command(hass, ws_save_settings)
+    websocket_api.async_register_command(hass, ws_detected_areas)
 
 
 def _presence_entity(value):
@@ -200,7 +202,8 @@ async def ws_delete_strategy(hass: HomeAssistant, connection, msg: dict) -> None
 @websocket_api.websocket_command({vol.Required("type"): f"{DOMAIN}/get_settings"})
 @websocket_api.async_response
 async def ws_get_settings(hass: HomeAssistant, connection, msg: dict) -> None:
-    connection.send_result(msg["id"], {"outdoor_entity": hass.data[DOMAIN][DATA_SETTINGS].outdoor_entity})
+    settings = hass.data[DOMAIN][DATA_SETTINGS]
+    connection.send_result(msg["id"], {"outdoor_entity": settings.outdoor_entity})
 
 
 def _outdoor_entity(value):
@@ -276,3 +279,10 @@ async def ws_delete_zone(hass: HomeAssistant, connection, msg: dict) -> None:
         return
     await hass.config_entries.async_remove(entry.entry_id)
     connection.send_result(msg["id"], {})
+
+
+@websocket_api.websocket_command({vol.Required("type"): f"{DOMAIN}/detected_areas"})
+@callback
+def ws_detected_areas(hass: HomeAssistant, connection, msg: dict) -> None:
+    """Heating HA already holds in areas without a zone: a thermostat, or heaters and a temperature sensor."""
+    connection.send_result(msg["id"], detect.detected_areas(hass))

@@ -12,6 +12,7 @@ export const CONDITION_LABELS: Record<ConditionType, string> = {
   planned: "Planned during",
   sensor: "Outdoor temperature",
   state: "Entity state",
+  heated: "Another area heated",
 };
 
 export const ACTION_LABELS: Record<ActionType, string> = {
@@ -41,6 +42,8 @@ export function defaultCondition(type: ConditionType): Condition {
       return { type, entity: OUTDOOR, op: "below", than: 5 };
     case "state":
       return { type, entity: "", is: "on" };
+    case "heated":
+      return { type, areas: [] };
   }
 }
 
@@ -69,7 +72,7 @@ export function describeValue(v: Value, unit: ValueUnit): string {
 }
 
 /** One-line node text for the graph. */
-export function describeCondition(c: Condition): string {
+export function describeCondition(c: Condition, areaNames: Record<string, string> = {}): string {
   const not = c.negate ? "not " : "";
   switch (c.type) {
     case "occupied":
@@ -88,6 +91,8 @@ export function describeCondition(c: Condition): string {
       return `${not}${c.entity === OUTDOOR ? "outdoor" : shortEntity(c.entity)} ${c.op === "below" ? "<" : ">"} ${fmt(c.than)}`;
     case "state":
       return `${not}${shortEntity(c.entity)} is ${c.is}`;
+    case "heated":
+      return `${not}${c.areas.map((a) => areaNames[a] ?? a.replace(/_/g, " ")).join(" or ") || "an area"} heated`;
   }
 }
 

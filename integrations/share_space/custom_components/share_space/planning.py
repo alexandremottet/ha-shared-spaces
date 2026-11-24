@@ -25,7 +25,7 @@ def setup_dynamic_areas(
 
     @callback
     def _add_missing() -> None:
-        new = set(data[DATA_PERSON_AREA_STORE]._data.values()) - known
+        new = data[DATA_PERSON_AREA_STORE].areas() - known
         known.update(new)
         async_add_entities([factory(area) for area in sorted(new) for factory in factories])
 

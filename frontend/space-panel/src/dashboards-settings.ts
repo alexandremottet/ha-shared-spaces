@@ -4,6 +4,9 @@ import { customElement, property, state } from "lit/decorators.js";
 import { getLovelaceConfig, getSpaceDashboards, listHaDashboards, listUsers, saveLovelaceConfig, setSpaceDashboards, errorMessage } from "ha-share-space-ui/ha";
 import type { HaDashboard, HaUser, HomeAssistant, LovelaceConfig, LovelaceView, SpaceDashboard } from "ha-share-space-ui/ha";
 import { settingsStyles } from "./settings-styles";
+import "./multi-select";
+
+const EVERYONE = "*";
 
 const key = (urlPath: string | null): string => urlPath ?? "";
 
@@ -69,14 +72,15 @@ export class ShareSpaceDashboardsSettings extends LitElement {
     this._configs = { ...this._configs, [key(urlPath)]: config };
   }
 
-  private async _toggle(d: HaDashboard, on: boolean): Promise<void> {
-    const next = on
-      ? [...this._selected, { url_path: d.url_path, title: d.url_path === null ? "Dashboard" : d.title }]
-      : this._selected.filter((s) => s.url_path !== d.url_path);
+  private async _setShown(paths: string[]): Promise<void> {
+    const next = this._available
+      .filter((d) => paths.includes(key(d.url_path)))
+      .map((d) => this._selected.find((s) => s.url_path === d.url_path) ?? { url_path: d.url_path, title: d.url_path === null ? "Dashboard" : d.title });
+    const added = next.filter((d) => !this._selected.some((s) => s.url_path === d.url_path));
     await this._run(async () => {
       await setSpaceDashboards(this.hass!, next);
       this._selected = next;
-      if (on) await this._loadConfig(d.url_path);
+      await Promise.all(added.map((d) => this._loadConfig(d.url_path)));
     });
   }
 
@@ -119,36 +123,18 @@ export class ShareSpaceDashboardsSettings extends LitElement {
       ${views.map(({ v, i }) => {
         const everyone = !Array.isArray(v.visible) && v.visible !== false;
         const allowed = Array.isArray(v.visible) ? v.visible.flatMap((s) => (s.user ? [s.user] : [])) : [];
+        // Everyone picked again, or nobody left, shows the view to everyone
+        const pick = (values: string[]) =>
+          void this._setVisible(d, i, (values.includes(EVERYONE) && !everyone) || !values.filter((v) => v !== EVERYONE).length ? undefined : values.filter((v) => v !== EVERYONE));
         return html`<div class="view">
           <span class="name">${v.title ?? v.path ?? `View ${i + 1}`}</span>
-          <label>
-            <input
-              type="checkbox"
-              .checked=${everyone}
-              ?disabled=${this._busy}
-              @change=${(e: Event) =>
-                void this._setVisible(d, i, (e.target as HTMLInputElement).checked ? undefined : this._users.map((u) => u.id))}
-            />
-            Everyone
-          </label>
-          ${everyone
-            ? nothing
-            : this._users.map(
-                (u) => html`<label>
-                  <input
-                    type="checkbox"
-                    .checked=${allowed.includes(u.id)}
-                    ?disabled=${this._busy}
-                    @change=${(e: Event) =>
-                      void this._setVisible(
-                        d,
-                        i,
-                        (e.target as HTMLInputElement).checked ? [...allowed, u.id] : allowed.filter((id) => id !== u.id),
-                      )}
-                  />
-                  ${u.name}
-                </label>`,
-              )}
+          <share-space-multi-select
+            label=${`Who sees ${v.title ?? v.path ?? `view ${i + 1}`}`}
+            .options=${[{ value: EVERYONE, label: "Everyone" }, ...this._users.map((u) => ({ value: u.id, label: u.name }))]}
+            .selected=${everyone ? [EVERYONE] : allowed}
+            ?disabled=${this._busy}
+            @selection-change=${(e: CustomEvent<string[]>) => pick(e.detail)}
+          ></share-space-multi-select>
         </div>`;
       })}
     </div>`;
@@ -157,24 +143,22 @@ export class ShareSpaceDashboardsSettings extends LitElement {
   protected render(): TemplateResult {
     return html`<section class="card">
       <h4>Dashboards</h4>
-      <p class="muted">Build a dashboard in Home Assistant, then tick it to show it as a tab here. Choose who sees each of its views.</p>
+      <p class="muted">Build a dashboard in Home Assistant, then pick it to show it as a tab here. Choose who sees each of its views.</p>
+      <div class="field">
+        <span>Show as tabs</span>
+        <share-space-multi-select
+          label="Dashboards shown as tabs"
+          placeholder="No dashboard"
+          .options=${this._available.map((d) => ({ value: key(d.url_path), label: d.title }))}
+          .selected=${this._selected.map((s) => key(s.url_path))}
+          ?disabled=${this._busy}
+          @selection-change=${(e: CustomEvent<string[]>) => void this._setShown(e.detail)}
+        ></share-space-multi-select>
+      </div>
       <div class="rows">
-        ${this._available.map((d) => {
-          const shown = this._selected.some((s) => s.url_path === d.url_path);
-          return html`<div class="row">
-            <span class="name">${d.title}</span>
-            <label class="actions">
-              <input
-                type="checkbox"
-                .checked=${shown}
-                ?disabled=${this._busy}
-                @change=${(e: Event) => void this._toggle(d, (e.target as HTMLInputElement).checked)}
-              />
-              Show as tab
-            </label>
-            ${shown ? this._renderViews(d) : nothing}
-          </div>`;
-        })}
+        ${this._available
+          .filter((d) => this._selected.some((s) => s.url_path === d.url_path))
+          .map((d) => html`<div class="row"><span class="name">${d.title}</span>${this._renderViews(d)}</div>`)}
       </div>
       ${this._error ? html`<p class="error">${this._error}</p>` : nothing}
     </section>`;

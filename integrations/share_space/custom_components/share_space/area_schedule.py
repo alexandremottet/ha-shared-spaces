@@ -11,7 +11,7 @@ from __future__ import annotations
 
 from .calendar_merge import merge_calendars
 from .calendar_types import Calendar, Schedule, TimeRange, WeekDay
-from .store import PersonAreaStore, PersonCalendarStore
+from .people import PersonAreas, PersonPlannings
 
 
 def _parse_calendar(raw: dict) -> Calendar:
@@ -28,8 +28,8 @@ def _serialize_calendar(calendar: Calendar) -> dict:
 
 
 def list_area_person_calendars(
-    person_area_store: PersonAreaStore,
-    person_calendar_store: PersonCalendarStore,
+    person_area_store: PersonAreas,
+    person_calendar_store: PersonPlannings,
     area: str,
 ) -> dict[str, Calendar]:
     """Every person assigned to `area`, each with their own raw (unmerged) calendar."""
@@ -41,8 +41,8 @@ def list_area_person_calendars(
 
 
 def compute_area_schedule(
-    person_area_store: PersonAreaStore,
-    person_calendar_store: PersonCalendarStore,
+    person_area_store: PersonAreas,
+    person_calendar_store: PersonPlannings,
     area: str,
 ) -> Schedule:
     """The merged on/off schedule for `area`: every person assigned to it, combined."""
@@ -51,8 +51,8 @@ def compute_area_schedule(
 
 
 def serialize_area_person_calendars(
-    person_area_store: PersonAreaStore,
-    person_calendar_store: PersonCalendarStore,
+    person_area_store: PersonAreas,
+    person_calendar_store: PersonPlannings,
     area: str,
 ) -> dict[str, dict]:
     """`list_area_person_calendars`, JSON-serialized for sending over the WebSocket API."""

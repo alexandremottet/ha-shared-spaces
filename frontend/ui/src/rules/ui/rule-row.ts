@@ -26,6 +26,7 @@ export class ShareSpaceRuleRow extends LitElement {
   @property({ type: Boolean }) fallback = false;
   @property({ type: Boolean, reflect: true }) highlighted = false;
   @property({ attribute: false }) errors: RuleError[] = [];
+  @property({ attribute: false }) areaNames: Record<string, string> = {};
   @state() private _open: Open = null;
 
   private _fire(name: string, detail?: unknown): void {
@@ -93,6 +94,7 @@ export class ShareSpaceRuleRow extends LitElement {
     if (typeof open === "number" && rule.when[open]) {
       return this._panel(html`<share-space-rule-condition
         .condition=${rule.when[open]}
+        .areaNames=${this.areaNames}
         .errors=${scopeErrors(errors, `.when[${open}]`)}
         @condition-change=${(e: CustomEvent<{ condition: Condition }>) => {
           e.stopPropagation();
@@ -182,9 +184,9 @@ export class ShareSpaceRuleRow extends LitElement {
               node: i,
               kind: "cond",
               title: i === 0 ? "If" : "And",
-              body: describeCondition(c),
+              body: describeCondition(c, this.areaNames),
               errPrefix: `.when[${i}]`,
-              label: `Condition ${i + 1}: ${describeCondition(c)}`,
+              label: `Condition ${i + 1}: ${describeCondition(c, this.areaNames)}`,
               remove: { label: `Remove condition ${i + 1}`, run: () => this._removeCondition(i) },
             })}${this._open === i ? this._editor() : nothing}`,
           )}

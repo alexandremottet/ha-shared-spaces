@@ -36,6 +36,7 @@ const FIELDS: Record<string, string[]> = {
   planned: ["windows", "match"],
   sensor: ["entity", "op", "than"],
   state: ["entity", "is"],
+  heated: ["areas"],
 };
 
 type Obj = Record<string, unknown>;
@@ -128,6 +129,10 @@ class Checker {
         else this.entity(v.entity, `${path}.entity`);
         if (typeof v.is !== "string") return void this.err(`${path}.is`, "type", "must be a string");
         if (!v.is.trim()) this.err(`${path}.is`, "empty", "must not be empty");
+        return;
+      case "heated":
+        if (!Array.isArray(v.areas) || v.areas.some((a) => typeof a !== "string" || !a)) return void this.err(`${path}.areas`, "type", "must be a list of areas");
+        if (!v.areas.length) this.err(`${path}.areas`, "empty", "pick at least one area");
         return;
       case "planned":
         if (v.match !== "all" && v.match !== "any") this.err(`${path}.match`, "unknown_kind", 'must be "all" or "any"');

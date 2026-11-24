@@ -99,6 +99,7 @@ class SettingsStore:
     """Space-wide heating settings: `{outdoor_entity}`."""
 
     def __init__(self, hass: HomeAssistant) -> None:
+        self._hass = hass
         self._store: Store[dict] = Store(hass, STORAGE_VERSION, STORAGE_KEY_SETTINGS)
         self._data: dict = {}
 

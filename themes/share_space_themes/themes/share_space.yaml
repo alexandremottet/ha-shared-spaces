@@ -13,6 +13,7 @@ Share Space Frosted:
   modes:
     light:
       primary-color: "#0288d1"
+      share-space-admin-color: "#7e57c2"
       primary-text-color: "#1d2433"
       secondary-text-color: "rgba(29, 36, 51, 0.68)"
       disabled-text-color: "rgba(29, 36, 51, 0.38)"
@@ -28,6 +29,7 @@ Share Space Frosted:
       lovelace-background: "linear-gradient(135deg, #b9d3f0 0%, #d9c6ea 50%, #f6cdb8 100%) fixed"
     dark:
       primary-color: "#4fc3f7"
+      share-space-admin-color: "#b39ddb"
       primary-text-color: "#ffffff"
       secondary-text-color: "rgba(255, 255, 255, 0.72)"
       disabled-text-color: "rgba(255, 255, 255, 0.4)"
@@ -41,7 +43,7 @@ Share Space Frosted:
       sidebar-background-color: "rgba(0, 0, 0, 0.25)"
       lovelace-background: "linear-gradient(135deg, #1f4068 0%, #6a3d7a 50%, #e07a5f 100%) fixed"
 
-# Blue #3256a2 + gold #bb8c41 on glass.
+# Soft blue + pale sky blue on glass.
 Le Portemine:
   # Optional: with card-mod installed, core HA cards get the glass blur too.
   card-mod-theme: Le Portemine
@@ -55,16 +57,19 @@ Le Portemine:
   ha-dialog-surface-backdrop-filter: "blur(24px)"
   modes:
     light:
-      primary-color: "#2f5bc8"
-      dark-primary-color: "#2146a3"
-      light-primary-color: "#c9d5ee"
-      accent-color: "#e8a317"
+      primary-color: "#4a6fc9"
+      dark-primary-color: "#3a5aa8"
+      light-primary-color: "#d3def3"
+      accent-color: "#7fa8e0"
+      # admin pages (Plannings, Areas, Settings): soft lavender instead of blue
+      share-space-admin-color: "#8a76c8"
+      share-space-admin-light-color: "#e4dcf5"
       primary-text-color: "#14224a"
       secondary-text-color: "rgba(20, 34, 74, 0.68)"
       disabled-text-color: "rgba(20, 34, 74, 0.38)"
       text-primary-color: "#ffffff"
       divider-color: "rgba(50, 86, 162, 0.18)"
-      warning-color: "#e8a317"
+      warning-color: "#d4a24c"
       success-color: "#3f9d7a"
       primary-background-color: "#eef1f8"
       secondary-background-color: "rgba(255, 255, 255, 0.45)"
@@ -75,22 +80,24 @@ Le Portemine:
       mdc-theme-surface: "rgba(255, 255, 255, 0.85)"
       sidebar-background-color: "rgba(255, 255, 255, 0.45)"
       lovelace-background: >-
-        radial-gradient(circle at 10% 15%, rgba(40, 90, 210, 0.75) 0, transparent 48%),
-        radial-gradient(circle at 90% 88%, rgba(242, 176, 40, 0.8) 0, transparent 48%),
-        radial-gradient(circle at 78% 8%, rgba(40, 90, 210, 0.4) 0, transparent 38%),
-        radial-gradient(circle at 15% 92%, rgba(242, 176, 40, 0.35) 0, transparent 35%),
-        linear-gradient(135deg, #cfdcfa 0%, #f5f3ee 55%, #fbe2aa 100%) fixed
+        radial-gradient(circle at 10% 15%, rgba(84, 118, 200, 0.55) 0, transparent 48%),
+        radial-gradient(circle at 90% 88%, rgba(140, 186, 236, 0.6) 0, transparent 48%),
+        radial-gradient(circle at 78% 8%, rgba(84, 118, 200, 0.3) 0, transparent 38%),
+        radial-gradient(circle at 15% 92%, rgba(140, 186, 236, 0.3) 0, transparent 35%),
+        linear-gradient(135deg, #d6e1f7 0%, #f3f5f9 55%, #dceaf9 100%) fixed
     dark:
-      primary-color: "#6f95f5"
-      dark-primary-color: "#2f5bc8"
+      primary-color: "#86a6ec"
+      dark-primary-color: "#4a6fc9"
       light-primary-color: "#2a3f73"
-      accent-color: "#f2b33a"
+      accent-color: "#a6c6ef"
+      share-space-admin-color: "#b4a3ea"
+      share-space-admin-light-color: "#3a3170"
       primary-text-color: "#f4f6fc"
       secondary-text-color: "rgba(244, 246, 252, 0.7)"
       disabled-text-color: "rgba(244, 246, 252, 0.4)"
       text-primary-color: "#0d1630"
       divider-color: "rgba(255, 255, 255, 0.16)"
-      warning-color: "#f2b33a"
+      warning-color: "#e0b464"
       success-color: "#4cc497"
       primary-background-color: "#0d1630"
       secondary-background-color: "rgba(255, 255, 255, 0.08)"
@@ -101,7 +108,7 @@ Le Portemine:
       mdc-theme-surface: "rgba(20, 32, 66, 0.9)"
       sidebar-background-color: "rgba(13, 22, 48, 0.5)"
       lovelace-background: >-
-        radial-gradient(circle at 10% 15%, rgba(47, 91, 200, 0.85) 0, transparent 48%),
-        radial-gradient(circle at 90% 88%, rgba(232, 163, 23, 0.7) 0, transparent 45%),
-        radial-gradient(circle at 80% 8%, rgba(47, 91, 200, 0.45) 0, transparent 38%),
-        linear-gradient(135deg, #10204d 0%, #0d1630 55%, #2a2110 100%) fixed
+        radial-gradient(circle at 10% 15%, rgba(74, 111, 201, 0.7) 0, transparent 48%),
+        radial-gradient(circle at 90% 88%, rgba(120, 168, 228, 0.45) 0, transparent 45%),
+        radial-gradient(circle at 80% 8%, rgba(74, 111, 201, 0.35) 0, transparent 38%),
+        linear-gradient(135deg, #142650 0%, #0f1a36 55%, #16305a 100%) fixed

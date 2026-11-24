@@ -1,8 +1,8 @@
 import { LitElement, html, css, nothing } from "lit";
 import type { TemplateResult } from "lit";
 import { customElement, property, state } from "lit/decorators.js";
-import { createAreaZone, deleteZone, listZones, errorMessage } from "ha-share-space-ui/ha";
-import type { HeatingZone, HomeAssistant } from "ha-share-space-ui/ha";
+import { createAreaZone, deleteZone, entityAreaId, listDetectedAreas, listZones, errorMessage } from "ha-share-space-ui/ha";
+import type { DetectedArea, HeatingZone, HomeAssistant } from "ha-share-space-ui/ha";
 import { settingsStyles } from "./settings-styles";
 
 type Source = "heaters" | "thermostat";
@@ -20,11 +20,12 @@ interface Draft {
 }
 
 
-// Settings > Heating: one heating per area, built from heaters + a sensor or an existing thermostat.
+// Settings > Heating: Share Space sets up each area HA already heats on its own; this page maintains them.
 @customElement("share-space-zones-settings")
 export class ShareSpaceZonesSettings extends LitElement {
   @property({ attribute: false }) hass?: HomeAssistant;
   @state() private _zones: HeatingZone[] | null = null;
+  @state() private _detected: DetectedArea[] = [];
   @state() private _draft: Draft | null = null;
   @state() private _confirm: string | null = null;
   @state() private _busy = false;
@@ -74,7 +75,9 @@ export class ShareSpaceZonesSettings extends LitElement {
   private async _load(): Promise<void> {
     if (!this.hass) return;
     try {
-      this._zones = await listZones(this.hass);
+      const [zones, detected] = await Promise.all([listZones(this.hass), listDetectedAreas(this.hass).catch(() => [])]);
+      this._zones = zones;
+      this._detected = detected;
     } catch (err) {
       this._error = errorMessage(err);
     }
@@ -96,13 +99,9 @@ export class ShareSpaceZonesSettings extends LitElement {
   // Entities of a domain, this area's first, then by name.
   private _options(filter: (id: string, attrs: Record<string, unknown>) => boolean, area: string): Option[] {
     const hass = this.hass!;
-    const areaOf = (id: string): string | null => {
-      const e = hass.entities?.[id];
-      return e?.area_id ?? (e?.device_id ? hass.devices?.[e.device_id]?.area_id ?? null : null);
-    };
     return Object.values(hass.states)
       .filter((s) => filter(s.entity_id, s.attributes))
-      .map((s) => ({ id: s.entity_id, name: String(s.attributes.friendly_name ?? s.entity_id), area: areaOf(s.entity_id) }))
+      .map((s) => ({ id: s.entity_id, name: String(s.attributes.friendly_name ?? s.entity_id), area: entityAreaId(hass, s.entity_id) }))
       .sort((a, b) => Number(b.area === area) - Number(a.area === area) || a.name.localeCompare(b.name));
   }
 
@@ -177,7 +176,7 @@ export class ShareSpaceZonesSettings extends LitElement {
         ${this._confirm === zone.entry_id
           ? html`<button class="danger" ?disabled=${this._busy} @click=${() => void this._run(async () => { await deleteZone(this.hass!, zone.entry_id); this._confirm = null; })}>Delete</button>
               <button @click=${() => (this._confirm = null)}>Keep</button>`
-          : html`<button @click=${() => (this._confirm = zone.entry_id)}>Remove heating</button>`}
+          : html`<button @click=${() => (this._confirm = zone.entry_id)}>Stop managing</button>`}
       </span>`;
   }
 
@@ -189,22 +188,39 @@ export class ShareSpaceZonesSettings extends LitElement {
     const orphans = zones.filter((z) => !z.area_id || !hass.areas?.[z.area_id]);
     return html`<section class="card">
       <h4>Heating</h4>
-      <p class="muted">One heating per area, matched by the area Home Assistant gives the thermostat. Removing it also removes the thermostat Share Space created, never your devices.</p>
+      <p class="muted">
+        Share Space finds each area's thermostat, or heater switches and temperature sensor, in Home Assistant. Nothing is created or
+        changed until you save the area's first rule. Stop managing removes only what Share Space created, never your devices.
+      </p>
       <div class="rows">
         ${areas.map((area) => {
           const here = zones.filter((z) => z.area_id === area.area_id);
           const zone = here[0];
           const editing = this._draft?.area === area.area_id;
+          const found = this._detected.find((d) => d.area_id === area.area_id);
           return html`<div class="row">
             <span class="name">${area.name}</span>
             ${zone
               ? this._renderZone(zone)
               : editing
                 ? nothing
-                : html`<span class="info muted">No heating</span>
-                    <span class="actions">
-                      <button ?disabled=${this._zones === null} @click=${() => (this._draft = { area: area.area_id, source: "heaters", heaters: [], sensor: "", thermostat: "" })}>Add heating</button>
-                    </span>`}
+                : found
+                  ? html`<span class="info muted"
+                      >Found in Home Assistant:
+                      ${"climate_entity" in found
+                        ? `thermostat ${this._label(found.climate_entity)}`
+                        : `heaters ${found.heaters.map((h) => this._label(h)).join(", ")}, sensor ${this._label(found.temperature_sensor)}`}.
+                      Used once the area has a rule.</span
+                    >`
+                  : html`<span class="info muted">No thermostat, or heaters and temperature sensor, in this area in Home Assistant</span>
+                      <span class="actions">
+                        <button
+                          ?disabled=${this._zones === null}
+                          @click=${() => (this._draft = { area: area.area_id, source: "heaters", heaters: [], sensor: "", thermostat: "" })}
+                        >
+                          Add heating
+                        </button>
+                      </span>`}
             ${editing ? this._renderForm(this._draft!) : nothing}
             ${here.length > 1
               ? html`<span class="error">Several thermostats in this area: ${here.map((z) => this._label(z.climate_entity)).join(", ")}. Move all but one to another area in Home Assistant (Settings → Entities).</span>`
