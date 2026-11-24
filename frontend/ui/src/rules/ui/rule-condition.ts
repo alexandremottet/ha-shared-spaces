@@ -36,6 +36,8 @@ export class ShareSpaceRuleCondition extends LitElement {
 
   @property({ attribute: false }) condition: Condition = { type: "occupied" };
   @property({ attribute: false }) errors: RuleError[] = [];
+  /** Area names by id, offered by "Another area heated". */
+  @property({ attribute: false }) areaNames: Record<string, string> = {};
 
   private _emit(condition: Condition): void {
     this.dispatchEvent(new CustomEvent("condition-change", { detail: { condition }, bubbles: true, composed: true }));
@@ -92,6 +94,17 @@ export class ShareSpaceRuleCondition extends LitElement {
           <input type="text" placeholder="on" aria-label="State" .value=${c.is} @change=${(e: Event) => this._patch({ is: (e.target as HTMLInputElement).value.trim() })} />
         </div>
         <div class="muted">Any HA entity, e.g. a group helper of other areas. Missing entity: the condition does not hold.</div>`;
+      case "heated": {
+        const ids = [...new Set([...Object.keys(this.areaNames), ...c.areas])];
+        const toggle = (id: string) => this._patch({ areas: c.areas.includes(id) ? c.areas.filter((a) => a !== id) : [...c.areas, id] });
+        return html`<div class="row" role="group" aria-label="Areas">
+            ${ids.map(
+              (id) =>
+                html`<button class="chip ${c.areas.includes(id) ? "active" : ""}" aria-pressed=${c.areas.includes(id)} @click=${() => toggle(id)}>${this.areaNames[id] ?? id}</button>`,
+            )}
+          </div>
+          <div class="muted">Holds when one of them is heated: its thermostat is on and not on eco, away or sleep.</div>`;
+      }
     }
   }
 

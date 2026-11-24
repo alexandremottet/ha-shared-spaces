@@ -7,7 +7,7 @@ import type { Action, Condition, PresetTemps, RuleStrategy, TimeWindow } from ".
 import { DEFAULT_PRESET_TEMPS } from "./types";
 import { once } from "./once";
 import type { EntityStates, SensorReadings } from "./value";
-import { evalValue, temperatureOf } from "./value";
+import { evalValue, temperatureOf, heatedKey } from "./value";
 
 const HOUR = 3600000;
 
@@ -72,6 +72,8 @@ function holds(c: Condition, f: RuleFacts): boolean {
     }
     case "state":
       return f.states?.[c.entity] === c.is;
+    case "heated":
+      return c.areas.some((a) => f.states?.[heatedKey(a)] === "on");
   }
 }
 

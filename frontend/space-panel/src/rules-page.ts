@@ -1,7 +1,7 @@
 import { LitElement, html } from "lit";
 import type { PropertyValues, TemplateResult } from "lit";
 import { customElement, property, state } from "lit/decorators.js";
-import { afterSave, entityStates, isDirty, sensorReadings, sameRules, undoRules } from "ha-share-space-ui";
+import { afterSave, climateHeated, entityStates, heatedKey, isDirty, sensorReadings, sameRules, strategyHeatedAreas, undoRules } from "ha-share-space-ui";
 import type { RuleStrategy, RulesSource, SavedRules, ScheduleRanges } from "ha-share-space-ui";
 import {
   deleteStrategy,
@@ -26,6 +26,7 @@ import {
   useZoneStrategy,
   zoneRulesIds,
   errorMessage,
+  entityAreaId,
   createAreaZone,
   detectedZone,
   listDetectedAreas,
@@ -71,8 +72,8 @@ export class ShareSpaceRulesPage extends LitElement {
   @state() private _uses: StrategyUse[] = [];
   @state() private _choice = "";
   @state() private _detected: DetectedArea[] = [];
-  /** HA automations or Scheduler items copied into the rules, turned off once the rules are saved. */
-  @state() private _replacing: ExistingHeating[] = [];
+  /** How the admin starts this area's first Share Space rules: from the HA heating (migrate) or from scratch. */
+  @state() private _origin: "" | "migrate" | "scratch" = "";
   /** Heating for this area already in HA (automations, Scheduler items), as the list below shows it. */
   @state() private _existing: ExistingHeating[] = [];
   @state() private _existingVersion = 0;
@@ -138,13 +139,17 @@ export class ShareSpaceRulesPage extends LitElement {
     return created;
   }
 
-  private _replace(item: ExistingHeating): void {
-    if (this._replacing.some((r) => r.entityId === item.entityId)) return;
-    const base = this._draft ?? emptyRules();
+  // First rules of an area: copy what heats it in HA now (items turned off copy nothing), or start empty.
+  private _start(origin: "migrate" | "scratch"): void {
+    const base = emptyRules();
     this._choice = "";
-    this._saved = this._rules?.state === "managed" && !this._rules.strategy && this._rules.rules ? { rules: this._rules.rules, previous: this._rules.previous } : null;
-    this._draft = { ...base, rules: [...base.rules, ...structuredClone(item.rules)] };
-    this._replacing = [...this._replacing, item];
+    this._origin = origin;
+    this._draft = origin === "migrate" ? { ...base, rules: this._existingOn().flatMap((i) => structuredClone(i.rules)) } : base;
+  }
+
+  // The area has no Share Space rules yet while HA already heats it.
+  private get _choosing(): boolean {
+    return !this._origin && !this._startingNew && this._rules?.state !== "managed" && this._existingOn().length > 0;
   }
 
   // Shared strategies and which zones use them; null hides the shared UI (backend without them).
@@ -192,7 +197,7 @@ export class ShareSpaceRulesPage extends LitElement {
     this._rules = null;
     this._startingNew = false;
     this._choice = "";
-    this._replacing = [];
+    this._origin = "";
     this._existing = [];
     if (!this.hass || !entityId) return;
     this._loading = true;
@@ -223,7 +228,7 @@ export class ShareSpaceRulesPage extends LitElement {
   }
 
   private _discard(): void {
-    this._replacing = [];
+    this._origin = "";
     if (this._startingNew) void this._select(this._zone);
     else if (this._choice !== (this._sharedById(this._zoneOn)?.id ?? "")) this._choose(this._sharedById(this._zoneOn)?.id ?? "", true);
     else this._draft = this._saved?.rules ?? emptyRules();
@@ -293,6 +298,19 @@ export class ShareSpaceRulesPage extends LitElement {
     });
   }
 
+  // Preview of "Another area heated": each area's thermostat as it is now.
+  private _heatedStates(draft: RuleStrategy): Record<string, string> {
+    const hass = this.hass;
+    if (!hass) return {};
+    const out: Record<string, string> = {};
+    for (const area of strategyHeatedAreas(draft)) {
+      const zone = this._zones?.find((z) => z.area_id === area && !z.pending);
+      const climate = zone?.climate_entity ?? Object.keys(hass.states).find((e) => e.startsWith("climate.") && entityAreaId(hass, e) === area);
+      out[heatedKey(area)] = climate && climateHeated(hass.states[climate]) ? "on" : "off";
+    }
+    return out;
+  }
+
   private _existingOn(): ExistingHeating[] {
     const hass = this.hass;
     return this._existing.filter((i) => (hass?.states[i.entityId] ? hass.states[i.entityId].state !== "off" : i.enabled));
@@ -303,7 +321,7 @@ export class ShareSpaceRulesPage extends LitElement {
     const on = this._existingOn();
     for (const item of on) await setExistingEnabled(hass, item, false);
     if (on.length) this._existingVersion++;
-    this._replacing = [];
+    this._origin = "";
   }
 
   private _save(): void {
@@ -439,7 +457,7 @@ export class ShareSpaceRulesPage extends LitElement {
       zone && this._area
         ? { area: this._area, entities: [zone.climate_entity, ...(zone.heaters ?? []), ...(zone.heater_switch ? [zone.heater_switch] : [])].filter(Boolean) }
         : null;
-    return html`<share-space-rules-tab
+    const tab = html`<share-space-rules-tab
       .zones=${this._zones}
       .zone=${this._zone}
       .areas=${this._areas}
@@ -448,7 +466,8 @@ export class ShareSpaceRulesPage extends LitElement {
       .saved=${this._saved}
       .schedule=${schedule}
       .readings=${hass && this._draft ? sensorReadings(this._draft, hass.states, (attrs?.outdoor_entity as string | null | undefined) ?? null) : undefined}
-      .states=${hass && this._draft ? entityStates(this._draft, hass.states) : undefined}
+      .states=${hass && this._draft ? { ...entityStates(this._draft, hass.states), ...this._heatedStates(this._draft) } : undefined}
+      .areaNames=${Object.fromEntries(Object.values(hass?.areas ?? {}).filter((a) => a.area_id !== this._area).map((a) => [a.area_id, a.name]))}
       .temps=${attrs ? { comfort: Number(attrs.comfort_temp ?? 21), eco: Number(attrs.eco_temp ?? 17) } : undefined}
       .now=${hass ? hassNow(hass) : Date.now()}
       .tz=${hass ? hassTimeZone(hass) : "UTC"}
@@ -480,16 +499,20 @@ export class ShareSpaceRulesPage extends LitElement {
       @strategy-rename=${(e: CustomEvent<{ id: string; name: string }>) => this._rename(e.detail.id, e.detail.name)}
       @strategy-delete=${(e: CustomEvent<string>) => this._deleteShared(e.detail)}
       @make-copy=${() => this._makeCopy()}
-    ></share-space-rules-tab>
-      <share-space-existing-heating
+    ></share-space-rules-tab>`;
+    const existing = html`<share-space-existing-heating
         .hass=${hass}
         .target=${target}
         .version=${this._existingVersion}
         .rulesActive=${!!active}
-        .replacing=${this._replacing.map((r) => r.entityId)}
-        @replace-with-rules=${(e: CustomEvent<ExistingHeating>) => this._replace(e.detail)}
+        .choosing=${this._choosing}
+        .migrated=${this._origin === "migrate"}
+        @migrate=${() => this._start("migrate")}
+        @start-scratch=${() => this._start("scratch")}
         @existing-loaded=${(e: CustomEvent<ExistingHeating[]>) => (this._existing = e.detail)}
       ></share-space-existing-heating>`;
+    // the choice comes first; once made, the list is only a reminder of what saving turns off
+    return this._choosing ? html`${existing}${tab}` : html`${tab}${existing}`;
   }
 }
 

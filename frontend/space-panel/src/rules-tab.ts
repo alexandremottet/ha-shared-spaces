@@ -23,6 +23,8 @@ export class ShareSpaceRulesTab extends LitElement {
   @property({ attribute: false }) temps?: PresetTemps;
   @property({ attribute: false }) readings?: SensorReadings;
   @property({ attribute: false }) states?: EntityStates;
+  /** Other areas by id, offered by "Another area heated". */
+  @property({ attribute: false }) areaNames: Record<string, string> = {};
   @property({ type: Number }) now = Date.now();
   @property() tz = "UTC";
   @property({ type: Boolean }) loading = false;
@@ -499,6 +501,7 @@ export class ShareSpaceRulesTab extends LitElement {
         <div class="rules-col">
           <share-space-rule-list
             .strategy=${draft}
+            .areaNames=${this.areaNames}
             .highlight=${this._hl}
             @rule-hover=${(e: CustomEvent<{ label: string | null }>) => (this._hl = e.detail.label)}
             @strategy-change=${(e: CustomEvent<{ strategy: RuleStrategy }>) => {

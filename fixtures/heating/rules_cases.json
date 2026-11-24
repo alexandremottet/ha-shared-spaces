@@ -3,91 +3,444 @@
     "name": "occupied, negated occupied and weekday",
     "tz": "Europe/Paris",
     "schedule": {
-      "monday": [["09:00", "12:00"], ["13:00", "18:00"]],
-      "tuesday": [["09:00", "12:00"], ["13:00", "18:00"]],
-      "wednesday": [["09:00", "12:00"], ["13:00", "18:00"]],
-      "thursday": [["09:00", "12:00"], ["13:00", "18:00"]],
-      "friday": [["09:00", "12:00"], ["13:00", "18:00"]]
+      "monday": [
+        [
+          "09:00",
+          "12:00"
+        ],
+        [
+          "13:00",
+          "18:00"
+        ]
+      ],
+      "tuesday": [
+        [
+          "09:00",
+          "12:00"
+        ],
+        [
+          "13:00",
+          "18:00"
+        ]
+      ],
+      "wednesday": [
+        [
+          "09:00",
+          "12:00"
+        ],
+        [
+          "13:00",
+          "18:00"
+        ]
+      ],
+      "thursday": [
+        [
+          "09:00",
+          "12:00"
+        ],
+        [
+          "13:00",
+          "18:00"
+        ]
+      ],
+      "friday": [
+        [
+          "09:00",
+          "12:00"
+        ],
+        [
+          "13:00",
+          "18:00"
+        ]
+      ]
     },
     "strategy": {
       "version": 1,
       "rules": [
-        {"label": "In", "when": [{"type": "occupied"}], "then": {"type": "comfort"}},
-        {"label": "Empty weekday", "when": [{"type": "occupied", "negate": true}, {"type": "weekday", "days": ["monday", "tuesday", "wednesday", "thursday", "friday"]}], "then": {"type": "eco"}}
+        {
+          "label": "In",
+          "when": [
+            {
+              "type": "occupied"
+            }
+          ],
+          "then": {
+            "type": "comfort"
+          }
+        },
+        {
+          "label": "Empty weekday",
+          "when": [
+            {
+              "type": "occupied",
+              "negate": true
+            },
+            {
+              "type": "weekday",
+              "days": [
+                "monday",
+                "tuesday",
+                "wednesday",
+                "thursday",
+                "friday"
+              ]
+            }
+          ],
+          "then": {
+            "type": "eco"
+          }
+        }
       ],
-      "fallback": {"label": "Weekend", "then": {"type": "off"}}
+      "fallback": {
+        "label": "Weekend",
+        "then": {
+          "type": "off"
+        }
+      }
     },
     "checks": [
-      {"now": "2026-11-17T10:00:00+01:00", "expected": {"target": 21, "preset": "comfort"}, "reason": "In"},
-      {"now": "2026-11-17T12:30:00+01:00", "expected": {"target": 17, "preset": "eco"}, "reason": "Empty weekday"},
-      {"now": "2026-11-17T17:59:00+01:00", "expected": {"target": 21, "preset": "comfort"}, "reason": "In"},
-      {"now": "2026-11-17T18:00:00+01:00", "expected": {"target": 17, "preset": "eco"}, "reason": "Empty weekday"},
-      {"now": "2026-11-21T10:00:00+01:00", "expected": {"off": true}, "reason": "Weekend"}
+      {
+        "now": "2026-11-17T10:00:00+01:00",
+        "expected": {
+          "target": 21,
+          "preset": "comfort"
+        },
+        "reason": "In"
+      },
+      {
+        "now": "2026-11-17T12:30:00+01:00",
+        "expected": {
+          "target": 17,
+          "preset": "eco"
+        },
+        "reason": "Empty weekday"
+      },
+      {
+        "now": "2026-11-17T17:59:00+01:00",
+        "expected": {
+          "target": 21,
+          "preset": "comfort"
+        },
+        "reason": "In"
+      },
+      {
+        "now": "2026-11-17T18:00:00+01:00",
+        "expected": {
+          "target": 17,
+          "preset": "eco"
+        },
+        "reason": "Empty weekday"
+      },
+      {
+        "now": "2026-11-21T10:00:00+01:00",
+        "expected": {
+          "off": true
+        },
+        "reason": "Weekend"
+      }
     ]
   },
   {
     "name": "occupied_within counts from the next run, also while occupied",
     "tz": "Europe/Paris",
     "schedule": {
-      "tuesday": [["09:00", "12:00"], ["13:00", "18:00"]],
-      "wednesday": [["09:00", "12:00"]]
+      "tuesday": [
+        [
+          "09:00",
+          "12:00"
+        ],
+        [
+          "13:00",
+          "18:00"
+        ]
+      ],
+      "wednesday": [
+        [
+          "09:00",
+          "12:00"
+        ]
+      ]
     },
     "strategy": {
       "version": 1,
-      "rules": [{"label": "Soon", "when": [{"type": "occupied_within", "hours": 2}], "then": {"type": "temperature", "value": 19}}],
-      "fallback": {"label": "Idle", "then": {"type": "off"}}
+      "rules": [
+        {
+          "label": "Soon",
+          "when": [
+            {
+              "type": "occupied_within",
+              "hours": 2
+            }
+          ],
+          "then": {
+            "type": "temperature",
+            "value": 19
+          }
+        }
+      ],
+      "fallback": {
+        "label": "Idle",
+        "then": {
+          "type": "off"
+        }
+      }
     },
     "checks": [
-      {"now": "2026-11-17T06:59:00+01:00", "expected": {"off": true}, "reason": "Idle"},
-      {"now": "2026-11-17T07:00:00+01:00", "expected": {"target": 19}, "reason": "Soon"},
-      {"now": "2026-11-17T10:00:00+01:00", "expected": {"off": true}, "reason": "Idle"},
-      {"now": "2026-11-17T11:00:00+01:00", "expected": {"target": 19}, "reason": "Soon"},
-      {"now": "2026-11-17T19:00:00+01:00", "expected": {"off": true}, "reason": "Idle"},
-      {"now": "2026-11-18T07:30:00+01:00", "expected": {"target": 19}, "reason": "Soon"},
-      {"now": "2026-11-18T12:00:00+01:00", "expected": {"off": true}, "reason": "Idle"}
+      {
+        "now": "2026-11-17T06:59:00+01:00",
+        "expected": {
+          "off": true
+        },
+        "reason": "Idle"
+      },
+      {
+        "now": "2026-11-17T07:00:00+01:00",
+        "expected": {
+          "target": 19
+        },
+        "reason": "Soon"
+      },
+      {
+        "now": "2026-11-17T10:00:00+01:00",
+        "expected": {
+          "off": true
+        },
+        "reason": "Idle"
+      },
+      {
+        "now": "2026-11-17T11:00:00+01:00",
+        "expected": {
+          "target": 19
+        },
+        "reason": "Soon"
+      },
+      {
+        "now": "2026-11-17T19:00:00+01:00",
+        "expected": {
+          "off": true
+        },
+        "reason": "Idle"
+      },
+      {
+        "now": "2026-11-18T07:30:00+01:00",
+        "expected": {
+          "target": 19
+        },
+        "reason": "Soon"
+      },
+      {
+        "now": "2026-11-18T12:00:00+01:00",
+        "expected": {
+          "off": true
+        },
+        "reason": "Idle"
+      }
     ]
   },
   {
     "name": "between_days: empty now and the whole gap (left to back) is at most gap_hours",
     "tz": "Europe/Paris",
     "schedule": {
-      "monday": [["09:00", "12:00"], ["13:00", "18:00"]],
-      "tuesday": [["09:00", "12:00"], ["13:00", "18:00"]],
-      "wednesday": [["09:00", "12:00"], ["13:00", "18:00"]],
-      "thursday": [["09:00", "12:00"], ["13:00", "18:00"]],
-      "friday": [["09:00", "12:00"], ["13:00", "18:00"]]
+      "monday": [
+        [
+          "09:00",
+          "12:00"
+        ],
+        [
+          "13:00",
+          "18:00"
+        ]
+      ],
+      "tuesday": [
+        [
+          "09:00",
+          "12:00"
+        ],
+        [
+          "13:00",
+          "18:00"
+        ]
+      ],
+      "wednesday": [
+        [
+          "09:00",
+          "12:00"
+        ],
+        [
+          "13:00",
+          "18:00"
+        ]
+      ],
+      "thursday": [
+        [
+          "09:00",
+          "12:00"
+        ],
+        [
+          "13:00",
+          "18:00"
+        ]
+      ],
+      "friday": [
+        [
+          "09:00",
+          "12:00"
+        ],
+        [
+          "13:00",
+          "18:00"
+        ]
+      ]
     },
     "strategy": {
       "version": 1,
-      "rules": [{"label": "Gap", "when": [{"type": "between_days", "gap_hours": 15}], "then": {"type": "temperature", "value": 16}}],
-      "fallback": {"label": "Idle", "then": {"type": "off"}}
+      "rules": [
+        {
+          "label": "Gap",
+          "when": [
+            {
+              "type": "between_days",
+              "gap_hours": 15
+            }
+          ],
+          "then": {
+            "type": "temperature",
+            "value": 16
+          }
+        }
+      ],
+      "fallback": {
+        "label": "Idle",
+        "then": {
+          "type": "off"
+        }
+      }
     },
     "checks": [
-      {"now": "2026-11-17T08:59:00+01:00", "expected": {"target": 16}, "reason": "Gap"},
-      {"now": "2026-11-17T09:00:00+01:00", "expected": {"off": true}, "reason": "Idle"},
-      {"now": "2026-11-17T12:30:00+01:00", "expected": {"target": 16}, "reason": "Gap"},
-      {"now": "2026-11-17T19:00:00+01:00", "expected": {"target": 16}, "reason": "Gap"},
-      {"now": "2026-11-18T08:00:00+01:00", "expected": {"target": 16}, "reason": "Gap"},
-      {"now": "2026-11-20T19:00:00+01:00", "expected": {"off": true}, "reason": "Idle"},
-      {"now": "2026-11-22T12:00:00+01:00", "expected": {"off": true}, "reason": "Idle"},
-      {"now": "2026-11-23T08:00:00+01:00", "expected": {"off": true}, "reason": "Idle"}
+      {
+        "now": "2026-11-17T08:59:00+01:00",
+        "expected": {
+          "target": 16
+        },
+        "reason": "Gap"
+      },
+      {
+        "now": "2026-11-17T09:00:00+01:00",
+        "expected": {
+          "off": true
+        },
+        "reason": "Idle"
+      },
+      {
+        "now": "2026-11-17T12:30:00+01:00",
+        "expected": {
+          "target": 16
+        },
+        "reason": "Gap"
+      },
+      {
+        "now": "2026-11-17T19:00:00+01:00",
+        "expected": {
+          "target": 16
+        },
+        "reason": "Gap"
+      },
+      {
+        "now": "2026-11-18T08:00:00+01:00",
+        "expected": {
+          "target": 16
+        },
+        "reason": "Gap"
+      },
+      {
+        "now": "2026-11-20T19:00:00+01:00",
+        "expected": {
+          "off": true
+        },
+        "reason": "Idle"
+      },
+      {
+        "now": "2026-11-22T12:00:00+01:00",
+        "expected": {
+          "off": true
+        },
+        "reason": "Idle"
+      },
+      {
+        "now": "2026-11-23T08:00:00+01:00",
+        "expected": {
+          "off": true
+        },
+        "reason": "Idle"
+      }
     ]
   },
   {
     "name": "weekday flips at local midnight, preset temps from the zone",
     "tz": "Europe/Paris",
-    "temps": {"comfort": 22, "eco": 18},
+    "temps": {
+      "comfort": 22,
+      "eco": 18
+    },
     "schedule": {},
     "strategy": {
       "version": 1,
-      "rules": [{"label": "Weekend", "when": [{"type": "weekday", "days": ["saturday", "sunday"]}], "then": {"type": "temperature", "value": 12}}],
-      "fallback": {"label": "Weekday", "then": {"type": "eco"}}
+      "rules": [
+        {
+          "label": "Weekend",
+          "when": [
+            {
+              "type": "weekday",
+              "days": [
+                "saturday",
+                "sunday"
+              ]
+            }
+          ],
+          "then": {
+            "type": "temperature",
+            "value": 12
+          }
+        }
+      ],
+      "fallback": {
+        "label": "Weekday",
+        "then": {
+          "type": "eco"
+        }
+      }
     },
     "checks": [
-      {"now": "2026-11-20T23:59:00+01:00", "expected": {"target": 18, "preset": "eco"}, "reason": "Weekday"},
-      {"now": "2026-11-21T00:00:00+01:00", "expected": {"target": 12}, "reason": "Weekend"},
-      {"now": "2026-11-22T23:59:00+01:00", "expected": {"target": 12}, "reason": "Weekend"},
-      {"now": "2026-11-23T00:00:00+01:00", "expected": {"target": 18, "preset": "eco"}, "reason": "Weekday"}
+      {
+        "now": "2026-11-20T23:59:00+01:00",
+        "expected": {
+          "target": 18,
+          "preset": "eco"
+        },
+        "reason": "Weekday"
+      },
+      {
+        "now": "2026-11-21T00:00:00+01:00",
+        "expected": {
+          "target": 12
+        },
+        "reason": "Weekend"
+      },
+      {
+        "now": "2026-11-22T23:59:00+01:00",
+        "expected": {
+          "target": 12
+        },
+        "reason": "Weekend"
+      },
+      {
+        "now": "2026-11-23T00:00:00+01:00",
+        "expected": {
+          "target": 18,
+          "preset": "eco"
+        },
+        "reason": "Weekday"
+      }
     ]
   },
   {
@@ -97,20 +450,100 @@
     "strategy": {
       "version": 1,
       "rules": [
-        {"label": "Morning", "when": [{"type": "time", "start": "07:15", "end": "08:45"}], "then": {"type": "comfort"}},
-        {"label": "Night", "when": [{"type": "time", "start": "22:00", "end": "06:00"}], "then": {"type": "off"}}
+        {
+          "label": "Morning",
+          "when": [
+            {
+              "type": "time",
+              "start": "07:15",
+              "end": "08:45"
+            }
+          ],
+          "then": {
+            "type": "comfort"
+          }
+        },
+        {
+          "label": "Night",
+          "when": [
+            {
+              "type": "time",
+              "start": "22:00",
+              "end": "06:00"
+            }
+          ],
+          "then": {
+            "type": "off"
+          }
+        }
       ],
-      "fallback": {"label": "Day", "then": {"type": "temperature", "value": 19}}
+      "fallback": {
+        "label": "Day",
+        "then": {
+          "type": "temperature",
+          "value": 19
+        }
+      }
     },
     "checks": [
-      {"now": "2026-11-17T07:14:00+01:00", "expected": {"target": 19}, "reason": "Day"},
-      {"now": "2026-11-17T07:15:00+01:00", "expected": {"target": 21, "preset": "comfort"}, "reason": "Morning"},
-      {"now": "2026-11-17T08:44:00+01:00", "expected": {"target": 21, "preset": "comfort"}, "reason": "Morning"},
-      {"now": "2026-11-17T08:45:00+01:00", "expected": {"target": 19}, "reason": "Day"},
-      {"now": "2026-11-17T21:59:00+01:00", "expected": {"target": 19}, "reason": "Day"},
-      {"now": "2026-11-17T22:00:00+01:00", "expected": {"off": true}, "reason": "Night"},
-      {"now": "2026-11-18T05:59:00+01:00", "expected": {"off": true}, "reason": "Night"},
-      {"now": "2026-11-18T06:00:00+01:00", "expected": {"target": 19}, "reason": "Day"}
+      {
+        "now": "2026-11-17T07:14:00+01:00",
+        "expected": {
+          "target": 19
+        },
+        "reason": "Day"
+      },
+      {
+        "now": "2026-11-17T07:15:00+01:00",
+        "expected": {
+          "target": 21,
+          "preset": "comfort"
+        },
+        "reason": "Morning"
+      },
+      {
+        "now": "2026-11-17T08:44:00+01:00",
+        "expected": {
+          "target": 21,
+          "preset": "comfort"
+        },
+        "reason": "Morning"
+      },
+      {
+        "now": "2026-11-17T08:45:00+01:00",
+        "expected": {
+          "target": 19
+        },
+        "reason": "Day"
+      },
+      {
+        "now": "2026-11-17T21:59:00+01:00",
+        "expected": {
+          "target": 19
+        },
+        "reason": "Day"
+      },
+      {
+        "now": "2026-11-17T22:00:00+01:00",
+        "expected": {
+          "off": true
+        },
+        "reason": "Night"
+      },
+      {
+        "now": "2026-11-18T05:59:00+01:00",
+        "expected": {
+          "off": true
+        },
+        "reason": "Night"
+      },
+      {
+        "now": "2026-11-18T06:00:00+01:00",
+        "expected": {
+          "target": 19
+        },
+        "reason": "Day"
+      }
     ]
   },
   {
@@ -119,252 +552,1669 @@
     "schedule": {},
     "strategy": {
       "version": 1,
-      "rules": [{"label": "Late", "when": [{"type": "time", "start": "02:15", "end": "02:45"}], "then": {"type": "temperature", "value": 15}}],
-      "fallback": {"label": "Other", "then": {"type": "off"}}
+      "rules": [
+        {
+          "label": "Late",
+          "when": [
+            {
+              "type": "time",
+              "start": "02:15",
+              "end": "02:45"
+            }
+          ],
+          "then": {
+            "type": "temperature",
+            "value": 15
+          }
+        }
+      ],
+      "fallback": {
+        "label": "Other",
+        "then": {
+          "type": "off"
+        }
+      }
     },
     "checks": [
-      {"now": "2026-10-25T02:20:00+02:00", "expected": {"target": 15}, "reason": "Late"},
-      {"now": "2026-10-25T02:50:00+02:00", "expected": {"off": true}, "reason": "Other"},
-      {"now": "2026-10-25T02:20:00+01:00", "expected": {"target": 15}, "reason": "Late"},
-      {"now": "2026-10-25T02:45:00+01:00", "expected": {"off": true}, "reason": "Other"}
+      {
+        "now": "2026-10-25T02:20:00+02:00",
+        "expected": {
+          "target": 15
+        },
+        "reason": "Late"
+      },
+      {
+        "now": "2026-10-25T02:50:00+02:00",
+        "expected": {
+          "off": true
+        },
+        "reason": "Other"
+      },
+      {
+        "now": "2026-10-25T02:20:00+01:00",
+        "expected": {
+          "target": 15
+        },
+        "reason": "Late"
+      },
+      {
+        "now": "2026-10-25T02:45:00+01:00",
+        "expected": {
+          "off": true
+        },
+        "reason": "Other"
+      }
     ]
   },
   {
     "name": "planned windows today, match all then any",
     "tz": "Europe/Paris",
     "schedule": {
-      "tuesday": [["08:00", "11:30"]],
-      "wednesday": [["08:00", "11:30"], ["13:30", "18:00"]]
+      "tuesday": [
+        [
+          "08:00",
+          "11:30"
+        ]
+      ],
+      "wednesday": [
+        [
+          "08:00",
+          "11:30"
+        ],
+        [
+          "13:30",
+          "18:00"
+        ]
+      ]
     },
     "strategy": {
       "version": 1,
       "rules": [
-        {"label": "Both", "when": [{"type": "planned", "windows": [{"start": "11:00", "end": "12:00"}, {"start": "13:00", "end": "14:00"}], "match": "all"}], "then": {"type": "temperature", "value": 20}},
-        {"label": "Either", "when": [{"type": "planned", "windows": [{"start": "11:00", "end": "12:00"}, {"start": "13:00", "end": "14:00"}], "match": "any"}], "then": {"type": "temperature", "value": 18}}
+        {
+          "label": "Both",
+          "when": [
+            {
+              "type": "planned",
+              "windows": [
+                {
+                  "start": "11:00",
+                  "end": "12:00"
+                },
+                {
+                  "start": "13:00",
+                  "end": "14:00"
+                }
+              ],
+              "match": "all"
+            }
+          ],
+          "then": {
+            "type": "temperature",
+            "value": 20
+          }
+        },
+        {
+          "label": "Either",
+          "when": [
+            {
+              "type": "planned",
+              "windows": [
+                {
+                  "start": "11:00",
+                  "end": "12:00"
+                },
+                {
+                  "start": "13:00",
+                  "end": "14:00"
+                }
+              ],
+              "match": "any"
+            }
+          ],
+          "then": {
+            "type": "temperature",
+            "value": 18
+          }
+        }
       ],
-      "fallback": {"label": "None", "then": {"type": "off"}}
+      "fallback": {
+        "label": "None",
+        "then": {
+          "type": "off"
+        }
+      }
     },
     "checks": [
-      {"now": "2026-11-17T07:00:00+01:00", "expected": {"target": 18}, "reason": "Either"},
-      {"now": "2026-11-18T20:00:00+01:00", "expected": {"target": 20}, "reason": "Both"},
-      {"now": "2026-11-19T10:00:00+01:00", "expected": {"off": true}, "reason": "None"}
+      {
+        "now": "2026-11-17T07:00:00+01:00",
+        "expected": {
+          "target": 18
+        },
+        "reason": "Either"
+      },
+      {
+        "now": "2026-11-18T20:00:00+01:00",
+        "expected": {
+          "target": 20
+        },
+        "reason": "Both"
+      },
+      {
+        "now": "2026-11-19T10:00:00+01:00",
+        "expected": {
+          "off": true
+        },
+        "reason": "None"
+      }
     ]
   },
   {
     "name": "first match wins, empty when always matches",
     "tz": "Europe/Paris",
-    "schedule": {"tuesday": [["09:00", "12:00"]]},
+    "schedule": {
+      "tuesday": [
+        [
+          "09:00",
+          "12:00"
+        ]
+      ]
+    },
     "strategy": {
       "version": 1,
       "rules": [
-        {"label": "Always", "when": [], "then": {"type": "temperature", "value": 20}},
-        {"label": "Never reached", "when": [{"type": "occupied"}], "then": {"type": "comfort"}}
+        {
+          "label": "Always",
+          "when": [],
+          "then": {
+            "type": "temperature",
+            "value": 20
+          }
+        },
+        {
+          "label": "Never reached",
+          "when": [
+            {
+              "type": "occupied"
+            }
+          ],
+          "then": {
+            "type": "comfort"
+          }
+        }
       ],
-      "fallback": {"label": "Fallback", "then": {"type": "off"}}
+      "fallback": {
+        "label": "Fallback",
+        "then": {
+          "type": "off"
+        }
+      }
     },
     "checks": [
-      {"now": "2026-11-17T10:00:00+01:00", "expected": {"target": 20}, "reason": "Always"}
+      {
+        "now": "2026-11-17T10:00:00+01:00",
+        "expected": {
+          "target": 20
+        },
+        "reason": "Always"
+      }
     ]
   },
   {
     "name": "no rules uses the fallback",
     "tz": "Europe/Paris",
-    "schedule": {"tuesday": [["09:00", "12:00"]]},
-    "strategy": {"version": 1, "rules": [], "fallback": {"label": "Frost guard", "then": {"type": "eco"}}},
+    "schedule": {
+      "tuesday": [
+        [
+          "09:00",
+          "12:00"
+        ]
+      ]
+    },
+    "strategy": {
+      "version": 1,
+      "rules": [],
+      "fallback": {
+        "label": "Frost guard",
+        "then": {
+          "type": "eco"
+        }
+      }
+    },
     "checks": [
-      {"now": "2026-11-17T10:00:00+01:00", "expected": {"target": 17, "preset": "eco"}, "reason": "Frost guard"}
+      {
+        "now": "2026-11-17T10:00:00+01:00",
+        "expected": {
+          "target": 17,
+          "preset": "eco"
+        },
+        "reason": "Frost guard"
+      }
     ]
   },
   {
     "name": "occupied_within lead from an outdoor curve (4 points, flat outside, default without reading)",
     "tz": "Europe/Paris",
     "schedule": {
-      "monday": [["09:00", "18:00"]],
-      "tuesday": [["09:00", "18:00"]],
-      "wednesday": [["09:00", "18:00"]],
-      "thursday": [["09:00", "18:00"]],
-      "friday": [["09:00", "18:00"]]
+      "monday": [
+        [
+          "09:00",
+          "18:00"
+        ]
+      ],
+      "tuesday": [
+        [
+          "09:00",
+          "18:00"
+        ]
+      ],
+      "wednesday": [
+        [
+          "09:00",
+          "18:00"
+        ]
+      ],
+      "thursday": [
+        [
+          "09:00",
+          "18:00"
+        ]
+      ],
+      "friday": [
+        [
+          "09:00",
+          "18:00"
+        ]
+      ]
     },
     "strategy": {
       "version": 1,
       "rules": [
-        {"label": "Occupied", "when": [{"type": "occupied"}], "then": {"type": "temperature", "value": 20}},
-        {"label": "Preheat", "when": [{"type": "occupied_within", "hours": {"type": "curve", "entity": "sensor.outdoor_temp", "default": 0, "points": [{"at": -10, "value": 9}, {"at": 0, "value": 5}, {"at": 10, "value": 2}, {"at": 18, "value": 1}]}}], "then": {"type": "temperature", "value": 20}}
+        {
+          "label": "Occupied",
+          "when": [
+            {
+              "type": "occupied"
+            }
+          ],
+          "then": {
+            "type": "temperature",
+            "value": 20
+          }
+        },
+        {
+          "label": "Preheat",
+          "when": [
+            {
+              "type": "occupied_within",
+              "hours": {
+                "type": "curve",
+                "entity": "sensor.outdoor_temp",
+                "default": 0,
+                "points": [
+                  {
+                    "at": -10,
+                    "value": 9
+                  },
+                  {
+                    "at": 0,
+                    "value": 5
+                  },
+                  {
+                    "at": 10,
+                    "value": 2
+                  },
+                  {
+                    "at": 18,
+                    "value": 1
+                  }
+                ]
+              }
+            }
+          ],
+          "then": {
+            "type": "temperature",
+            "value": 20
+          }
+        }
       ],
-      "fallback": {"label": "Away", "then": {"type": "off"}}
+      "fallback": {
+        "label": "Away",
+        "then": {
+          "type": "off"
+        }
+      }
     },
     "checks": [
-      {"now": "2026-11-17T05:29:00+01:00", "readings": {"sensor.outdoor_temp": 5}, "expected": {"off": true}, "reason": "Away"},
-      {"now": "2026-11-17T05:30:00+01:00", "readings": {"sensor.outdoor_temp": 5}, "expected": {"target": 20}, "reason": "Preheat"},
-      {"now": "2026-11-16T23:59:00+01:00", "readings": {"sensor.outdoor_temp": -20}, "expected": {"off": true}, "reason": "Away"},
-      {"now": "2026-11-17T00:00:00+01:00", "readings": {"sensor.outdoor_temp": -20}, "expected": {"target": 20}, "reason": "Preheat"},
-      {"now": "2026-11-17T01:59:00+01:00", "readings": {"sensor.outdoor_temp": -5}, "expected": {"off": true}, "reason": "Away"},
-      {"now": "2026-11-17T02:00:00+01:00", "readings": {"sensor.outdoor_temp": -5}, "expected": {"target": 20}, "reason": "Preheat"},
-      {"now": "2026-11-17T07:59:00+01:00", "readings": {"sensor.outdoor_temp": 30}, "expected": {"off": true}, "reason": "Away"},
-      {"now": "2026-11-17T08:00:00+01:00", "readings": {"sensor.outdoor_temp": 30}, "expected": {"target": 20}, "reason": "Preheat"},
-      {"now": "2026-11-17T04:00:00+01:00", "expected": {"target": 20}, "reason": "Preheat"},
-      {"now": "2026-11-17T03:59:00+01:00", "expected": {"off": true}, "reason": "Away"}
+      {
+        "now": "2026-11-17T05:29:00+01:00",
+        "readings": {
+          "sensor.outdoor_temp": 5
+        },
+        "expected": {
+          "off": true
+        },
+        "reason": "Away"
+      },
+      {
+        "now": "2026-11-17T05:30:00+01:00",
+        "readings": {
+          "sensor.outdoor_temp": 5
+        },
+        "expected": {
+          "target": 20
+        },
+        "reason": "Preheat"
+      },
+      {
+        "now": "2026-11-16T23:59:00+01:00",
+        "readings": {
+          "sensor.outdoor_temp": -20
+        },
+        "expected": {
+          "off": true
+        },
+        "reason": "Away"
+      },
+      {
+        "now": "2026-11-17T00:00:00+01:00",
+        "readings": {
+          "sensor.outdoor_temp": -20
+        },
+        "expected": {
+          "target": 20
+        },
+        "reason": "Preheat"
+      },
+      {
+        "now": "2026-11-17T01:59:00+01:00",
+        "readings": {
+          "sensor.outdoor_temp": -5
+        },
+        "expected": {
+          "off": true
+        },
+        "reason": "Away"
+      },
+      {
+        "now": "2026-11-17T02:00:00+01:00",
+        "readings": {
+          "sensor.outdoor_temp": -5
+        },
+        "expected": {
+          "target": 20
+        },
+        "reason": "Preheat"
+      },
+      {
+        "now": "2026-11-17T07:59:00+01:00",
+        "readings": {
+          "sensor.outdoor_temp": 30
+        },
+        "expected": {
+          "off": true
+        },
+        "reason": "Away"
+      },
+      {
+        "now": "2026-11-17T08:00:00+01:00",
+        "readings": {
+          "sensor.outdoor_temp": 30
+        },
+        "expected": {
+          "target": 20
+        },
+        "reason": "Preheat"
+      },
+      {
+        "now": "2026-11-17T04:00:00+01:00",
+        "expected": {
+          "target": 20
+        },
+        "reason": "Preheat"
+      },
+      {
+        "now": "2026-11-17T03:59:00+01:00",
+        "expected": {
+          "off": true
+        },
+        "reason": "Away"
+      }
     ]
   },
   {
     "name": "temperature from a weather curve (lerp, flat outside, rounded to 0.5, default)",
     "tz": "Europe/Paris",
     "schedule": {
-      "monday": [["09:00", "18:00"]],
-      "tuesday": [["09:00", "18:00"]],
-      "wednesday": [["09:00", "18:00"]],
-      "thursday": [["09:00", "18:00"]],
-      "friday": [["09:00", "18:00"]]
+      "monday": [
+        [
+          "09:00",
+          "18:00"
+        ]
+      ],
+      "tuesday": [
+        [
+          "09:00",
+          "18:00"
+        ]
+      ],
+      "wednesday": [
+        [
+          "09:00",
+          "18:00"
+        ]
+      ],
+      "thursday": [
+        [
+          "09:00",
+          "18:00"
+        ]
+      ],
+      "friday": [
+        [
+          "09:00",
+          "18:00"
+        ]
+      ]
     },
     "strategy": {
       "version": 1,
       "rules": [
-        {"label": "Occupied", "when": [{"type": "occupied"}], "then": {"type": "temperature", "value": {"type": "curve", "entity": "weather.home", "default": 10, "points": [{"at": -5, "value": 22}, {"at": 15, "value": 19}]}}}
+        {
+          "label": "Occupied",
+          "when": [
+            {
+              "type": "occupied"
+            }
+          ],
+          "then": {
+            "type": "temperature",
+            "value": {
+              "type": "curve",
+              "entity": "weather.home",
+              "default": 10,
+              "points": [
+                {
+                  "at": -5,
+                  "value": 22
+                },
+                {
+                  "at": 15,
+                  "value": 19
+                }
+              ]
+            }
+          }
+        }
       ],
-      "fallback": {"label": "Away", "then": {"type": "temperature", "value": {"type": "curve", "entity": "weather.home", "default": 0, "points": [{"at": 0, "value": 35}, {"at": 10, "value": 5}]}}}
+      "fallback": {
+        "label": "Away",
+        "then": {
+          "type": "temperature",
+          "value": {
+            "type": "curve",
+            "entity": "weather.home",
+            "default": 0,
+            "points": [
+              {
+                "at": 0,
+                "value": 35
+              },
+              {
+                "at": 10,
+                "value": 5
+              }
+            ]
+          }
+        }
+      }
     },
     "checks": [
-      {"now": "2026-11-17T10:00:00+01:00", "readings": {"weather.home": 5}, "expected": {"target": 20.5}, "reason": "Occupied"},
-      {"now": "2026-11-17T10:00:00+01:00", "readings": {"weather.home": -12}, "expected": {"target": 22}, "reason": "Occupied"},
-      {"now": "2026-11-17T10:00:00+01:00", "readings": {"weather.home": 25}, "expected": {"target": 19}, "reason": "Occupied"},
-      {"now": "2026-11-17T10:00:00+01:00", "readings": {"weather.home": 7}, "expected": {"target": 20}, "reason": "Occupied"},
-      {"now": "2026-11-17T10:00:00+01:00", "expected": {"target": 20}, "reason": "Occupied"},
-      {"now": "2026-11-17T20:00:00+01:00", "readings": {"weather.home": -8}, "expected": {"target": 35}, "reason": "Away"},
-      {"now": "2026-11-17T20:00:00+01:00", "readings": {"weather.home": 30}, "expected": {"target": 5}, "reason": "Away"}
+      {
+        "now": "2026-11-17T10:00:00+01:00",
+        "readings": {
+          "weather.home": 5
+        },
+        "expected": {
+          "target": 20.5
+        },
+        "reason": "Occupied"
+      },
+      {
+        "now": "2026-11-17T10:00:00+01:00",
+        "readings": {
+          "weather.home": -12
+        },
+        "expected": {
+          "target": 22
+        },
+        "reason": "Occupied"
+      },
+      {
+        "now": "2026-11-17T10:00:00+01:00",
+        "readings": {
+          "weather.home": 25
+        },
+        "expected": {
+          "target": 19
+        },
+        "reason": "Occupied"
+      },
+      {
+        "now": "2026-11-17T10:00:00+01:00",
+        "readings": {
+          "weather.home": 7
+        },
+        "expected": {
+          "target": 20
+        },
+        "reason": "Occupied"
+      },
+      {
+        "now": "2026-11-17T10:00:00+01:00",
+        "expected": {
+          "target": 20
+        },
+        "reason": "Occupied"
+      },
+      {
+        "now": "2026-11-17T20:00:00+01:00",
+        "readings": {
+          "weather.home": -8
+        },
+        "expected": {
+          "target": 35
+        },
+        "reason": "Away"
+      },
+      {
+        "now": "2026-11-17T20:00:00+01:00",
+        "readings": {
+          "weather.home": 30
+        },
+        "expected": {
+          "target": 5
+        },
+        "reason": "Away"
+      }
     ]
   },
   {
     "name": "sensor below / above, no reading and negate",
     "tz": "Europe/Paris",
     "schedule": {
-      "monday": [["09:00", "18:00"]],
-      "tuesday": [["09:00", "18:00"]],
-      "wednesday": [["09:00", "18:00"]],
-      "thursday": [["09:00", "18:00"]],
-      "friday": [["09:00", "18:00"]]
+      "monday": [
+        [
+          "09:00",
+          "18:00"
+        ]
+      ],
+      "tuesday": [
+        [
+          "09:00",
+          "18:00"
+        ]
+      ],
+      "wednesday": [
+        [
+          "09:00",
+          "18:00"
+        ]
+      ],
+      "thursday": [
+        [
+          "09:00",
+          "18:00"
+        ]
+      ],
+      "friday": [
+        [
+          "09:00",
+          "18:00"
+        ]
+      ]
     },
     "strategy": {
       "version": 1,
       "rules": [
-        {"label": "Cold", "when": [{"type": "sensor", "entity": "sensor.outdoor_temp", "op": "below", "than": 0}, {"type": "occupied"}], "then": {"type": "temperature", "value": 22}},
-        {"label": "Hot", "when": [{"type": "sensor", "entity": "sensor.outdoor_temp", "op": "above", "than": 25}], "then": {"type": "off"}},
-        {"label": "Not cold", "when": [{"type": "sensor", "entity": "sensor.outdoor_temp", "op": "below", "than": 0, "negate": true}], "then": {"type": "eco"}}
+        {
+          "label": "Cold",
+          "when": [
+            {
+              "type": "sensor",
+              "entity": "sensor.outdoor_temp",
+              "op": "below",
+              "than": 0
+            },
+            {
+              "type": "occupied"
+            }
+          ],
+          "then": {
+            "type": "temperature",
+            "value": 22
+          }
+        },
+        {
+          "label": "Hot",
+          "when": [
+            {
+              "type": "sensor",
+              "entity": "sensor.outdoor_temp",
+              "op": "above",
+              "than": 25
+            }
+          ],
+          "then": {
+            "type": "off"
+          }
+        },
+        {
+          "label": "Not cold",
+          "when": [
+            {
+              "type": "sensor",
+              "entity": "sensor.outdoor_temp",
+              "op": "below",
+              "than": 0,
+              "negate": true
+            }
+          ],
+          "then": {
+            "type": "eco"
+          }
+        }
       ],
-      "fallback": {"label": "Cold, empty", "then": {"type": "comfort"}}
+      "fallback": {
+        "label": "Cold, empty",
+        "then": {
+          "type": "comfort"
+        }
+      }
     },
     "checks": [
-      {"now": "2026-11-17T10:00:00+01:00", "readings": {"sensor.outdoor_temp": -1}, "expected": {"target": 22}, "reason": "Cold"},
-      {"now": "2026-11-17T10:00:00+01:00", "readings": {"sensor.outdoor_temp": 0}, "expected": {"target": 17, "preset": "eco"}, "reason": "Not cold"},
-      {"now": "2026-11-17T20:00:00+01:00", "readings": {"sensor.outdoor_temp": -1}, "expected": {"target": 21, "preset": "comfort"}, "reason": "Cold, empty"},
-      {"now": "2026-11-17T10:00:00+01:00", "readings": {"sensor.outdoor_temp": 26}, "expected": {"off": true}, "reason": "Hot"},
-      {"now": "2026-11-17T10:00:00+01:00", "readings": {"sensor.outdoor_temp": 25}, "expected": {"target": 17, "preset": "eco"}, "reason": "Not cold"},
-      {"now": "2026-11-17T10:00:00+01:00", "expected": {"target": 17, "preset": "eco"}, "reason": "Not cold"}
+      {
+        "now": "2026-11-17T10:00:00+01:00",
+        "readings": {
+          "sensor.outdoor_temp": -1
+        },
+        "expected": {
+          "target": 22
+        },
+        "reason": "Cold"
+      },
+      {
+        "now": "2026-11-17T10:00:00+01:00",
+        "readings": {
+          "sensor.outdoor_temp": 0
+        },
+        "expected": {
+          "target": 17,
+          "preset": "eco"
+        },
+        "reason": "Not cold"
+      },
+      {
+        "now": "2026-11-17T20:00:00+01:00",
+        "readings": {
+          "sensor.outdoor_temp": -1
+        },
+        "expected": {
+          "target": 21,
+          "preset": "comfort"
+        },
+        "reason": "Cold, empty"
+      },
+      {
+        "now": "2026-11-17T10:00:00+01:00",
+        "readings": {
+          "sensor.outdoor_temp": 26
+        },
+        "expected": {
+          "off": true
+        },
+        "reason": "Hot"
+      },
+      {
+        "now": "2026-11-17T10:00:00+01:00",
+        "readings": {
+          "sensor.outdoor_temp": 25
+        },
+        "expected": {
+          "target": 17,
+          "preset": "eco"
+        },
+        "reason": "Not cold"
+      },
+      {
+        "now": "2026-11-17T10:00:00+01:00",
+        "expected": {
+          "target": 17,
+          "preset": "eco"
+        },
+        "reason": "Not cold"
+      }
     ]
   },
   {
     "name": "between_days: no setback when nobody comes back until the afternoon",
     "tz": "Europe/Paris",
     "schedule": {
-      "monday": [["09:00", "18:00"]],
-      "tuesday": [["14:00", "18:00"]],
-      "wednesday": [["09:00", "18:00"]]
+      "monday": [
+        [
+          "09:00",
+          "18:00"
+        ]
+      ],
+      "tuesday": [
+        [
+          "14:00",
+          "18:00"
+        ]
+      ],
+      "wednesday": [
+        [
+          "09:00",
+          "18:00"
+        ]
+      ]
     },
     "strategy": {
       "version": 1,
-      "rules": [{"label": "Setback", "when": [{"type": "between_days", "gap_hours": 16}], "then": {"type": "temperature", "value": 15}}],
-      "fallback": {"label": "Away", "then": {"type": "off"}}
+      "rules": [
+        {
+          "label": "Setback",
+          "when": [
+            {
+              "type": "between_days",
+              "gap_hours": 16
+            }
+          ],
+          "then": {
+            "type": "temperature",
+            "value": 15
+          }
+        }
+      ],
+      "fallback": {
+        "label": "Away",
+        "then": {
+          "type": "off"
+        }
+      }
     },
     "checks": [
-      {"now": "2026-11-16T19:00:00+01:00", "expected": {"off": true}, "reason": "Away"},
-      {"now": "2026-11-17T10:00:00+01:00", "expected": {"off": true}, "reason": "Away"},
-      {"now": "2026-11-17T19:00:00+01:00", "expected": {"target": 15}, "reason": "Setback"},
-      {"now": "2026-11-18T08:30:00+01:00", "expected": {"target": 15}, "reason": "Setback"}
+      {
+        "now": "2026-11-16T19:00:00+01:00",
+        "expected": {
+          "off": true
+        },
+        "reason": "Away"
+      },
+      {
+        "now": "2026-11-17T10:00:00+01:00",
+        "expected": {
+          "off": true
+        },
+        "reason": "Away"
+      },
+      {
+        "now": "2026-11-17T19:00:00+01:00",
+        "expected": {
+          "target": 15
+        },
+        "reason": "Setback"
+      },
+      {
+        "now": "2026-11-18T08:30:00+01:00",
+        "expected": {
+          "target": 15
+        },
+        "reason": "Setback"
+      }
     ]
   },
   {
     "name": "starter Office saver - working week, weekend off, preheat Sunday night to Monday",
     "tz": "Europe/Paris",
-    "schedule": {"monday": [["09:00", "12:00"], ["13:00", "18:00"]], "tuesday": [["09:00", "12:00"], ["13:00", "18:00"]], "wednesday": [["09:00", "12:00"], ["13:00", "18:00"]], "thursday": [["09:00", "12:00"], ["13:00", "18:00"]], "friday": [["09:00", "12:00"], ["13:00", "18:00"]], "saturday": [], "sunday": []},
-    "strategy": {"version": 1, "rules": [{"label": "Occupied", "when": [{"type": "occupied"}], "then": {"type": "temperature", "value": 21.0}}, {"label": "Preheat", "when": [{"type": "occupied_within", "hours": 6.0}], "then": {"type": "temperature", "value": 21.0}}, {"label": "Between working days", "when": [{"type": "between_days", "gap_hours": 24.0}], "then": {"type": "temperature", "value": 16.0}}], "fallback": {"label": "Away", "then": {"type": "off"}}},
+    "schedule": {
+      "monday": [
+        [
+          "09:00",
+          "12:00"
+        ],
+        [
+          "13:00",
+          "18:00"
+        ]
+      ],
+      "tuesday": [
+        [
+          "09:00",
+          "12:00"
+        ],
+        [
+          "13:00",
+          "18:00"
+        ]
+      ],
+      "wednesday": [
+        [
+          "09:00",
+          "12:00"
+        ],
+        [
+          "13:00",
+          "18:00"
+        ]
+      ],
+      "thursday": [
+        [
+          "09:00",
+          "12:00"
+        ],
+        [
+          "13:00",
+          "18:00"
+        ]
+      ],
+      "friday": [
+        [
+          "09:00",
+          "12:00"
+        ],
+        [
+          "13:00",
+          "18:00"
+        ]
+      ],
+      "saturday": [],
+      "sunday": []
+    },
+    "strategy": {
+      "version": 1,
+      "rules": [
+        {
+          "label": "Occupied",
+          "when": [
+            {
+              "type": "occupied"
+            }
+          ],
+          "then": {
+            "type": "temperature",
+            "value": 21.0
+          }
+        },
+        {
+          "label": "Preheat",
+          "when": [
+            {
+              "type": "occupied_within",
+              "hours": 6.0
+            }
+          ],
+          "then": {
+            "type": "temperature",
+            "value": 21.0
+          }
+        },
+        {
+          "label": "Between working days",
+          "when": [
+            {
+              "type": "between_days",
+              "gap_hours": 24.0
+            }
+          ],
+          "then": {
+            "type": "temperature",
+            "value": 16.0
+          }
+        }
+      ],
+      "fallback": {
+        "label": "Away",
+        "then": {
+          "type": "off"
+        }
+      }
+    },
     "checks": [
-      {"now": "2026-11-17T10:00:00+01:00", "expected": {"target": 21}, "reason": "Occupied"},
-      {"now": "2026-11-17T12:30:00+01:00", "expected": {"target": 21}, "reason": "Preheat"},
-      {"now": "2026-11-17T19:00:00+01:00", "expected": {"target": 16}, "reason": "Between working days"},
-      {"now": "2026-11-18T02:59:00+01:00", "expected": {"target": 16}, "reason": "Between working days"},
-      {"now": "2026-11-18T03:00:00+01:00", "expected": {"target": 21}, "reason": "Preheat"},
-      {"now": "2026-11-20T17:59:00+01:00", "expected": {"target": 21}, "reason": "Occupied"},
-      {"now": "2026-11-20T18:00:00+01:00", "expected": {"off": true}, "reason": "Away"},
-      {"now": "2026-11-20T19:00:00+01:00", "expected": {"off": true}, "reason": "Away"},
-      {"now": "2026-11-21T12:00:00+01:00", "expected": {"off": true}, "reason": "Away"},
-      {"now": "2026-11-22T23:00:00+01:00", "expected": {"off": true}, "reason": "Away"},
-      {"now": "2026-11-23T02:59:00+01:00", "expected": {"off": true}, "reason": "Away"},
-      {"now": "2026-11-23T03:00:00+01:00", "expected": {"target": 21}, "reason": "Preheat"},
-      {"now": "2026-11-23T09:00:00+01:00", "expected": {"target": 21}, "reason": "Occupied"}
+      {
+        "now": "2026-11-17T10:00:00+01:00",
+        "expected": {
+          "target": 21
+        },
+        "reason": "Occupied"
+      },
+      {
+        "now": "2026-11-17T12:30:00+01:00",
+        "expected": {
+          "target": 21
+        },
+        "reason": "Preheat"
+      },
+      {
+        "now": "2026-11-17T19:00:00+01:00",
+        "expected": {
+          "target": 16
+        },
+        "reason": "Between working days"
+      },
+      {
+        "now": "2026-11-18T02:59:00+01:00",
+        "expected": {
+          "target": 16
+        },
+        "reason": "Between working days"
+      },
+      {
+        "now": "2026-11-18T03:00:00+01:00",
+        "expected": {
+          "target": 21
+        },
+        "reason": "Preheat"
+      },
+      {
+        "now": "2026-11-20T17:59:00+01:00",
+        "expected": {
+          "target": 21
+        },
+        "reason": "Occupied"
+      },
+      {
+        "now": "2026-11-20T18:00:00+01:00",
+        "expected": {
+          "off": true
+        },
+        "reason": "Away"
+      },
+      {
+        "now": "2026-11-20T19:00:00+01:00",
+        "expected": {
+          "off": true
+        },
+        "reason": "Away"
+      },
+      {
+        "now": "2026-11-21T12:00:00+01:00",
+        "expected": {
+          "off": true
+        },
+        "reason": "Away"
+      },
+      {
+        "now": "2026-11-22T23:00:00+01:00",
+        "expected": {
+          "off": true
+        },
+        "reason": "Away"
+      },
+      {
+        "now": "2026-11-23T02:59:00+01:00",
+        "expected": {
+          "off": true
+        },
+        "reason": "Away"
+      },
+      {
+        "now": "2026-11-23T03:00:00+01:00",
+        "expected": {
+          "target": 21
+        },
+        "reason": "Preheat"
+      },
+      {
+        "now": "2026-11-23T09:00:00+01:00",
+        "expected": {
+          "target": 21
+        },
+        "reason": "Occupied"
+      }
     ]
   },
   {
     "name": "starter Office saver - empty planning is always away",
     "tz": "Europe/Paris",
-    "schedule": {"monday": [], "tuesday": [], "wednesday": [], "thursday": [], "friday": [], "saturday": [], "sunday": []},
-    "strategy": {"version": 1, "rules": [{"label": "Occupied", "when": [{"type": "occupied"}], "then": {"type": "temperature", "value": 21.0}}, {"label": "Preheat", "when": [{"type": "occupied_within", "hours": 6.0}], "then": {"type": "temperature", "value": 21.0}}, {"label": "Between working days", "when": [{"type": "between_days", "gap_hours": 24.0}], "then": {"type": "temperature", "value": 16.0}}], "fallback": {"label": "Away", "then": {"type": "off"}}},
+    "schedule": {
+      "monday": [],
+      "tuesday": [],
+      "wednesday": [],
+      "thursday": [],
+      "friday": [],
+      "saturday": [],
+      "sunday": []
+    },
+    "strategy": {
+      "version": 1,
+      "rules": [
+        {
+          "label": "Occupied",
+          "when": [
+            {
+              "type": "occupied"
+            }
+          ],
+          "then": {
+            "type": "temperature",
+            "value": 21.0
+          }
+        },
+        {
+          "label": "Preheat",
+          "when": [
+            {
+              "type": "occupied_within",
+              "hours": 6.0
+            }
+          ],
+          "then": {
+            "type": "temperature",
+            "value": 21.0
+          }
+        },
+        {
+          "label": "Between working days",
+          "when": [
+            {
+              "type": "between_days",
+              "gap_hours": 24.0
+            }
+          ],
+          "then": {
+            "type": "temperature",
+            "value": 16.0
+          }
+        }
+      ],
+      "fallback": {
+        "label": "Away",
+        "then": {
+          "type": "off"
+        }
+      }
+    },
     "checks": [
-      {"now": "2026-11-17T10:00:00+01:00", "expected": {"off": true}, "reason": "Away"},
-      {"now": "2026-11-22T03:00:00+01:00", "expected": {"off": true}, "reason": "Away"}
+      {
+        "now": "2026-11-17T10:00:00+01:00",
+        "expected": {
+          "off": true
+        },
+        "reason": "Away"
+      },
+      {
+        "now": "2026-11-22T03:00:00+01:00",
+        "expected": {
+          "off": true
+        },
+        "reason": "Away"
+      }
     ]
   },
   {
     "name": "starter Office saver - preheat counts real hours across the DST fall-back night",
     "tz": "Europe/Paris",
-    "schedule": {"monday": [], "tuesday": [], "wednesday": [], "thursday": [], "friday": [], "saturday": [], "sunday": [["09:00", "10:00"]]},
-    "strategy": {"version": 1, "rules": [{"label": "Occupied", "when": [{"type": "occupied"}], "then": {"type": "temperature", "value": 21.0}}, {"label": "Preheat", "when": [{"type": "occupied_within", "hours": 6.0}], "then": {"type": "temperature", "value": 21.0}}, {"label": "Between working days", "when": [{"type": "between_days", "gap_hours": 24.0}], "then": {"type": "temperature", "value": 16.0}}], "fallback": {"label": "Away", "then": {"type": "off"}}},
+    "schedule": {
+      "monday": [],
+      "tuesday": [],
+      "wednesday": [],
+      "thursday": [],
+      "friday": [],
+      "saturday": [],
+      "sunday": [
+        [
+          "09:00",
+          "10:00"
+        ]
+      ]
+    },
+    "strategy": {
+      "version": 1,
+      "rules": [
+        {
+          "label": "Occupied",
+          "when": [
+            {
+              "type": "occupied"
+            }
+          ],
+          "then": {
+            "type": "temperature",
+            "value": 21.0
+          }
+        },
+        {
+          "label": "Preheat",
+          "when": [
+            {
+              "type": "occupied_within",
+              "hours": 6.0
+            }
+          ],
+          "then": {
+            "type": "temperature",
+            "value": 21.0
+          }
+        },
+        {
+          "label": "Between working days",
+          "when": [
+            {
+              "type": "between_days",
+              "gap_hours": 24.0
+            }
+          ],
+          "then": {
+            "type": "temperature",
+            "value": 16.0
+          }
+        }
+      ],
+      "fallback": {
+        "label": "Away",
+        "then": {
+          "type": "off"
+        }
+      }
+    },
     "checks": [
-      {"now": "2026-10-25T02:30:00+02:00", "expected": {"off": true}, "reason": "Away"},
-      {"now": "2026-10-25T02:30:00+01:00", "expected": {"off": true}, "reason": "Away"},
-      {"now": "2026-10-25T03:00:00+01:00", "expected": {"target": 21}, "reason": "Preheat"},
-      {"now": "2026-10-25T09:15:00+01:00", "expected": {"target": 21}, "reason": "Occupied"}
+      {
+        "now": "2026-10-25T02:30:00+02:00",
+        "expected": {
+          "off": true
+        },
+        "reason": "Away"
+      },
+      {
+        "now": "2026-10-25T02:30:00+01:00",
+        "expected": {
+          "off": true
+        },
+        "reason": "Away"
+      },
+      {
+        "now": "2026-10-25T03:00:00+01:00",
+        "expected": {
+          "target": 21
+        },
+        "reason": "Preheat"
+      },
+      {
+        "now": "2026-10-25T09:15:00+01:00",
+        "expected": {
+          "target": 21
+        },
+        "reason": "Occupied"
+      }
     ]
   },
   {
     "name": "starter Lunch room - occupied end of morning and start of afternoon",
     "tz": "Europe/Paris",
-    "schedule": {"monday": [], "tuesday": [["09:00", "12:00"], ["13:00", "17:00"]], "wednesday": [], "thursday": [], "friday": [], "saturday": [], "sunday": []},
-    "strategy": {"version": 1, "rules": [{"label": "Lunch", "when": [{"type": "time", "start": "11:00", "end": "14:00"}, {"type": "planned", "windows": [{"start": "11:00", "end": "12:00"}, {"start": "13:00", "end": "14:00"}], "match": "all"}], "then": {"type": "temperature", "value": 20.0}}, {"label": "No lunch today", "when": [{"type": "time", "start": "11:00", "end": "14:00"}], "then": {"type": "off"}}], "fallback": {"label": "Outside lunch hours", "then": {"type": "off"}}},
+    "schedule": {
+      "monday": [],
+      "tuesday": [
+        [
+          "09:00",
+          "12:00"
+        ],
+        [
+          "13:00",
+          "17:00"
+        ]
+      ],
+      "wednesday": [],
+      "thursday": [],
+      "friday": [],
+      "saturday": [],
+      "sunday": []
+    },
+    "strategy": {
+      "version": 1,
+      "rules": [
+        {
+          "label": "Lunch",
+          "when": [
+            {
+              "type": "time",
+              "start": "11:00",
+              "end": "14:00"
+            },
+            {
+              "type": "planned",
+              "windows": [
+                {
+                  "start": "11:00",
+                  "end": "12:00"
+                },
+                {
+                  "start": "13:00",
+                  "end": "14:00"
+                }
+              ],
+              "match": "all"
+            }
+          ],
+          "then": {
+            "type": "temperature",
+            "value": 20.0
+          }
+        },
+        {
+          "label": "No lunch today",
+          "when": [
+            {
+              "type": "time",
+              "start": "11:00",
+              "end": "14:00"
+            }
+          ],
+          "then": {
+            "type": "off"
+          }
+        }
+      ],
+      "fallback": {
+        "label": "Outside lunch hours",
+        "then": {
+          "type": "off"
+        }
+      }
+    },
     "checks": [
-      {"now": "2026-11-17T10:59:00+01:00", "expected": {"off": true}, "reason": "Outside lunch hours"},
-      {"now": "2026-11-17T11:30:00+01:00", "expected": {"target": 20}, "reason": "Lunch"},
-      {"now": "2026-11-17T13:59:00+01:00", "expected": {"target": 20}, "reason": "Lunch"},
-      {"now": "2026-11-17T14:00:00+01:00", "expected": {"off": true}, "reason": "Outside lunch hours"},
-      {"now": "2026-11-18T12:00:00+01:00", "expected": {"off": true}, "reason": "No lunch today"}
+      {
+        "now": "2026-11-17T10:59:00+01:00",
+        "expected": {
+          "off": true
+        },
+        "reason": "Outside lunch hours"
+      },
+      {
+        "now": "2026-11-17T11:30:00+01:00",
+        "expected": {
+          "target": 20
+        },
+        "reason": "Lunch"
+      },
+      {
+        "now": "2026-11-17T13:59:00+01:00",
+        "expected": {
+          "target": 20
+        },
+        "reason": "Lunch"
+      },
+      {
+        "now": "2026-11-17T14:00:00+01:00",
+        "expected": {
+          "off": true
+        },
+        "reason": "Outside lunch hours"
+      },
+      {
+        "now": "2026-11-18T12:00:00+01:00",
+        "expected": {
+          "off": true
+        },
+        "reason": "No lunch today"
+      }
     ]
   },
   {
     "name": "starter Lunch room - morning only is not enough with match all",
     "tz": "Europe/Paris",
-    "schedule": {"monday": [], "tuesday": [["08:00", "11:30"]], "wednesday": [], "thursday": [], "friday": [], "saturday": [], "sunday": []},
-    "strategy": {"version": 1, "rules": [{"label": "Lunch", "when": [{"type": "time", "start": "11:00", "end": "14:00"}, {"type": "planned", "windows": [{"start": "11:00", "end": "12:00"}, {"start": "13:00", "end": "14:00"}], "match": "all"}], "then": {"type": "temperature", "value": 20.0}}, {"label": "No lunch today", "when": [{"type": "time", "start": "11:00", "end": "14:00"}], "then": {"type": "off"}}], "fallback": {"label": "Outside lunch hours", "then": {"type": "off"}}},
+    "schedule": {
+      "monday": [],
+      "tuesday": [
+        [
+          "08:00",
+          "11:30"
+        ]
+      ],
+      "wednesday": [],
+      "thursday": [],
+      "friday": [],
+      "saturday": [],
+      "sunday": []
+    },
+    "strategy": {
+      "version": 1,
+      "rules": [
+        {
+          "label": "Lunch",
+          "when": [
+            {
+              "type": "time",
+              "start": "11:00",
+              "end": "14:00"
+            },
+            {
+              "type": "planned",
+              "windows": [
+                {
+                  "start": "11:00",
+                  "end": "12:00"
+                },
+                {
+                  "start": "13:00",
+                  "end": "14:00"
+                }
+              ],
+              "match": "all"
+            }
+          ],
+          "then": {
+            "type": "temperature",
+            "value": 20.0
+          }
+        },
+        {
+          "label": "No lunch today",
+          "when": [
+            {
+              "type": "time",
+              "start": "11:00",
+              "end": "14:00"
+            }
+          ],
+          "then": {
+            "type": "off"
+          }
+        }
+      ],
+      "fallback": {
+        "label": "Outside lunch hours",
+        "then": {
+          "type": "off"
+        }
+      }
+    },
     "checks": [
-      {"now": "2026-11-17T11:30:00+01:00", "expected": {"off": true}, "reason": "No lunch today"}
+      {
+        "now": "2026-11-17T11:30:00+01:00",
+        "expected": {
+          "off": true
+        },
+        "reason": "No lunch today"
+      }
     ]
   },
   {
     "name": "starter Lunch room - afternoon only is not enough with match all",
     "tz": "Europe/Paris",
-    "schedule": {"monday": [], "tuesday": [["13:30", "18:00"]], "wednesday": [], "thursday": [], "friday": [], "saturday": [], "sunday": []},
-    "strategy": {"version": 1, "rules": [{"label": "Lunch", "when": [{"type": "time", "start": "11:00", "end": "14:00"}, {"type": "planned", "windows": [{"start": "11:00", "end": "12:00"}, {"start": "13:00", "end": "14:00"}], "match": "all"}], "then": {"type": "temperature", "value": 20.0}}, {"label": "No lunch today", "when": [{"type": "time", "start": "11:00", "end": "14:00"}], "then": {"type": "off"}}], "fallback": {"label": "Outside lunch hours", "then": {"type": "off"}}},
+    "schedule": {
+      "monday": [],
+      "tuesday": [
+        [
+          "13:30",
+          "18:00"
+        ]
+      ],
+      "wednesday": [],
+      "thursday": [],
+      "friday": [],
+      "saturday": [],
+      "sunday": []
+    },
+    "strategy": {
+      "version": 1,
+      "rules": [
+        {
+          "label": "Lunch",
+          "when": [
+            {
+              "type": "time",
+              "start": "11:00",
+              "end": "14:00"
+            },
+            {
+              "type": "planned",
+              "windows": [
+                {
+                  "start": "11:00",
+                  "end": "12:00"
+                },
+                {
+                  "start": "13:00",
+                  "end": "14:00"
+                }
+              ],
+              "match": "all"
+            }
+          ],
+          "then": {
+            "type": "temperature",
+            "value": 20.0
+          }
+        },
+        {
+          "label": "No lunch today",
+          "when": [
+            {
+              "type": "time",
+              "start": "11:00",
+              "end": "14:00"
+            }
+          ],
+          "then": {
+            "type": "off"
+          }
+        }
+      ],
+      "fallback": {
+        "label": "Outside lunch hours",
+        "then": {
+          "type": "off"
+        }
+      }
+    },
     "checks": [
-      {"now": "2026-11-17T13:45:00+01:00", "expected": {"off": true}, "reason": "No lunch today"}
+      {
+        "now": "2026-11-17T13:45:00+01:00",
+        "expected": {
+          "off": true
+        },
+        "reason": "No lunch today"
+      }
     ]
   },
   {
     "name": "state condition: other areas occupied, house mode",
     "tz": "Europe/Paris",
     "schedule": {},
-    "strategy": {"version": 1, "rules": [{"label": "Neighbors in", "when": [{"type": "state", "entity": "binary_sensor.kitchen_neighbors", "is": "on"}], "then": {"type": "comfort"}}, {"label": "Someone home", "when": [{"type": "state", "entity": "input_select.house_mode", "is": "away", "negate": true}], "then": {"type": "eco"}}], "fallback": {"label": "Nobody", "then": {"type": "off"}}},
+    "strategy": {
+      "version": 1,
+      "rules": [
+        {
+          "label": "Neighbors in",
+          "when": [
+            {
+              "type": "state",
+              "entity": "binary_sensor.kitchen_neighbors",
+              "is": "on"
+            }
+          ],
+          "then": {
+            "type": "comfort"
+          }
+        },
+        {
+          "label": "Someone home",
+          "when": [
+            {
+              "type": "state",
+              "entity": "input_select.house_mode",
+              "is": "away",
+              "negate": true
+            }
+          ],
+          "then": {
+            "type": "eco"
+          }
+        }
+      ],
+      "fallback": {
+        "label": "Nobody",
+        "then": {
+          "type": "off"
+        }
+      }
+    },
     "checks": [
-      {"now": "2026-11-17T10:00:00+01:00", "states": {"binary_sensor.kitchen_neighbors": "on", "input_select.house_mode": "away"}, "expected": {"target": 21, "preset": "comfort"}, "reason": "Neighbors in"},
-      {"now": "2026-11-17T10:00:00+01:00", "states": {"binary_sensor.kitchen_neighbors": "off", "input_select.house_mode": "home"}, "expected": {"target": 17, "preset": "eco"}, "reason": "Someone home"},
-      {"now": "2026-11-17T10:00:00+01:00", "states": {"binary_sensor.kitchen_neighbors": "off", "input_select.house_mode": "away"}, "expected": {"off": true}, "reason": "Nobody"},
-      {"now": "2026-11-17T10:00:00+01:00", "states": {"input_select.house_mode": "away"}, "expected": {"off": true}, "reason": "Nobody"}
+      {
+        "now": "2026-11-17T10:00:00+01:00",
+        "states": {
+          "binary_sensor.kitchen_neighbors": "on",
+          "input_select.house_mode": "away"
+        },
+        "expected": {
+          "target": 21,
+          "preset": "comfort"
+        },
+        "reason": "Neighbors in"
+      },
+      {
+        "now": "2026-11-17T10:00:00+01:00",
+        "states": {
+          "binary_sensor.kitchen_neighbors": "off",
+          "input_select.house_mode": "home"
+        },
+        "expected": {
+          "target": 17,
+          "preset": "eco"
+        },
+        "reason": "Someone home"
+      },
+      {
+        "now": "2026-11-17T10:00:00+01:00",
+        "states": {
+          "binary_sensor.kitchen_neighbors": "off",
+          "input_select.house_mode": "away"
+        },
+        "expected": {
+          "off": true
+        },
+        "reason": "Nobody"
+      },
+      {
+        "now": "2026-11-17T10:00:00+01:00",
+        "states": {
+          "input_select.house_mode": "away"
+        },
+        "expected": {
+          "off": true
+        },
+        "reason": "Nobody"
+      }
+    ]
+  },
+  {
+    "name": "heated condition: the kitchen warms when another area is heated",
+    "tz": "Europe/Paris",
+    "schedule": {},
+    "strategy": {
+      "version": 1,
+      "rules": [
+        {
+          "label": "Lunch",
+          "when": [
+            {
+              "type": "weekday",
+              "days": [
+                "monday",
+                "tuesday",
+                "wednesday",
+                "thursday",
+                "friday"
+              ]
+            },
+            {
+              "type": "time",
+              "start": "11:50",
+              "end": "13:30"
+            },
+            {
+              "type": "heated",
+              "areas": [
+                "bureau",
+                "cabin"
+              ]
+            }
+          ],
+          "then": {
+            "type": "comfort"
+          }
+        }
+      ],
+      "fallback": {
+        "label": "Otherwise",
+        "then": {
+          "type": "eco"
+        }
+      }
+    },
+    "checks": [
+      {
+        "now": "2026-11-17T12:00:00+01:00",
+        "climates": {
+          "bureau": {
+            "state": "heat",
+            "preset_mode": "comfort"
+          },
+          "cabin": {
+            "state": "heat",
+            "preset_mode": "eco"
+          }
+        },
+        "expected": {
+          "target": 21,
+          "preset": "comfort"
+        },
+        "reason": "Lunch"
+      },
+      {
+        "now": "2026-11-17T12:00:00+01:00",
+        "climates": {
+          "bureau": {
+            "state": "heat",
+            "preset_mode": "sleep"
+          },
+          "cabin": {
+            "state": "off"
+          }
+        },
+        "expected": {
+          "target": 17,
+          "preset": "eco"
+        },
+        "reason": "Otherwise"
+      },
+      {
+        "now": "2026-11-17T12:00:00+01:00",
+        "climates": {
+          "cabin": {
+            "state": "heat"
+          }
+        },
+        "expected": {
+          "target": 21,
+          "preset": "comfort"
+        },
+        "reason": "Lunch"
+      },
+      {
+        "now": "2026-11-17T15:00:00+01:00",
+        "climates": {
+          "bureau": {
+            "state": "heat",
+            "preset_mode": "comfort"
+          }
+        },
+        "expected": {
+          "target": 17,
+          "preset": "eco"
+        },
+        "reason": "Otherwise"
+      }
     ]
   }
 ]

@@ -26,11 +26,11 @@ Open Home Assistant's own pages and you see the same things, and can edit them t
 
 Share Space finds each area's thermostat, or heaters and temperature sensor, on its own: no setup step.
 
-Heating already driven by Home Assistant shows up in Share Space as rules: automations, Schedule helpers, and the [Scheduler](https://github.com/nielsfaber/scheduler-component) integration. Edit them in Share Space and the change is saved back into them. What Share Space cannot show as rules stays read only, with a link to edit it in Home Assistant.
+Heating already driven by Home Assistant shows up in Share Space, read as rules where it can be: automations, Schedule helpers, and the [Scheduler](https://github.com/nielsfaber/scheduler-component) integration. Each one keeps a link to open it in Home Assistant.
 
 ## One place to edit, at the end
 
-Share Space is the easy way to create and edit the automations and schedules Home Assistant runs. What you built by hand before is the starting point: when you save Share Space rules for an area, they become that area's only heating, and the automations and schedules that heated it before are turned off, not deleted. Save shows what it will turn off before you click it. "Replace with Share Space rules" copies one of them into the rules first, so nothing it did is lost.
+Share Space is the easy way to create and edit the automations and schedules Home Assistant runs. What you built by hand before is where you start from: for each area, you either migrate it, and Share Space copies it into rules for you to check (and lists what it could not copy), or you start from scratch. When you save, the rules become that area's only heating: the automations and schedules that heated it before are turned off, not deleted. Save shows what it will turn off before you click it.
 
 ## Rules that grow, inside Home Assistant
 

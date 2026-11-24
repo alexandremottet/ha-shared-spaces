@@ -5,6 +5,7 @@ import type { StrategyEvaluation } from "../heating/strategy-sim";
 import { strategyTimeline } from "../heating/strategy-timeline";
 import { evaluateRules } from "./evaluate";
 import { validateStrategy } from "./validate";
+import { climateHeated, heatedKey } from "./value";
 
 const fixture = (name: string) => JSON.parse(readFileSync(resolve(__dirname, "../../../../fixtures/heating", name), "utf8"));
 const ruleCases = fixture("rules_cases.json");
@@ -15,7 +16,13 @@ describe("rule cases", () => {
     it(c.name, () => {
       expect(validateStrategy(c.strategy).ok).toBe(true);
       for (const check of c.checks) {
-        const got = evaluateRules(c.strategy, c.schedule, Date.parse(check.now), c.tz, c.temps, check.readings, check.states);
+        const heated = Object.fromEntries(
+          Object.entries((check.climates ?? {}) as Record<string, { state: string; preset_mode?: string }>).map(([area, s]) => [
+            heatedKey(area),
+            climateHeated({ state: s.state, attributes: { preset_mode: s.preset_mode } }) ? "on" : "off",
+          ]),
+        );
+        const got = evaluateRules(c.strategy, c.schedule, Date.parse(check.now), c.tz, c.temps, check.readings, { ...check.states, ...heated });
         expect(flat(got), check.now).toEqual({ ...check.expected, reason: check.reason });
       }
     });
