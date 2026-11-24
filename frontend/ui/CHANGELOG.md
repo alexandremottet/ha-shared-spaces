@@ -1,5 +1,12 @@
 # ha-share-space-ui
 
+## 1.4.0
+
+### Minor Changes
+
+- f124479: The heating card glows while the radiator heats, and a thermometer next to the current temperature turns orange with rising mercury. In automation mode the card shows the requested target temperature instead of "Automatic". Corners are much tighter across the panel and cards, and the Share Space themes set a 6px card radius.
+- 622453b: Share Space speaks French. The panel, the cards, the rules editor and the heating views follow each user's Home Assistant language: English or French, and French for any other language. The integrations get French translations too.
+
 ## 1.3.0
 
 ### Minor Changes

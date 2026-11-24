@@ -1,5 +1,11 @@
 # share-space-themes
 
+## 0.3.1
+
+### Patch Changes
+
+- f124479: The heating card glows while the radiator heats, and a thermometer next to the current temperature turns orange with rising mercury. In automation mode the card shows the requested target temperature instead of "Automatic". Corners are much tighter across the panel and cards, and the Share Space themes set a 6px card radius.
+
 ## 0.3.0
 
 ### Minor Changes
