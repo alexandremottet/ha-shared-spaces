@@ -1,3 +1,4 @@
+import "./i18n-fr";
 import { html, css } from "lit";
 import { safeCustomElement, t } from "ha-share-space-ui";
 import {

@@ -1,3 +1,4 @@
+import "./i18n-fr";
 import { LitElement, html } from "lit";
 import { customElement, property, state } from "lit/decorators.js";
 import type { PropertyValues } from "lit";

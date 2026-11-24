@@ -1,3 +1,4 @@
+import "./i18n-fr";
 import { html, css, nothing } from "lit";
 import { customElement, state } from "lit/decorators.js";
 import "ha-share-space-ui";
