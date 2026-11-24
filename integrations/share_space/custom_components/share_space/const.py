@@ -4,8 +4,6 @@ DOMAIN = "share_space"
 
 SERVICE_SET_CALENDAR = "set_calendar"
 SERVICE_ASSIGN_PERSON_AREA = "assign_person_area"
-SERVICE_SET_AREA_ACTIONS = "set_area_actions"
-SERVICE_RUN_AREA_ACTIONS = "run_area_actions"
 SERVICE_QUERY_OCCUPANCY = "query_occupancy"
 
 SIGNAL_CALENDAR_CHANGED = f"{DOMAIN}_calendar_changed"
@@ -20,14 +18,11 @@ EVENT_PERSON_AREA_ASSIGNED = f"{DOMAIN}_person_area_assigned"
 ATTR_AREA = "area"
 ATTR_CALENDAR = "calendar"
 ATTR_PERSON = "person"
-ATTR_ON_ACTIONS = "on_actions"
-ATTR_OFF_ACTIONS = "off_actions"
-ATTR_ENABLED = "enabled"
-ATTR_STATE = "state"
 
 STORAGE_VERSION = 1
 STORAGE_KEY_PERSON_CALENDARS = f"{DOMAIN}.person_calendars"
 STORAGE_KEY_PERSON_AREAS = f"{DOMAIN}.person_areas"
+STORAGE_KEY_PERSON_PLANNINGS = f"{DOMAIN}.person_plannings"
 STORAGE_VERSION_AREA_ACTIONS = 2
 STORAGE_KEY_AREA_ACTIONS = f"{DOMAIN}.area_actions"
 DATA_AREA_ACTIONS_STORE = "area_actions_store"
@@ -46,4 +41,5 @@ WS_TYPE_GET_AREA_SCHEDULE = f"{DOMAIN}/get_area_schedule"
 # flattened on/off signal.
 WS_TYPE_GET_AREA_CALENDARS = f"{DOMAIN}/get_area_calendars"
 WS_TYPE_GET_AREA_ACTIONS = f"{DOMAIN}/get_area_actions"
+WS_TYPE_FORGET_AREA_ACTIONS = f"{DOMAIN}/forget_area_actions"
 WS_TYPE_LIST_AREAS = f"{DOMAIN}/list_areas"

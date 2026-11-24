@@ -7,6 +7,8 @@ import { detachedConfig, managedState, rulesAutomationConfig } from "../rules/au
 import type { ManagedState, RulesSource } from "../rules/automation";
 import { validateStrategy } from "../rules/validate";
 
+export { getAreaActions, runAreaActions, setAreaActions } from "./area-actions";
+
 export type PlanningAction = Record<string, unknown>;
 
 export interface AreaActions {
@@ -113,6 +115,10 @@ export function isBackendMissing(err: unknown): boolean {
 export const getCalendar = async (hass: HomeAssistant, person: string): Promise<Calendar> =>
   (await hass.callWS<{ calendar: Calendar }>({ type: "share_space/get_calendar", person })).calendar;
 
+/** The HA Schedule helper holding a person's planning, once they have one. */
+export const getPlanningEntity = async (hass: HomeAssistant, person: string): Promise<string | null> =>
+  (await hass.callWS<{ schedule_entity?: string | null }>({ type: "share_space/get_calendar", person })).schedule_entity ?? null;
+
 export const getPersonArea = async (hass: HomeAssistant, person: string): Promise<string | null> =>
   (await hass.callWS<{ area: string | null }>({ type: "share_space/get_person_area", person })).area;
 
@@ -122,9 +128,6 @@ export const getAreaSchedule = async (hass: HomeAssistant, area: string): Promis
 export const getAreaCalendars = async (hass: HomeAssistant, area: string): Promise<Record<string, Calendar>> =>
   (await hass.callWS<{ persons: Record<string, Calendar> }>({ type: "share_space/get_area_calendars", area })).persons;
 
-export const getAreaActions = (hass: HomeAssistant, area: string) =>
-  hass.callWS<AreaActions>({ type: "share_space/get_area_actions", area });
-
 export const listAreas = (hass: HomeAssistant) =>
   hass.callWS<AreaInfo[]>({ type: "share_space/list_areas" });
 
@@ -133,12 +136,6 @@ export const setCalendar = (hass: HomeAssistant, person: string, calendar: Calen
 
 export const assignPersonArea = (hass: HomeAssistant, person: string, area: string) =>
   hass.callService("share_space", "assign_person_area", { person, area });
-
-export const setAreaActions = (hass: HomeAssistant, area: string, partial: Partial<AreaActions>) =>
-  hass.callService("share_space", "set_area_actions", { area, ...partial });
-
-export const runAreaActions = (hass: HomeAssistant, area: string, state: "on" | "off") =>
-  hass.callService("share_space", "run_area_actions", { area, state });
 
 export const listZones = (hass: HomeAssistant) =>
   hass.callWS<HeatingZone[]>({ type: "share_space_heating/list_zones" });

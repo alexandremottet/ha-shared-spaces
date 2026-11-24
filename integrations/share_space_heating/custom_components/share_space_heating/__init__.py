@@ -127,6 +127,7 @@ async def async_setup(hass: HomeAssistant, config: dict) -> bool:
     await strategies.async_load()
     settings = SettingsStore(hass)
     await settings.async_load()
+    await settings.async_migrate()
     hass.data[DOMAIN] = {DATA_STORE: store, DATA_ZONES: {}, DATA_STRATEGIES: strategies, DATA_SETTINGS: settings}
     _register_services(hass)
     _follow_registries(hass)

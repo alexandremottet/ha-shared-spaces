@@ -4,6 +4,7 @@ export * from "./my-person";
 export * from "./roles";
 export * from "./ws";
 export * from "./area-heating";
+export * from "./area-actions";
 export * from "./existing-heating";
 export * from "./card-base";
 export * from "./card-helpers";

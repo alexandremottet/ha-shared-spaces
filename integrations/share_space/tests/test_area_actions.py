@@ -1,7 +1,5 @@
 """Area actions store migration, services, runner and websocket."""
 import pytest
-from homeassistant.core import Context
-from homeassistant.exceptions import Unauthorized
 from homeassistant.helpers import entity_registry as er
 from pytest_homeassistant_custom_component.common import MockConfigEntry, async_fire_time_changed, async_mock_service
 from datetime import timedelta
@@ -21,20 +19,21 @@ async def _setup(hass):
     return entry
 
 
-async def _configure(hass, enabled=True):
+LEGACY = {"on_actions": [{"action": "test.on_called"}], "off_actions": [{"action": "test.off_called"}]}
+
+
+def _legacy(hass_storage, enabled=True):
+    hass_storage["share_space.area_actions"] = {
+        "version": 2,
+        "minor_version": 1,
+        "key": "share_space.area_actions",
+        "data": {"office": LEGACY | {"enabled": enabled}},
+    }
+
+
+async def _configure(hass):
     await hass.services.async_call(DOMAIN, "set_calendar", {"person": "person.a", "calendar": CAL}, blocking=True)
     await hass.services.async_call(DOMAIN, "assign_person_area", {"person": "person.a", "area": "office"}, blocking=True)
-    await hass.services.async_call(
-        DOMAIN,
-        "set_area_actions",
-        {
-            "area": "office",
-            "on_actions": [{"action": "test.on_called"}],
-            "off_actions": [{"action": "test.off_called"}],
-            "enabled": enabled,
-        },
-        blocking=True,
-    )
     await hass.async_block_till_done()
 
 
@@ -44,7 +43,8 @@ async def _tick(hass, freezer, minutes):
     await hass.async_block_till_done(wait_background_tasks=True)
 
 
-async def test_transitions_run_actions_once(hass, freezer):
+async def test_kept_actions_run_once_per_transition(hass, freezer, hass_storage):
+    _legacy(hass_storage)
     freezer.move_to("2026-01-05 09:00:00+00:00")
     on = async_mock_service(hass, "test", "on_called")
     off = async_mock_service(hass, "test", "off_called")
@@ -60,7 +60,8 @@ async def test_transitions_run_actions_once(hass, freezer):
     assert len(on) == 1 and len(off) == 1
 
 
-async def test_no_run_at_startup_when_already_on(hass, freezer):
+async def test_no_run_at_startup_when_already_on(hass, freezer, hass_storage):
+    _legacy(hass_storage)
     freezer.move_to("2026-01-05 10:15:00+00:00")
     on = async_mock_service(hass, "test", "on_called")
     await _setup(hass)
@@ -69,41 +70,56 @@ async def test_no_run_at_startup_when_already_on(hass, freezer):
     assert not on
 
 
-async def test_disabled_not_run(hass, freezer):
+async def test_disabled_not_run(hass, freezer, hass_storage):
+    _legacy(hass_storage, enabled=False)
     freezer.move_to("2026-01-05 09:00:00+00:00")
     on = async_mock_service(hass, "test", "on_called")
     await _setup(hass)
-    await _configure(hass, enabled=False)
+    await _configure(hass)
     await _tick(hass, freezer, 70)
     assert hass.states.get("binary_sensor.share_space_office").state == "on"
     assert not on
 
 
-async def test_run_area_actions_manual_ignores_enabled(hass):
-    on = async_mock_service(hass, "test", "on_called")
-    off = async_mock_service(hass, "test", "off_called")
+async def test_get_and_forget_kept_actions(hass, hass_storage, hass_ws_client):
+    _legacy(hass_storage)
     await _setup(hass)
-    await _configure(hass, enabled=False)
-    await hass.services.async_call(DOMAIN, "run_area_actions", {"area": "office", "state": "on"}, blocking=True)
-    assert len(on) == 1 and not off
-
-
-async def test_set_area_actions_partial_update(hass, hass_ws_client):
-    await _setup(hass)
-    await _configure(hass)
-    await hass.services.async_call(DOMAIN, "set_area_actions", {"area": "office", "enabled": False}, blocking=True)
     client = await hass_ws_client(hass)
     await client.send_json({"id": 1, "type": "share_space/get_area_actions", "area": "office"})
-    result = (await client.receive_json())["result"]
-    assert result["enabled"] is False
-    assert len(result["on_actions"]) == 1 and len(result["off_actions"]) == 1
+    assert (await client.receive_json())["result"] == LEGACY | {"enabled": True}
+    await client.send_json({"id": 2, "type": "share_space/forget_area_actions", "area": "office"})
+    assert (await client.receive_json())["success"]
+    await client.send_json({"id": 3, "type": "share_space/get_area_actions", "area": "office"})
+    assert (await client.receive_json())["result"] is None
+
+
+async def test_forgotten_actions_no_longer_run(hass, freezer, hass_storage):
+    from custom_components.share_space.const import DATA_AREA_ACTIONS_STORE
+
+    _legacy(hass_storage)
+    freezer.move_to("2026-01-05 09:00:00+00:00")
+    on = async_mock_service(hass, "test", "on_called")
+    await _setup(hass)
+    await _configure(hass)
+    await next(iter(hass.data[DOMAIN].values()))[DATA_AREA_ACTIONS_STORE].async_forget("office")
+    await _tick(hass, freezer, 70)
+    assert hass.states.get("binary_sensor.share_space_office").state == "on"
+    assert not on
+
+
+async def test_forget_area_actions_requires_admin(hass, hass_ws_client, hass_read_only_access_token):
+    await _setup(hass)
+    client = await hass_ws_client(hass, hass_read_only_access_token)
+    await client.send_json({"id": 1, "type": "share_space/forget_area_actions", "area": "office"})
+    response = await client.receive_json()
+    assert not response["success"] and response["error"]["code"] == "unauthorized"
 
 
 async def test_ws_defaults_and_list_areas(hass, hass_ws_client):
     entry = await _setup(hass)
     client = await hass_ws_client(hass)
     await client.send_json({"id": 1, "type": "share_space/get_area_actions", "area": "nowhere"})
-    assert (await client.receive_json())["result"] == {"on_actions": [], "off_actions": [], "enabled": True}
+    assert (await client.receive_json())["result"] is None
     await _configure(hass)
     await client.send_json({"id": 2, "type": "share_space/list_areas"})
     result = (await client.receive_json())["result"]
@@ -166,13 +182,3 @@ async def test_services_removed_only_after_unload(hass):
     assert await hass.config_entries.async_unload(entry.entry_id)
     assert not hass.services.has_service(DOMAIN, "set_calendar")
     assert entry.entry_id not in hass.data[DOMAIN]
-
-
-@pytest.mark.parametrize("service,data", [
-    ("set_area_actions", {"area": "office", "on_actions": [{"action": "homeassistant.stop"}]}),
-    ("run_area_actions", {"area": "office", "state": "on"}),
-])
-async def test_area_action_services_require_admin(hass, hass_read_only_user, service, data):
-    await _setup(hass)
-    with pytest.raises(Unauthorized):
-        await hass.services.async_call(DOMAIN, service, data, blocking=True, context=Context(user_id=hass_read_only_user.id))

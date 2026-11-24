@@ -110,3 +110,35 @@ async def test_removed_zone_is_not_set_up_again_until_managed(hass, hass_ws_clie
     assert len(hass.config_entries.async_entries(DOMAIN)) == 1
     assert (await _ws(hass, hass_ws_client, "get_settings"))["result"]["ignored_areas"] == []
 
+
+
+async def test_not_managed_is_an_ha_label(hass, hass_ws_client):
+    from homeassistant.helpers import label_registry as lr
+
+    hass.states.async_set("climate.rue", "heat", {"temperature": 19.0})
+    area = place_climate(hass, "Bureau Rue", "climate.rue")
+    await _start(hass)
+    entry = hass.config_entries.async_entries(DOMAIN)[0]
+    assert (await _ws(hass, hass_ws_client, "delete_zone", entry_id=entry.entry_id))["success"]
+    await hass.async_block_till_done()
+    label = lr.async_get(hass).async_get_label_by_name("Share Space: not managed")
+    assert label.label_id in ar.async_get(hass).async_get_area(area.id).labels
+
+    # Taking the label off in HA's own area page manages the area again.
+    ar.async_get(hass).async_update(area.id, labels=set())
+    await hass.async_block_till_done()
+    assert len(hass.config_entries.async_entries(DOMAIN)) == 1
+
+
+async def test_ignored_areas_move_to_the_label(hass, hass_storage):
+    hass.states.async_set("climate.rue", "heat", {"temperature": 19.0})
+    area = place_climate(hass, "Bureau Rue", "climate.rue")
+    hass_storage["share_space_heating.settings"] = {
+        "version": 1,
+        "minor_version": 1,
+        "key": "share_space_heating.settings",
+        "data": {"outdoor_entity": "sensor.out", "ignored_areas": [area.id]},
+    }
+    await _start(hass)
+    assert hass.config_entries.async_entries(DOMAIN) == []
+    assert hass_storage["share_space_heating.settings"]["data"] == {"outdoor_entity": "sensor.out"}
