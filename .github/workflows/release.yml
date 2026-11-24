@@ -1,0 +1,51 @@
+name: Release
+
+# v<version>: global release, then one sub release per component whose tag is new.
+# <component>-v<version>: that component's release only.
+on:
+  push:
+    tags:
+      - "v*"
+      - "share_space*-v*"
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      # space-panel builds into share_space_space/frontend, which is gitignored
+      - run: pnpm build
+      - name: Package
+        id: package
+        run: echo "plan=$(node scripts/release.mjs "$GITHUB_REF_NAME")" >> "$GITHUB_OUTPUT"
+      - name: Publish
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PLAN: ${{ steps.package.outputs.plan }}
+        run: |
+          tag=$(jq -r .tag <<<"$PLAN")
+          jq -r '.assets[]' <<<"$PLAN" > assets.txt
+          xargs -a assets.txt gh release create "$tag" \
+            --title "$(jq -r .title <<<"$PLAN")" \
+            --notes-file "$(jq -r .notes <<<"$PLAN")" \
+            --verify-tag
+          jq -c '.components[]' <<<"$PLAN" | while read -r component; do
+            sub_tag=$(jq -r .tag <<<"$component")
+            if gh release view "$sub_tag" >/dev/null 2>&1; then
+              echo "$sub_tag already released, skipping"
+              continue
+            fi
+            gh release create "$sub_tag" "$(jq -r .asset <<<"$component")" \
+              --title "$(jq -r .title <<<"$component")" \
+              --notes-file "$(jq -r .notes <<<"$component")" \
+              --target "$GITHUB_SHA"
+          done
