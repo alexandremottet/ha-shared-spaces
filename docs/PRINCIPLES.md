@@ -8,7 +8,7 @@ A theme and a panel for the people who use the space every day, without the weig
 
 ## Nothing changes until you change it
 
-Installing Share Space on a Home Assistant you already use leaves it as it is. Your thermostats, radiators, schedules and automations keep working exactly as before. Share Space only reads what is there and shows it. Something changes only when you save it in Share Space: the first rule of an area, a planning, an action.
+Installing Share Space on a Home Assistant you already use leaves it as it is, with one exception: Home Assistant now opens on Share Space after login, unless an admin already chose another page. An admin turns that off in Settings, and each person can pick their own page in their profile. Your thermostats, radiators, schedules and automations keep working exactly as before. Share Space only reads what is there and shows it. Something changes only when you save it in Share Space: the first rule of an area, a planning, an action.
 
 ## It is still your Home Assistant
 

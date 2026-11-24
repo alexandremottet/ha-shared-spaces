@@ -830,9 +830,7 @@ private _prefsFor = "";
         <h1 class="title">${this.hass?.config?.location_name ?? "Share Space"}</h1>
         <div class="actions">
           <share-space-theme-picker .hass=${this.hass}></share-space-theme-picker>
-          ${this._fullHa
-            ? nothing
-            : html`<button class="fab logout" aria-label="Log out" title="Log out" @click=${this._logout}>${ICON_LOGOUT}</button>`}
+          <button class="fab logout" aria-label="Log out" title="Log out" @click=${this._logout}>${ICON_LOGOUT}</button>
         </div>
       </div>
       <div class="space" ?hidden=${tab !== "space"}>

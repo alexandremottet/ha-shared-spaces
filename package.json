@@ -13,7 +13,8 @@
     "ha:dev": "bash scripts/start-ha-dev.sh",
     "changeset": "changeset",
     "version-packages": "changeset version && node scripts/sync-python-versions.mjs",
-    "ha:replica": "bash scripts/start-ha-replica.sh"
+    "ha:replica": "bash scripts/start-ha-replica.sh",
+    "test:e2e": "pnpm --filter ha-share-space-e2e e2e"
   },
   "devDependencies": {
     "@changesets/cli": "^3.0.2",

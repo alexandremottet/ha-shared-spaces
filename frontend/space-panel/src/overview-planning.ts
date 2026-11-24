@@ -9,7 +9,7 @@ import type { HeatingZone, HomeAssistant } from "ha-share-space-ui/ha";
 const OCCUPANCY_PREFIX = "binary_sensor.share_space_";
 
 // Without saved rules the week shows only when people are planned.
-const PLANNED_ONLY: RuleStrategy = {
+export const PLANNED_ONLY: RuleStrategy = {
   version: 1,
   rules: [{ label: "Planned", when: [{ type: "occupied" }], then: { type: "comfort" } }],
   fallback: { label: "Nobody planned", then: { type: "off" } },
@@ -21,6 +21,8 @@ export class ShareSpaceOverviewPlanning extends LitElement {
   @property({ attribute: false }) hass?: HomeAssistant;
   /** Area shown first (mine). */
   @property() initial: string | null = null;
+  /** Areas whose thermostat HA already has, before Share Space has a zone for them. */
+  @property({ attribute: false }) detected: string[] = [];
   @state() private _area = "";
   @state() private _strategy: RuleStrategy | null = null;
   @state() private _zones: HeatingZone[] = [];
@@ -59,11 +61,17 @@ export class ShareSpaceOverviewPlanning extends LitElement {
     }
   `;
 
+  // Every area with heating or someone planned in it: the card never depends on one of them alone.
   private _areas(hass: HomeAssistant): { id: string; name: string }[] {
-    return Object.keys(hass.states)
-      .filter((id) => id.startsWith(OCCUPANCY_PREFIX) && hass.states[id].attributes.schedule)
-      .map((id) => id.slice(OCCUPANCY_PREFIX.length))
-      .map((id) => ({ id, name: hass.areas?.[id]?.name ?? String(hass.states[OCCUPANCY_PREFIX + id].attributes.friendly_name ?? id) }))
+    const ids = new Set<string>([
+      ...this._zones.map((z) => z.area_id).filter((a): a is string => !!a),
+      ...this.detected,
+      ...Object.keys(hass.states)
+        .filter((id) => id.startsWith(OCCUPANCY_PREFIX) && hass.states[id].attributes.schedule)
+        .map((id) => id.slice(OCCUPANCY_PREFIX.length)),
+    ]);
+    return [...ids]
+      .map((id) => ({ id, name: hass.areas?.[id]?.name ?? String(hass.states[OCCUPANCY_PREFIX + id]?.attributes.friendly_name ?? id) }))
       .sort((a, b) => a.name.localeCompare(b.name));
   }
 
@@ -110,7 +118,7 @@ export class ShareSpaceOverviewPlanning extends LitElement {
     const hass = this.hass;
     if (!hass) return nothing;
     const areas = this._areas(hass);
-    if (!areas.length) return nothing;
+    if (!areas.length) return html`<h3>Planning</h3><div class="muted">No heated area and nobody planned yet.</div>`;
     const schedule = planningSchedule(hass, this._area) ?? {};
     const now = hassNow(hass);
     const tz = hassTimeZone(hass);

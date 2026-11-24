@@ -16,3 +16,7 @@ Share Space now uses the heating Home Assistant already has.
 - The "Show as tabs" and per-view dropdowns are solid and open above every card.
 - Le Portemine is softer: pastel blues, the yellow replaced by a pale sky blue. A browser that never picked a theme starts on Le Portemine.
 - On touch screens the planning editor has taller rows and wider resize handles.
+- Installing Share Space makes it the page Home Assistant opens after login, for everyone including admins, unless an admin already chose another page. It happens once: an admin who turns it off in Settings keeps it off.
+- The log out button shows for everyone, admins included.
+- Overview's Planning card lists every heated area, so it shows even before anyone is planned. Admins also get "Everyone's planning": each person's own planning, read only.
+- End-to-end Playwright tests (`pnpm test:e2e`) run against the dev Home Assistant on desktop and phone: landing on Share Space after login, log out, the Planning card, and the admin-only plannings.
