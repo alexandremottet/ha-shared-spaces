@@ -78,7 +78,7 @@ export class ShareSpaceMyPlanningCard extends ShareSpaceScheduleView {
         ${this._config?.show_area_picker
           ? html`
               <select aria-label="Area" @change=${this._onArea}>
-                <option value="" ?selected=${!this._area} disabled>Where do you work?</option>
+                <option value="" ?selected=${!this._area} disabled>My place</option>
                 ${this._areas.map(
                   (a) => html`<option value=${a.area_id} ?selected=${a.area_id === this._area}>${a.name}</option>`
                 )}
