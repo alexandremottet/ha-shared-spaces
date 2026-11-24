@@ -1,9 +1,12 @@
 name: Release
 
-# v<version>: global release, then one sub release per component whose tag is new.
-# <component>-v<version>: that component's release only.
+# Push to main: release v<root package.json version> if new, plus every component
+# whose <component>-v<version> release is new. Bump versions with `pnpm version-packages`
+# (and the root package.json for a new global release), merge, done.
+# Tag v<version>: same, pinned to that tag. Tag <component>-v<version>: that component only.
 on:
   push:
+    branches: [main]
     tags:
       - "v*"
       - "share_space*-v*"
@@ -11,11 +14,23 @@ on:
 permissions:
   contents: write
 
+concurrency:
+  group: release
+  cancel-in-progress: false
+
 jobs:
   release:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      - name: Resolve tag
+        id: tag
+        run: |
+          if [ "$GITHUB_REF_TYPE" = tag ]; then
+            echo "name=$GITHUB_REF_NAME" >> "$GITHUB_OUTPUT"
+          else
+            echo "name=v$(jq -r .version package.json)" >> "$GITHUB_OUTPUT"
+          fi
       - uses: pnpm/action-setup@v4
       - uses: actions/setup-node@v4
         with:
@@ -26,26 +41,23 @@ jobs:
       - run: pnpm build
       - name: Package
         id: package
-        run: echo "plan=$(node scripts/release.mjs "$GITHUB_REF_NAME")" >> "$GITHUB_OUTPUT"
+        run: echo "plan=$(node scripts/release.mjs "${{ steps.tag.outputs.name }}")" >> "$GITHUB_OUTPUT"
       - name: Publish
         env:
           GH_TOKEN: ${{ github.token }}
           PLAN: ${{ steps.package.outputs.plan }}
         run: |
-          tag=$(jq -r .tag <<<"$PLAN")
-          jq -r '.assets[]' <<<"$PLAN" > assets.txt
-          xargs -a assets.txt gh release create "$tag" \
-            --title "$(jq -r .title <<<"$PLAN")" \
-            --notes-file "$(jq -r .notes <<<"$PLAN")" \
-            --verify-tag
-          jq -c '.components[]' <<<"$PLAN" | while read -r component; do
-            sub_tag=$(jq -r .tag <<<"$component")
-            if gh release view "$sub_tag" >/dev/null 2>&1; then
-              echo "$sub_tag already released, skipping"
-              continue
+          release() { # tag title notes assets...
+            local tag=$1 title=$2 notes=$3; shift 3
+            if gh release view "$tag" >/dev/null 2>&1; then
+              echo "$tag already released, skipping"
+              return
             fi
-            gh release create "$sub_tag" "$(jq -r .asset <<<"$component")" \
-              --title "$(jq -r .title <<<"$component")" \
-              --notes-file "$(jq -r .notes <<<"$component")" \
-              --target "$GITHUB_SHA"
+            gh release create "$tag" "$@" --title "$title" --notes-file "$notes" --target "$GITHUB_SHA"
+          }
+          mapfile -t assets < <(jq -r '.assets[]' <<<"$PLAN")
+          release "$(jq -r .tag <<<"$PLAN")" "$(jq -r .title <<<"$PLAN")" "$(jq -r .notes <<<"$PLAN")" "${assets[@]}"
+          jq -c '.components[]' <<<"$PLAN" | while read -r component; do
+            release "$(jq -r .tag <<<"$component")" "$(jq -r .title <<<"$component")" \
+              "$(jq -r .notes <<<"$component")" "$(jq -r .asset <<<"$component")"
           done
