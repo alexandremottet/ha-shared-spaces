@@ -9,15 +9,8 @@ from homeassistant.exceptions import HomeAssistantError
 from homeassistant.helpers import area_registry as ar
 from homeassistant.helpers import entity_registry as er
 
-from .const import CONF_CLIMATE_ENTITY, CONF_PRESENCE_ENTITY, DOMAIN
-
-CONF_AREA = "area_id"
-CONF_HEATERS = "heaters"
-CONF_TEMPERATURE_SENSOR = "temperature_sensor"
-# Switch the thermostat drives: the single heater, or the group of heaters.
-CONF_HEATER_SWITCH = "heater_switch"
-# Helper config entries Share Space created for the zone; removed with it.
-CONF_MANAGED_ENTRIES = "managed_entries"
+from .area import area_entities, entity_area
+from .const import CONF_AREA, CONF_CLIMATE_ENTITY, CONF_MANAGED_ENTRIES, DOMAIN
 
 
 class ProvisionError(HomeAssistantError):
@@ -71,7 +64,7 @@ async def async_create_area_zone(
     if any(e.data.get(CONF_AREA) == area_id for e in hass.config_entries.async_entries(DOMAIN)):
         raise ProvisionError("already_configured", f"{area.name} already has a heating zone")
     managed: list[str] = []
-    data: dict = {"name": area.name, CONF_AREA: area_id}
+    data: dict = {CONF_AREA: area_id}
     try:
         if climate_entity is None:
             if not heaters or not temperature_sensor:
@@ -107,17 +100,17 @@ async def async_create_area_zone(
             climate_entity = await _entity_of(hass, thermostat, "climate")
             # generic thermostats start off; the zone only drives the setpoint
             await hass.services.async_call("climate", "set_hvac_mode", {"entity_id": climate_entity, "hvac_mode": "heat"}, blocking=True)
-            data.update(
-                {CONF_HEATERS: heaters, CONF_HEATER_SWITCH: heater, CONF_TEMPERATURE_SENSOR: temperature_sensor, CONF_MANAGED_ENTRIES: managed}
-            )
+            data[CONF_MANAGED_ENTRIES] = managed
         elif hass.states.get(climate_entity) is None:
             raise ProvisionError("not_found", f"{climate_entity} not found")
+        # the zone finds its thermostat through the area, as HA shows it
         reg = er.async_get(hass)
-        if reg.async_get(climate_entity):
+        if reg.async_get(climate_entity) is None:
+            raise ProvisionError("invalid_format", f"{climate_entity} has no unique ID, so it cannot be placed in an area")
+        if entity_area(hass, climate_entity) != area_id:
             reg.async_update_entity(climate_entity, area_id=area_id)
-        presence = f"binary_sensor.share_space_{area_id}"
-        data[CONF_CLIMATE_ENTITY] = climate_entity
-        data[CONF_PRESENCE_ENTITY] = presence if hass.states.get(presence) else None
+        if not managed and len(area_entities(hass, area_id, "climate")) > 1:
+            data[CONF_CLIMATE_ENTITY] = climate_entity
         result = await hass.config_entries.flow.async_init(DOMAIN, context={"source": "import"}, data=data)
         if result["type"] != "create_entry":
             raise ProvisionError(result.get("reason", "failed"), "Zone not created")

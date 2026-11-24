@@ -5,10 +5,13 @@ import voluptuous as vol
 
 from homeassistant import config_entries
 from homeassistant.core import callback
+from homeassistant.helpers import area_registry as ar
 from homeassistant.helpers import selector
 
+from .area import area_entities
+
 from .const import (
-    CONF_CLIMATE_ENTITY,
+    CONF_AREA,
     CONF_COMFORT_TEMP,
     CONF_DEFAULT_OVERRIDE_HOURS,
     CONF_ECO_TEMP,
@@ -66,7 +69,9 @@ def _settings_schema(values: dict) -> dict:
 
 
 class ShareSpaceHeatingConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
-    VERSION = 1
+    """One zone per HA area; its thermostat is whatever HA places in that area."""
+
+    VERSION = 2
 
     @staticmethod
     @callback
@@ -74,22 +79,25 @@ class ShareSpaceHeatingConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         return ShareSpaceHeatingOptionsFlow()
 
     async def _async_create(self, data: dict):
-        await self.async_set_unique_id(data[CONF_CLIMATE_ENTITY])
+        area = ar.async_get(self.hass).async_get_area(data[CONF_AREA])
+        if area is None:
+            return self.async_abort(reason="area_not_found")
+        await self.async_set_unique_id(area.id)
         self._abort_if_unique_id_configured()
         data = {**data, CONF_PRESENCE_ENTITY: data.get(CONF_PRESENCE_ENTITY) or None}
-        return self.async_create_entry(title=data["name"], data=data)
+        return self.async_create_entry(title=area.name, data=data)
 
     async def async_step_user(self, user_input: dict | None = None):
+        errors: dict[str, str] = {}
         if user_input is not None:
-            return await self._async_create(user_input)
+            if area_entities(self.hass, user_input[CONF_AREA], "climate"):
+                return await self._async_create(user_input)
+            errors["base"] = "no_thermostat"
         schema = {
-            vol.Required("name"): selector.TextSelector(),
-            vol.Required(CONF_CLIMATE_ENTITY): selector.EntitySelector(
-                selector.EntitySelectorConfig(domain="climate")
-            ),
-            **_settings_schema({}),
+            vol.Required(CONF_AREA): selector.AreaSelector(),
+            **_settings_schema(user_input or {}),
         }
-        return self.async_show_form(step_id="user", data_schema=vol.Schema(schema))
+        return self.async_show_form(step_id="user", data_schema=vol.Schema(schema), errors=errors)
 
     async def async_step_import(self, import_data: dict):
         return await self._async_create(

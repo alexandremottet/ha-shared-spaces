@@ -12,7 +12,8 @@ from homeassistant.helpers import config_validation as cv
 from homeassistant.helpers import entity_registry as er
 from homeassistant.helpers.template import Template
 
-from .provision import CONF_HEATER_SWITCH, CONF_HEATERS, CONF_MANAGED_ENTRIES, CONF_TEMPERATURE_SENSOR, ProvisionError, async_create_area_zone
+from .area import managed_devices
+from .provision import ProvisionError, async_create_area_zone
 from .const import (
     CONF_CLIMATE_ENTITY,
     CONF_COMFORT_TEMP,
@@ -33,7 +34,6 @@ from .const import (
 
 def async_register(hass: HomeAssistant) -> None:
     websocket_api.async_register_command(hass, ws_list_zones)
-    websocket_api.async_register_command(hass, ws_create_zone)
     websocket_api.async_register_command(hass, ws_update_zone)
     websocket_api.async_register_command(hass, ws_list_strategies)
     websocket_api.async_register_command(hass, ws_save_strategy)
@@ -74,6 +74,7 @@ def _template_error(hass: HomeAssistant, msg: dict) -> str | None:
 
 
 def _summary(hass: HomeAssistant, entry_id: str, zone, zones) -> dict:
+    devices = managed_devices(hass, zone.entry)
     return {
         "entry_id": entry_id,
         "name": zone.entry.title,
@@ -88,11 +89,9 @@ def _summary(hass: HomeAssistant, entry_id: str, zone, zones) -> dict:
         "template_error": zone.template_error,
         "override_until": zone.override_until.isoformat() if zone.override_active else None,
         "area_id": zone.area,
-        "area_conflict": zone.area is not None and sum(z.area == zone.area for z in zones) > 1,
-        "heaters": zone.entry.data.get(CONF_HEATERS),
-        "heater_switch": zone.entry.data.get(CONF_HEATER_SWITCH),
-        "temperature_sensor": zone.entry.data.get(CONF_TEMPERATURE_SENSOR),
-        "managed": bool(zone.entry.data.get(CONF_MANAGED_ENTRIES)),
+        "area_conflict": sum(z.area == zone.area for z in zones) > 1,
+        **devices,
+        "managed": devices["heater_switch"] is not None,
     }
 
 
@@ -105,35 +104,6 @@ def _zone_entity_id(hass: HomeAssistant, entry_id: str) -> str | None:
 async def ws_list_zones(hass: HomeAssistant, connection, msg: dict) -> None:
     zones = hass.data.get(DOMAIN, {}).get(DATA_ZONES, {})
     connection.send_result(msg["id"], [_summary(hass, entry_id, zone, zones.values()) for entry_id, zone in zones.items()])
-
-
-@websocket_api.require_admin
-@websocket_api.websocket_command(
-    {
-        vol.Required("type"): f"{DOMAIN}/create_zone",
-        vol.Required("name"): str,
-        vol.Required(CONF_CLIMATE_ENTITY): str,
-        vol.Optional(CONF_PRESENCE_ENTITY): vol.Any(str, None),
-        vol.Optional(CONF_COMFORT_TEMP): vol.Coerce(float),
-        vol.Optional(CONF_ECO_TEMP): vol.Coerce(float),
-        vol.Optional(CONF_DEFAULT_OVERRIDE_HOURS): vol.Coerce(float),
-        vol.Optional(CONF_TARGET_TEMPLATE): vol.Any(None, str),
-    }
-)
-@websocket_api.async_response
-async def ws_create_zone(hass: HomeAssistant, connection, msg: dict) -> None:
-    if error := _template_error(hass, msg):
-        connection.send_error(msg["id"], websocket_api.ERR_INVALID_FORMAT, error)
-        return
-    data = {key: value for key, value in msg.items() if key not in ("id", "type")}
-    result = await hass.config_entries.flow.async_init(
-        DOMAIN, context={"source": "import"}, data=data
-    )
-    if result["type"] != "create_entry":
-        connection.send_error(msg["id"], result.get("reason", "failed"), "Zone not created")
-        return
-    entry_id = result["result"].entry_id
-    connection.send_result(msg["id"], {"entry_id": entry_id, "entity_id": _zone_entity_id(hass, entry_id)})
 
 
 @websocket_api.require_admin
@@ -276,8 +246,8 @@ def _domain_entity(*domains: str):
         vol.Required("type"): f"{DOMAIN}/create_area_zone",
         vol.Required("area_id"): str,
         vol.Exclusive(CONF_CLIMATE_ENTITY, "source"): _domain_entity("climate"),
-        vol.Exclusive(CONF_HEATERS, "source"): vol.All([_domain_entity("switch")], vol.Length(min=1)),
-        vol.Optional(CONF_TEMPERATURE_SENSOR): _domain_entity("sensor"),
+        vol.Exclusive("heaters", "source"): vol.All([_domain_entity("switch")], vol.Length(min=1)),
+        vol.Optional("temperature_sensor"): _domain_entity("sensor"),
     }
 )
 @websocket_api.async_response
@@ -287,8 +257,8 @@ async def ws_create_area_zone(hass: HomeAssistant, connection, msg: dict) -> Non
             hass,
             msg["area_id"],
             climate_entity=msg.get(CONF_CLIMATE_ENTITY),
-            heaters=msg.get(CONF_HEATERS),
-            temperature_sensor=msg.get(CONF_TEMPERATURE_SENSOR),
+            heaters=msg.get("heaters"),
+            temperature_sensor=msg.get("temperature_sensor"),
         )
     except ProvisionError as err:
         connection.send_error(msg["id"], err.code, str(err))

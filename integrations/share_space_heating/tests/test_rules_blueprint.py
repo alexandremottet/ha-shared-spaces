@@ -6,12 +6,10 @@ from zoneinfo import ZoneInfo
 
 import pytest
 from homeassistant.exceptions import ServiceValidationError
-from homeassistant.helpers import area_registry as ar
-from homeassistant.helpers import entity_registry as er
 from homeassistant.setup import async_setup_component
-from pytest_homeassistant_custom_component.common import MockConfigEntry, async_fire_time_changed
+from pytest_homeassistant_custom_component.common import async_fire_time_changed, async_mock_service
 
-from .helpers import CLIMATE, SENSOR, _spy_base, WEEKDAYS, planning_states, setup_zone
+from .helpers import CLIMATE, SENSOR, _spy_base, WEEKDAYS, planning_states, setup_zone, zone_entry
 
 FIXTURES = Path(__file__).parents[3] / "fixtures" / "heating"
 RULE_CASES = json.loads((FIXTURES / "rules_cases.json").read_text())
@@ -264,49 +262,23 @@ async def _run_area_only(hass, area="oa"):
     await hass.async_block_till_done()
 
 
-async def test_rules_blueprint_finds_zone_from_registry_area(hass, freezer):
+async def test_rules_blueprint_finds_zone_from_area(hass, freezer):
     freezer.move_to("2026-11-17T10:00:00+00:00")
     _set_planning(hass, "oa", {}, datetime.fromisoformat("2026-11-17T10:00:00+00:00"), ZoneInfo("UTC"))
-    area = ar.async_get(hass).async_create("OA")
-    reg = er.async_get(hass)
-    reg.async_get_or_create("climate", "demo", "office", suggested_object_id="office")
-    reg.async_update_entity(CLIMATE, area_id=area.id)
-    entry, _ = await setup_zone(hass)
+    hass.states.async_set(CLIMATE, "heat", {"temperature": 20.0})
+    async_mock_service(hass, "climate", "set_temperature")
+    entry = zone_entry(hass, "OA", CLIMATE)
+    assert await hass.config_entries.async_setup(entry.entry_id)
+    await hass.async_block_till_done()
     base = _spy_base(hass, entry)
-    await _run_area_only(hass, area.id)
+    await _run_area_only(hass, "oa")
     assert [(c["preset"], c["reason"]) for c in base] == [("eco", "Eco")]
 
 
-async def test_rules_blueprint_falls_back_to_provisioned_area(hass, freezer):
-    freezer.move_to("2026-11-17T10:00:00+00:00")
-    _set_planning(hass, "oa", {}, datetime.fromisoformat("2026-11-17T10:00:00+00:00"), ZoneInfo("UTC"))
-    entry, _ = await setup_zone(hass, area_id="oa")
-    base = _spy_base(hass, entry)
-    await _run_area_only(hass)
-    assert [(c["preset"], c["reason"]) for c in base] == [("eco", "Eco")]
-
-
-async def test_run_rules_area_without_heating_or_ambiguous(hass):
+async def test_run_rules_area_without_heating(hass):
     hass.states.async_set("binary_sensor.share_space_oa", "off")
     await setup_zone(hass)
     with pytest.raises(ServiceValidationError, match="No Share Space Heating zone in area oa"):
-        await hass.services.async_call(
-            "share_space_heating", "run_rules", {"area": "oa", "rules": ECO_RULES}, blocking=True
-        )
-    for zone in list(hass.data["share_space_heating"]["zones"].values()):
-        hass.config_entries.async_update_entry(zone.entry, data={**zone.entry.data, "area_id": "oa"})
-    await hass.async_block_till_done()
-    hass.states.async_set("climate.kitchen", "heat", {"temperature": 20.0})
-    second = MockConfigEntry(
-        domain="share_space_heating",
-        data={"name": "Kitchen", "climate_entity": "climate.kitchen", "presence_entity": None, "area_id": "oa"},
-        unique_id="climate.kitchen",
-        title="Kitchen",
-    )
-    second.add_to_hass(hass)
-    assert await hass.config_entries.async_setup(second.entry_id)
-    await hass.async_block_till_done()
-    with pytest.raises(ServiceValidationError, match="Several heating zones in area oa: climate.kitchen, climate.office"):
         await hass.services.async_call(
             "share_space_heating", "run_rules", {"area": "oa", "rules": ECO_RULES}, blocking=True
         )

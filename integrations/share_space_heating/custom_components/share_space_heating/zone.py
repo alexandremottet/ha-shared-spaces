@@ -7,22 +7,20 @@ from datetime import datetime, timedelta
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import STATE_OFF, STATE_ON
 from homeassistant.core import Event, HomeAssistant, callback
-from homeassistant.helpers import device_registry as dr
 from homeassistant.helpers import entity_registry as er
 from homeassistant.helpers.event import async_track_point_in_utc_time, async_track_state_change_event
 from homeassistant.util import dt as dt_util
 from homeassistant.util import slugify
 
+from .area import zone_area
 from .climate import BAD_STATES, ClimateDriver, matches_requested
 from .const import (
-    CONF_CLIMATE_ENTITY,
     CONF_COMFORT_TEMP,
     CONF_DEFAULT_OVERRIDE_HOURS,
     CONF_ECO_TEMP,
     CONF_FROST_TEMP,
     CONF_MAX_OVERRIDE_HOURS,
     CONF_OFF_MODE,
-    CONF_PRESENCE_ENTITY,
     CONF_TARGET_TEMPLATE,
     DEFAULT_COMFORT_TEMP,
     DEFAULT_ECO_TEMP,
@@ -39,31 +37,29 @@ from .const import (
     OFF_MODE_HVAC_OFF,
     TEMPLATE_RULE,
 )
-from .provision import CONF_AREA
 from .store import OverrideStore
 from .target import BaseTarget, Temps, as_float, mode_target, schedule_target
 from .template_hook import TargetTemplate
 
 
-def entity_area(hass: HomeAssistant, entity_id: str) -> str | None:
-    """Area of an entity in the entity registry, else of its device."""
-    ent = er.async_get(hass).async_get(entity_id)
-    if ent is None:
-        return None
-    if ent.area_id or not ent.device_id:
-        return ent.area_id
-    device = dr.async_get(hass).async_get(ent.device_id)
-    return device.area_id if device else None
-
-
 class Zone:
     """Priority: manual override > target template > base target / presence (zone mode)."""
 
-    def __init__(self, hass: HomeAssistant, entry: ConfigEntry, store: OverrideStore) -> None:
+    def __init__(
+        self,
+        hass: HomeAssistant,
+        entry: ConfigEntry,
+        store: OverrideStore,
+        climate_entity: str,
+        presence_entity: str | None,
+    ) -> None:
         self.hass = hass
         self.entry = entry
         self._store = store
-        self.climate = ClimateDriver(hass, self.climate_entity)
+        # resolved from the area at setup; the zone reloads when HA moves devices
+        self.climate_entity = climate_entity
+        self.presence_entity = presence_entity
+        self.climate = ClimateDriver(hass, climate_entity)
         self.base = BaseTarget()
         self.override_temp: float | None = None
         self.override_until: datetime | None = None
@@ -82,17 +78,8 @@ class Zone:
         return {**self.entry.data, **self.entry.options}
 
     @property
-    def climate_entity(self) -> str:
-        return self._conf[CONF_CLIMATE_ENTITY]
-
-    @property
-    def area(self) -> str | None:
-        """HA's area of the climate entity; the provisioning area only when HA has none."""
-        return entity_area(self.hass, self.climate_entity) or self.entry.data.get(CONF_AREA) or None
-
-    @property
-    def presence_entity(self) -> str | None:
-        return self._conf.get(CONF_PRESENCE_ENTITY) or None
+    def area(self) -> str:
+        return zone_area(self.entry)
 
     @property
     def comfort_temp(self) -> float:

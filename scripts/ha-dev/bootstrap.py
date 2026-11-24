@@ -189,8 +189,6 @@ async def seed_zones(ha: HA) -> None:
     zoned = {z["area_id"] for z in await ha.call("share_space_heating/list_zones")}
     for area_id, (name, heaters, sensor) in AREAS.items():
         if area_id not in zoned:
-            if any(u.get("area") == area_id for u in USERS):  # the zone picks up its presence sensor
-                await wait_for_state(ha, f"binary_sensor.share_space_{area_id}")
             await ha.call("share_space_heating/create_area_zone", area_id=area_id, heaters=heaters, temperature_sensor=sensor)
             print(f"Added heating zone {name}")
 

@@ -1,7 +1,11 @@
 """Constants for Share Space Heating."""
 DOMAIN = "share_space_heating"
 
+CONF_AREA = "area_id"
+# Only picks one when the area holds several thermostats.
 CONF_CLIMATE_ENTITY = "climate_entity"
+# Helper config entries Share Space created for the zone; removed with it.
+CONF_MANAGED_ENTRIES = "managed_entries"
 CONF_PRESENCE_ENTITY = "presence_entity"
 CONF_COMFORT_TEMP = "comfort_temp"
 CONF_ECO_TEMP = "eco_temp"

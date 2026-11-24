@@ -6,12 +6,13 @@ import pytest
 from homeassistant.core import Context
 from homeassistant.util import dt as dt_util
 from pytest_homeassistant_custom_component.common import (
-    MockConfigEntry,
     async_fire_time_changed,
     async_mock_service,
 )
 
 from custom_components.share_space_heating.const import DOMAIN
+
+from .helpers import zone_entry
 
 CLIMATE = "climate.living"
 PRESENCE = "binary_sensor.presence"
@@ -26,8 +27,6 @@ def _climate(hass, temp, context=None):
 
 async def _setup(hass, presence=PRESENCE, **extra):
     data = {
-        "name": "Living",
-        "climate_entity": CLIMATE,
         "presence_entity": presence,
         "comfort_temp": 21.0,
         "eco_temp": 17.0,
@@ -35,8 +34,7 @@ async def _setup(hass, presence=PRESENCE, **extra):
         "max_override_hours": 12.0,
         **extra,
     }
-    entry = MockConfigEntry(domain=DOMAIN, data=data, unique_id=CLIMATE, title="Living")
-    entry.add_to_hass(hass)
+    entry = zone_entry(hass, "Living", CLIMATE, **data)
     assert await hass.config_entries.async_setup(entry.entry_id)
     await hass.async_block_till_done()
     return entry
@@ -186,17 +184,11 @@ async def test_override_survives_reload(hass, calls):
 
 async def test_expired_override_dropped_on_load(hass, hass_storage, calls):
     past = (dt_util.utcnow() - timedelta(hours=1)).isoformat()
-    entry = MockConfigEntry(
-        domain=DOMAIN,
-        title="Living",
-        unique_id=CLIMATE,
-        data={"name": "Living", "climate_entity": CLIMATE, "presence_entity": PRESENCE},
-    )
+    entry = zone_entry(hass, "Living", CLIMATE, presence_entity=PRESENCE)
     hass_storage["share_space_heating.overrides"] = {
         "version": 1,
         "data": {entry.entry_id: {"temp": 25.0, "until": past}},
     }
-    entry.add_to_hass(hass)
     assert await hass.config_entries.async_setup(entry.entry_id)
     await hass.async_block_till_done()
     assert hass.states.get(SENSOR).attributes["mode"] == "schedule"
@@ -209,12 +201,7 @@ async def test_two_zones_concurrent_setup_and_unload(hass):
     async_mock_service(hass, "climate", "set_temperature")
     entries = []
     for name, ent in (("Living", CLIMATE), ("Bed", "climate.bed")):
-        e = MockConfigEntry(
-            domain=DOMAIN, title=name, unique_id=ent,
-            data={"name": name, "climate_entity": ent, "presence_entity": PRESENCE},
-        )
-        e.add_to_hass(hass)
-        entries.append(e)
+        entries.append(zone_entry(hass, name, ent, presence_entity=PRESENCE))
     await asyncio.gather(*(hass.config_entries.async_setup(e.entry_id) for e in entries))
     await hass.async_block_till_done()
     assert hass.states.get(SENSOR) is not None
@@ -252,10 +239,8 @@ def _saved(hass_storage, entry, data):
 
 
 async def _setup_with_saved(hass, hass_storage, data, **extra):
-    conf = {"name": "Living", "climate_entity": CLIMATE, "presence_entity": PRESENCE, **extra}
-    entry = MockConfigEntry(domain=DOMAIN, title="Living", unique_id=CLIMATE, data=conf)
+    entry = zone_entry(hass, "Living", CLIMATE, presence_entity=PRESENCE, **extra)
     _saved(hass_storage, entry, data)
-    entry.add_to_hass(hass)
     assert await hass.config_entries.async_setup(entry.entry_id)
     await hass.async_block_till_done()
     return entry
