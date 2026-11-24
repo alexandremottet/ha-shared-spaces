@@ -68,9 +68,16 @@ export class ShareSpaceOverviewPlanning extends LitElement {
       font-weight: 500;
       color: var(--primary-text-color);
       border-radius: 8px;
-      background: color-mix(in srgb, var(--card-background-color, #fff) 30%, transparent);
+      background: color-mix(in srgb, var(--card-background-color, #fff) 60%, transparent);
       backdrop-filter: blur(4px);
       -webkit-backdrop-filter: blur(4px);
+      /* feathered edges: the veil fades into the card instead of stopping on a line */
+      --fade: linear-gradient(to right, transparent, #000 32px, #000 calc(100% - 32px), transparent),
+        linear-gradient(to bottom, transparent, #000 16px, #000 calc(100% - 16px), transparent);
+      mask-image: var(--fade);
+      mask-composite: intersect;
+      -webkit-mask-image: var(--fade);
+      -webkit-mask-composite: source-in;
     }
   `,
   ];
