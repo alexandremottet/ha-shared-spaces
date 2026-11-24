@@ -1,5 +1,11 @@
 # ha-share-space-planning-cards
 
+## 0.4.0
+
+### Minor Changes
+
+- fc7d2f9: "Where do I work?" becomes "My place", a one-line card with a select instead of a block of large buttons: it is set once, so it no longer takes the space of the Overview.
+
 ## 0.3.0
 
 ### Minor Changes

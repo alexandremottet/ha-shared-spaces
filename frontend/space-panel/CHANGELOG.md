@@ -1,5 +1,12 @@
 # ha-share-space-space-panel
 
+## 1.4.2
+
+### Patch Changes
+
+- Updated dependencies [fc7d2f9]
+  - ha-share-space-planning-cards@0.4.0
+
 ## 1.4.1
 
 ### Patch Changes
