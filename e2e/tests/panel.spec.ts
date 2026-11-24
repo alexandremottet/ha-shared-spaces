@@ -28,7 +28,7 @@ for (const [who, account] of [
   });
 }
 
-test("Space Admin sees everyone's planning, read only", async ({ page }) => {
+test("Space Admin sees everyone's planning", async ({ page }) => {
   await logIn(page, SPACE_ADMIN);
   await page.goto("/share-space");
   await page.getByRole("button", { name: "Plannings" }).click();
@@ -38,6 +38,15 @@ test("Space Admin sees everyone's planning, read only", async ({ page }) => {
   await expect(roster.locator("person-lane-track.total").first()).toBeVisible();
   await expect(roster.locator("person-lane-track", { hasText: "User 1" }).first()).toBeVisible();
   await expect(roster.locator("week-schedule, day-schedule")).toHaveCount(0);
+});
+
+test("Space Admin can open someone's planning to edit it", async ({ page }) => {
+  await logIn(page, SPACE_ADMIN);
+  await page.goto("/share-space");
+  await page.getByRole("button", { name: "Plannings" }).click();
+  const people = page.locator("share-space-people-planning");
+  await people.getByRole("combobox", { name: "Person" }).selectOption({ label: "User 1" });
+  await expect(people.locator("week-schedule day-schedule")).toHaveCount(7);
 });
 
 test("a user does not see other people's planning", async ({ page }) => {
