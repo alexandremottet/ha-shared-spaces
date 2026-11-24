@@ -26,28 +26,28 @@ export class ShareSpaceWorkAreaCard extends LitElement {
     haTheme,
     cardStyles,
     css`
-      .chips {
+      /* set once, so it takes one line: a label and a select */
+      ha-card {
         display: flex;
-        flex-wrap: wrap;
-        gap: 8px;
+        align-items: center;
+        gap: 12px;
+        padding: 8px 8px 8px 16px;
       }
-      button {
-        flex: 1 1 140px;
-        min-height: 56px;
-        padding: 0 16px;
-        border-radius: 28px;
-        border: 2px solid var(--divider-color);
-        background: transparent;
+      .title {
+        margin: 0;
+        flex: none;
+      }
+      select {
+        flex: 1;
+        min-width: 0;
+        min-height: 40px;
+        padding: 0 12px;
+        border-radius: 20px;
+        border: 1px solid var(--divider-color);
+        background: var(--card-background-color);
         color: var(--primary-text-color);
         font: inherit;
-        font-size: 1.05em;
         cursor: pointer;
-      }
-      button.active {
-        background: var(--primary-color);
-        border-color: var(--primary-color);
-        color: var(--text-primary-color, #fff);
-        font-weight: 600;
       }
     `,
   ];
@@ -111,16 +111,11 @@ export class ShareSpaceWorkAreaCard extends LitElement {
     const areas = allow?.length ? this._areas.filter((a) => allow.includes(a.area_id)) : this._areas;
     return html`
       <ha-card>
-        <p class="title">Where do I work?</p>
-        <div class="chips">
-          ${areas.map(
-            (a) => html`
-              <button class=${a.area_id === this._current ? "active" : ""} @click=${() => this._pick(a.area_id)}>
-                ${a.name}
-              </button>
-            `
-          )}
-        </div>
+        <p class="title">My place</p>
+        <select aria-label="My place" @change=${(e: Event) => this._pick((e.target as HTMLSelectElement).value)}>
+          <option value="" disabled ?selected=${!this._current}>Choose an area</option>
+          ${areas.map((a) => html`<option value=${a.area_id} ?selected=${a.area_id === this._current}>${a.name}</option>`)}
+        </select>
       </ha-card>
     `;
   }
@@ -134,14 +129,14 @@ export class ShareSpaceWorkAreaCard extends LitElement {
   }
 
   public getGridOptions(): LovelaceGridOptions {
-    return { columns: 12, min_columns: 4, rows: 3, min_rows: 2 };
+    return { columns: 12, min_columns: 4, rows: 1, min_rows: 1 };
   }
 }
 
 registerCustomCard({
   type: "share-space-work-area-card",
-  name: "Share Space: Where do I work?",
-  description: "Tap an area to say where you work.",
+  name: "Share Space: My place",
+  description: "Pick the area where you work.",
 });
 
 declare global {
