@@ -26,44 +26,70 @@ export class ShareSpaceRulesSummary extends LitElement {
     :host {
       display: block;
     }
+    .panel {
+      ${haCardSurface}
+      padding: 16px;
+    }
     h3 {
-      margin: 0 0 8px;
+      margin: 0;
       font-size: 1.1em;
       font-weight: 500;
     }
+    .intro {
+      margin: 4px 0 16px;
+    }
     .list {
-      ${haCardSurface}
       display: flex;
       flex-direction: column;
+      gap: 12px;
     }
-    button.row {
+    button.area {
       all: unset;
       box-sizing: border-box;
+      ${haCardSurface}
       display: grid;
-      grid-template-columns: minmax(120px, 1fr) minmax(0, 2fr) auto auto;
-      gap: 12px;
+      grid-template-columns: minmax(0, 1fr) auto;
+      grid-template-rows: auto auto;
+      gap: 6px 16px;
       align-items: center;
-      padding: 12px 16px;
+      min-height: 84px;
+      padding: 16px 20px;
       cursor: pointer;
-      border-top: 1px solid var(--divider-color, rgba(0, 0, 0, 0.12));
+      transition: box-shadow 0.15s;
     }
-    button.row:first-child {
-      border-top: none;
+    button.area:hover,
+    button.area:focus-visible {
+      box-shadow: 0 2px 10px rgba(0, 0, 0, 0.15);
     }
-    button.row:hover,
-    button.row:focus-visible {
-      background: var(--secondary-background-color);
+    button.area:focus-visible {
+      outline: 2px solid var(--primary-color);
+      outline-offset: 2px;
     }
     .name {
       font-weight: 600;
+      font-size: 1.05em;
+    }
+    .drives {
+      grid-column: 1;
+      grid-row: 2;
+    }
+    .side {
+      grid-column: 2;
+      grid-row: 1 / span 2;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+    .chevron {
+      font-size: 1.4em;
     }
     .muted {
       color: var(--secondary-text-color);
     }
     .badge {
-      font-size: 0.75em;
-      padding: 2px 8px;
-      border-radius: 10px;
+      font-size: 0.8em;
+      padding: 3px 10px;
+      border-radius: 12px;
       background: var(--secondary-background-color);
       white-space: nowrap;
     }
@@ -71,16 +97,8 @@ export class ShareSpaceRulesSummary extends LitElement {
       background: var(--primary-color);
       color: var(--text-primary-color, #fff);
     }
-    @media (max-width: 600px) {
-      button.row {
-        grid-template-columns: minmax(0, 1fr) auto auto;
-      }
-      .drives {
-        grid-column: 1 / -1;
-        grid-row: 2;
-      }
-    }
   `;
+
 
   protected willUpdate(changed: PropertyValues): void {
     const key = JSON.stringify([this.zones?.map((z) => z.entity_id), this.version]);
@@ -124,19 +142,25 @@ export class ShareSpaceRulesSummary extends LitElement {
 
   private _row(row: Row): TemplateResult {
     const d = this._drives(row);
-    return html`<button class="row" @click=${() => this.dispatchEvent(new CustomEvent("zone-select", { detail: row.zone.entity_id }))}>
+    return html`<button class="area" @click=${() => this.dispatchEvent(new CustomEvent("zone-select", { detail: row.zone.entity_id }))}>
       <span class="name">${row.zone.name}</span>
-      <span class="drives ${d.badge ? "" : "muted"}">${d.text}</span>
-      ${d.badge ? html`<span class="badge ${d.on ? "on" : ""}">${d.badge}</span>` : html`<span></span>`}
-      <span class="muted" aria-hidden="true">›</span>
+      <span class="drives muted">${d.text}</span>
+      <span class="side">
+        ${d.badge ? html`<span class="badge ${d.on ? "on" : ""}">${d.badge}</span>` : nothing}
+        <span class="chevron muted" aria-hidden="true">›</span>
+      </span>
     </button>`;
   }
+
 
   protected render(): TemplateResult | typeof nothing {
     if (this.zones && !this.zones.length) return html`<div class="muted">No heated area found in Home Assistant yet.</div>`;
     if (!this._rows) return html`<div class="muted">Loading areas…</div>`;
-    return html`<h3>Heating rules by area</h3>
-      <div class="list">${this._rows.map((r) => this._row(r))}</div>`;
+    return html`<section class="panel">
+      <h3>Heating rules by area</h3>
+      <div class="intro muted">What heats each area today. Open one to see or edit its rules.</div>
+      <div class="list">${this._rows.map((r) => this._row(r))}</div>
+    </section>`;
   }
 }
 
