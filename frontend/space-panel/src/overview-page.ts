@@ -2,7 +2,7 @@ import { LitElement, html, css, nothing } from "lit";
 import type { PropertyValues, TemplateResult } from "lit";
 import { customElement, property, state } from "lit/decorators.js";
 import { haCardSurface } from "ha-share-space-ui";
-import { findMyPerson, errorMessage, listDetectedAreas, listZones } from "ha-share-space-ui/ha";
+import { EVERYONE_AREA, findMyPerson, errorMessage, listDetectedAreas, listZones } from "ha-share-space-ui/ha";
 import type { DetectedArea, HeatingZone } from "ha-share-space-ui/ha";
 import type { HomeAssistant } from "ha-share-space-ui/ha";
 import { zoneViewModel } from "ha-share-space-heating-card/view-model";
@@ -52,6 +52,7 @@ function myArea(hass: HomeAssistant): string | null {
   const sensor = Object.values(hass.states).find(
     (s) =>
       s.entity_id.startsWith("binary_sensor.share_space_") &&
+      s.entity_id !== `binary_sensor.share_space_${EVERYONE_AREA}` &&
       Array.isArray(s.attributes.persons) &&
       (s.attributes.persons as string[]).includes(me),
   );

@@ -11,7 +11,7 @@ from homeassistant.core import HomeAssistant
 from homeassistant.util import dt as dt_util
 
 from .area import area_entities, zone_area, zone_climate
-from .const import DATA_SETTINGS, DOMAIN, OUTDOOR_ALIAS
+from .const import DATA_SETTINGS, DOMAIN, EVERYONE_AREA, OUTDOOR_ALIAS
 
 WEEKDAYS = ("monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday")
 _SLOT = 30
@@ -182,6 +182,8 @@ def _timestamp(hass: HomeAssistant, entity_id: str) -> float | None:
 
 def planning_facts(hass: HomeAssistant, area: str) -> Facts | None:
     """Facts for now, or None while the area's planning entities are not loaded."""
+    if hass.states.get(f"binary_sensor.share_space_{area}") is None:
+        area = EVERYONE_AREA
     main = hass.states.get(f"binary_sensor.share_space_{area}")
     next_id, prev_id = f"sensor.share_space_{area}_next_on", f"sensor.share_space_{area}_previous_off"
     nxt, prv = hass.states.get(next_id), hass.states.get(prev_id)

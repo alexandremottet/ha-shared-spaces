@@ -287,3 +287,26 @@ async def test_run_rules_area_without_heating(hass):
         await hass.services.async_call(
             "share_space_heating", "run_rules", {"area": "oa", "rules": ECO_RULES}, blocking=True
         )
+
+
+async def test_area_nobody_works_in_follows_everyone(hass, freezer):
+    freezer.move_to("2026-11-17T11:30:00+00:00")
+    await hass.config.async_set_time_zone("UTC")
+    await setup_zone(hass)
+    lunch = {"tuesday": [["11:00", "12:00"], ["13:00", "14:00"]]}
+    _set_planning(hass, "everyone", lunch, datetime.fromisoformat("2026-11-17T11:30:00+00:00"), ZoneInfo("UTC"))
+    rules = {
+        "version": 1,
+        "rules": [
+            {
+                "label": "Lunch",
+                "when": [{"type": "planned", "windows": [{"start": "11:00", "end": "12:00"}], "match": "all"}],
+                "then": {"type": "temperature", "value": 20},
+            }
+        ],
+        "fallback": {"label": "Away", "then": {"type": "off"}},
+    }
+    await _run_rules(hass, rules)
+    state = hass.states.get(SENSOR)
+    assert float(state.state) == 20.0
+    assert state.attributes["active_rule"] == "Lunch"

@@ -15,17 +15,18 @@ from homeassistant.helpers.event import async_track_time_change, async_track_tim
 from homeassistant.helpers.script import Script
 from homeassistant.util import dt as dt_util
 
-from .area_schedule import compute_area_schedule
+from .area_schedule import compute_area_schedule, list_area_person_calendars
 from .const import (
     DATA_AREA_ACTIONS_STORE,
     DATA_AREA_LOCKS,
     DATA_PERSON_AREA_STORE,
     DATA_PERSON_CALENDAR_STORE,
     DOMAIN,
+    EVERYONE,
     SIGNAL_CALENDAR_CHANGED,
 )
 from .occupancy import compact_schedule, is_occupied, next_change, occupied_today, occupied_tomorrow
-from .planning import AreaPlanningMixin, setup_dynamic_areas
+from .planning import AreaPlanningMixin, area_name, setup_dynamic_areas
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -71,8 +72,7 @@ class AreaOccupancySensor(BinarySensorEntity):
 
     @property
     def name(self) -> str:
-        area = ar.async_get(self.hass).async_get_area(self._area_id)
-        return area.name if area else self._area_id
+        return area_name(self.hass, self._area_id)
 
     def _compute(self) -> tuple[bool, dict]:
         now = dt_util.now()
@@ -81,7 +81,11 @@ class AreaOccupancySensor(BinarySensorEntity):
         )
         following = next_change(schedule, now)
         attrs = {
-            "persons": self._data[DATA_PERSON_AREA_STORE].persons_in_area(self._area_id),
+            "persons": sorted(
+                list_area_person_calendars(self._data[DATA_PERSON_AREA_STORE], self._data[DATA_PERSON_CALENDAR_STORE], self._area_id)
+            )
+            if self._area_id == EVERYONE
+            else self._data[DATA_PERSON_AREA_STORE].persons_in_area(self._area_id),
             "next_change": following.isoformat() if following else None,
             "schedule": compact_schedule(schedule),
         }

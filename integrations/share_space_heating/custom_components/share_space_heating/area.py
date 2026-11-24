@@ -6,7 +6,7 @@ from homeassistant.core import HomeAssistant
 from homeassistant.helpers import device_registry as dr
 from homeassistant.helpers import entity_registry as er
 
-from .const import CONF_AREA, CONF_CLIMATE_ENTITY, CONF_MANAGED_ENTRIES, CONF_PRESENCE_ENTITY
+from .const import CONF_AREA, CONF_CLIMATE_ENTITY, CONF_MANAGED_ENTRIES, CONF_PRESENCE_ENTITY, EVERYONE_AREA
 
 GENERIC_THERMOSTAT = "generic_thermostat"
 GROUP = "group"
@@ -70,8 +70,11 @@ def zone_presence(hass: HomeAssistant, entry: ConfigEntry) -> str | None:
     """A presence sensor picked for the zone, else the area's Share Space occupancy sensor."""
     if picked := _conf(entry).get(CONF_PRESENCE_ENTITY):
         return picked
-    auto = f"binary_sensor.share_space_{zone_area(entry)}"
-    return auto if er.async_get(hass).async_get(auto) or hass.states.get(auto) else None
+    for area in (zone_area(entry), EVERYONE_AREA):
+        auto = f"binary_sensor.share_space_{area}"
+        if er.async_get(hass).async_get(auto) or hass.states.get(auto):
+            return auto
+    return None
 
 
 def managed_devices(hass: HomeAssistant, entry: ConfigEntry) -> dict:

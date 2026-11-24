@@ -56,3 +56,6 @@ SERVICE_SET_BASE_TARGET = "set_base_target"
 SERVICE_RUN_RULES = "run_rules"
 
 BLUEPRINT_DIR = "blueprints/automation/share_space"
+
+# share_space's planning of everyone, followed by areas nobody works in.
+EVERYONE_AREA = "everyone"

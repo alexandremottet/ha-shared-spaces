@@ -11,7 +11,12 @@ from homeassistant.helpers.dispatcher import async_dispatcher_connect
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.event import async_track_time_change, async_track_time_interval
 
-from .const import DATA_PERSON_AREA_STORE, SIGNAL_AREAS_CHANGED, SIGNAL_CALENDAR_CHANGED
+from .const import DATA_PERSON_AREA_STORE, EVERYONE, SIGNAL_AREAS_CHANGED, SIGNAL_CALENDAR_CHANGED
+
+
+def area_name(hass: HomeAssistant, area_id: str) -> str:
+    area = ar.async_get(hass).async_get_area(area_id)
+    return area.name if area else "Everyone" if area_id == EVERYONE else area_id
 
 
 def setup_dynamic_areas(
@@ -25,7 +30,7 @@ def setup_dynamic_areas(
 
     @callback
     def _add_missing() -> None:
-        new = data[DATA_PERSON_AREA_STORE].areas() - known
+        new = (data[DATA_PERSON_AREA_STORE].areas() | {EVERYONE}) - known
         known.update(new)
         async_add_entities([factory(area) for area in sorted(new) for factory in factories])
 
@@ -44,8 +49,7 @@ class AreaPlanningMixin:
 
     @property
     def name(self) -> str:
-        area = ar.async_get(self.hass).async_get_area(self._area_id)
-        base = area.name if area else self._area_id
+        base = area_name(self.hass, self._area_id)
         return f"{base} {self._label}".strip()
 
     def _wire_refresh(self) -> None:

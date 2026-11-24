@@ -3,7 +3,7 @@ import type { PropertyValues, TemplateResult } from "lit";
 import { customElement, property, state } from "lit/decorators.js";
 import { entityStates, sensorReadings } from "ha-share-space-ui";
 import type { RuleStrategy } from "ha-share-space-ui";
-import { hassNow, hassTimeZone, listStrategies, listZones, loadZoneRules, planningSchedule } from "ha-share-space-ui/ha";
+import { EVERYONE_AREA, hassNow, hassTimeZone, listStrategies, listZones, loadZoneRules, planningSchedule } from "ha-share-space-ui/ha";
 import type { HeatingZone, HomeAssistant } from "ha-share-space-ui/ha";
 import { selectStyles } from "./select-styles";
 
@@ -88,7 +88,7 @@ export class ShareSpaceOverviewPlanning extends LitElement {
       ...this._zones.map((z) => z.area_id).filter((a): a is string => !!a),
       ...this.detected,
       ...Object.keys(hass.states)
-        .filter((id) => id.startsWith(OCCUPANCY_PREFIX) && hass.states[id].attributes.schedule)
+        .filter((id) => id.startsWith(OCCUPANCY_PREFIX) && id !== OCCUPANCY_PREFIX + EVERYONE_AREA && hass.states[id].attributes.schedule)
         .map((id) => id.slice(OCCUPANCY_PREFIX.length)),
     ]);
     return [...ids]
