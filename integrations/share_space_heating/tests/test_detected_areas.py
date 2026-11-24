@@ -92,3 +92,20 @@ async def test_area_temperature_setting_wins(hass):
     _place(hass, "sensor.a", area.id)
     _place(hass, "switch.rad", area.id)
     assert detect_area_heating(hass, area.id)["temperature_sensor"] == "sensor.wall"
+
+
+async def test_only_heater_plugs_count_not_their_settings_or_other_plugs(hass):
+    await _start(hass)
+    area = ar.async_get(hass).async_create("Pièce Impression")
+    hass.states.async_set("sensor.impression_temp", "18", {"device_class": "temperature"})
+    hass.states.async_set("switch.cameras_imprimantes_prusa_switch", "on")
+    hass.states.async_set("switch.radiateur_impression_child_lock", "off")
+    for entity_id in ("sensor.impression_temp", "switch.cameras_imprimantes_prusa_switch"):
+        _place(hass, entity_id, area.id)
+    lock = er.async_get(hass).async_get_or_create("switch", "test", "lock", suggested_object_id="radiateur_impression_child_lock")
+    er.async_get(hass).async_update_entity(lock.entity_id, area_id=area.id, entity_category=er.EntityCategory.CONFIG)
+    assert detect_area_heating(hass, area.id) is None
+    hass.states.async_set("switch.radiateur_impression", "off")
+    _place(hass, "switch.radiateur_impression", area.id)
+    assert detect_area_heating(hass, area.id) == {"heaters": ["switch.radiateur_impression"], "temperature_sensor": "sensor.impression_temp"}
+

@@ -200,7 +200,8 @@ export class ShareSpaceRulesPage extends LitElement {
     const hass = this.hass;
     if (!hass) return;
     try {
-      const rules = await loadZoneRules(hass, entityId);
+      // a zone not created yet has no rules automation to read
+      const rules = this._zoneInfo?.pending ? null : await loadZoneRules(hass, entityId);
       if (this._zone !== entityId) return;
       const managed = rules?.state === "managed" && rules.rules ? rules.rules : null;
       const shared = rules?.state === "managed" ? this._sharedById(rules.strategy) : undefined;

@@ -1,8 +1,12 @@
 """Heating an HA area already holds."""
 from __future__ import annotations
 
+import re
+
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers import area_registry as ar
+from homeassistant.helpers import device_registry as dr
+from homeassistant.helpers import entity_registry as er
 
 from .area import area_entities, entity_area, managed_devices, zone_climate
 from .const import CONF_AREA, DOMAIN
@@ -21,6 +25,24 @@ def _taken(hass: HomeAssistant) -> set[str]:
         taken.add(devices["heater_switch"] or "")
         taken.add(zone_climate(hass, entry) or "")
     return taken
+
+
+# A plug only counts as a heater when it says so: a camera or printer plug must never be driven.
+_HEATING_WORDS = re.compile(r"radiat|heat|chauff|convect|(^|[\s._])rad($|[\s._\d])", re.I)
+
+
+def _heater_like(hass: HomeAssistant, entity_id: str) -> bool:
+    entry = er.async_get(hass).async_get(entity_id)
+    if entry is not None and entry.entity_category is not None:
+        return False  # child lock, LED, relay settings of a plug
+    state = hass.states.get(entity_id)
+    names = [entity_id, state.name if state else ""]
+    if entry is not None:
+        names += [entry.name or "", entry.original_name or ""]
+        device = dr.async_get(hass).async_get(entry.device_id) if entry.device_id else None
+        if device is not None:
+            names += [device.name_by_user or "", device.name or ""]
+    return any(_HEATING_WORDS.search(n) for n in names if n)
 
 
 def _members(hass: HomeAssistant, entity_id: str) -> list[str]:
@@ -48,7 +70,7 @@ def detect_area_heating(hass: HomeAssistant, area_id: str) -> dict | None:
     if climates:
         return {"climate_entity": climates[0]}
     in_area = lambda entity_id: entity_area(hass, entity_id) == area_id  # noqa: E731
-    switches = [s for s in hass.states.async_entity_ids("switch") if not _ours(s) and s not in taken]
+    switches = [s for s in hass.states.async_entity_ids("switch") if not _ours(s) and s not in taken and _heater_like(hass, s)]
     # a group switch drives the physical ones: keep it, drop its members
     groups = [s for s in switches if (m := _members(hass, s)) and (in_area(s) or any(in_area(x) for x in m))]
     grouped = {m for g in groups for m in _members(hass, g)}

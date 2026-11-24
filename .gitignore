@@ -13,3 +13,6 @@ frontend/playground/dist/
 # Claude Code sub-agent worktrees
 .claude/worktrees/
 dist/
+
+# Copy of a real HA used for local testing: never committed
+.ha-replica/

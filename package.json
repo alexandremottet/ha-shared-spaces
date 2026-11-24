@@ -12,7 +12,8 @@
     "test:py": ".venv/bin/python -m pytest -q",
     "ha:dev": "bash scripts/start-ha-dev.sh",
     "changeset": "changeset",
-    "version-packages": "changeset version && node scripts/sync-python-versions.mjs"
+    "version-packages": "changeset version && node scripts/sync-python-versions.mjs",
+    "ha:replica": "bash scripts/start-ha-replica.sh"
   },
   "devDependencies": {
     "@changesets/cli": "^3.0.2",

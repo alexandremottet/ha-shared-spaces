@@ -185,4 +185,25 @@ describe("schedulerAsHeating", () => {
     expect(slots[0].actions[0]).toEqual({ service: "climate.set_temperature", entity_id: "climate.rue", service_data: { temperature: 21 } });
     expect(slots[1]).toEqual(item.timeslots[1]);
   });
+
+  it("keeps a sleep preset as sleep, shown in the rule's name", () => {
+    const slot = (start: string, stop: string, preset_mode: string) => ({
+      start,
+      stop,
+      conditions: [],
+      actions: [{ service: "climate.set_preset_mode", entity_id: "climate.rue", service_data: { preset_mode } }],
+    });
+    const planning = {
+      schedule_id: "00c54c",
+      name: "Planning Bureau Rue",
+      weekdays: ["mon", "tue", "wed", "fri", "thu"],
+      enabled: true,
+      timeslots: [slot("00:00:00", "08:00:00", "sleep"), slot("08:00:00", "19:00:00", "eco"), slot("21:30:00", "00:00:00", "sleep")],
+    } as unknown as SchedulerItem;
+    const h = schedulerAsHeating(hass, planning, rue)!;
+    expect(h.rules.map((r) => r.label)).toEqual(["Planning Bureau Rue 00:00 (sleep)", "Planning Bureau Rue 08:00", "Planning Bureau Rue 21:30 (sleep)"]);
+    expect(h.rules[2].when[1]).toEqual({ type: "time", start: "21:30", end: "24:00" });
+    const slots = schedulerFromRules(h, h.rules).timeslots as SchedulerItem["timeslots"];
+    expect(slots).toEqual(planning.timeslots);
+  });
 });

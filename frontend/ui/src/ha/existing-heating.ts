@@ -75,6 +75,7 @@ interface HeatingCall {
   service: string;
   entities: string[];
   areas: string[];
+  devices?: string[];
   data: Obj;
 }
 
@@ -87,11 +88,16 @@ function callOf(a: unknown): HeatingCall | null {
   const data = { ...(isObj(a.data) ? a.data : {}), ...(isObj(a.service_data) ? a.service_data : {}) };
   const entities = [...asArray(target.entity_id), ...asArray(a.entity_id), ...asArray(data.entity_id)].map(String);
   delete data.entity_id;
-  return { service, entities, areas: asArray(target.area_id).map(String), data };
+  return { service, entities, areas: asArray(target.area_id).map(String), devices: asArray(target.device_id).map(String), data };
 }
 
 function hitsArea(hass: HomeAssistant, call: HeatingCall, target: HeatingTarget): boolean {
-  return call.areas.includes(target.area) || call.entities.some((e) => target.entities.includes(e) || entityAreaId(hass, e) === target.area);
+  const ofDevices = Object.values(hass.entities ?? {}).filter((e) => e.device_id && call.devices?.includes(e.device_id)).map((e) => e.entity_id);
+  return (
+    call.areas.includes(target.area) ||
+    (call.devices ?? []).some((d) => hass.devices?.[d]?.area_id === target.area) ||
+    [...call.entities, ...ofDevices].some((e) => target.entities.includes(e) || entityAreaId(hass, e) === target.area)
+  );
 }
 
 const HEATING_DOMAINS = ["climate", "switch", "homeassistant", "input_boolean", "script", "scene"];
@@ -115,7 +121,7 @@ function readOnlyAutomation(hass: HomeAssistant, entityId: string, config: Obj, 
     name: String(config.alias ?? entityId),
     enabled: hass.states[entityId]?.state !== "off",
     rules: [],
-    unmapped: [...triggers.map((t) => `When ${describe(t)}`), ...conditions.map((c) => `If ${describe(c)}`), ...actions.map((a) => `Then ${describe(a)}`)],
+    unmapped: [...triggers.map((t) => `When ${describe(t, hass)}`), ...conditions.map((c) => `If ${describe(c, hass)}`), ...actions.map((a) => `Then ${describe(a, hass)}`)],
     haPath: `/config/automation/edit/${id}`,
     editable: [],
     compatible: false,
@@ -142,6 +148,13 @@ export function actionOf(call: HeatingCall): Action | null {
   return null;
 }
 
+/** The preset HA really sets when it is not the action's own name (sleep shown as Eco): kept visible in the label. */
+const presetNote = (call: HeatingCall, action: Action): string => {
+  if (call.service !== "climate.set_preset_mode") return "";
+  const preset = String(call.data.preset_mode ?? "");
+  return preset.toLowerCase() === action.type ? "" : ` (${preset})`;
+};
+
 /** The service call that does `action` on what the original call targeted, keeping its own way (preset, switch...). */
 function callFor(action: Action, original: HeatingCall): { service: string; data: Obj } {
   const domain = original.service.split(".")[0];
@@ -160,25 +173,42 @@ function callFor(action: Action, original: HeatingCall): { service: string; data
   return { service: "climate.set_preset_mode", data: { preset_mode: action.type } };
 }
 
-const describe = (v: unknown): string => {
+const deviceName = (hass: HomeAssistant | undefined, id: unknown): string => {
+  const d = hass?.devices?.[String(id)];
+  return d?.name_by_user || d?.name || `device ${String(id)}`;
+};
+
+const entityName = (hass: HomeAssistant | undefined, id: string): string => String(hass?.states[id]?.attributes.friendly_name ?? id);
+
+/** One trigger, condition or action in words, with names as HA shows them. */
+const describe = (v: unknown, hass?: HomeAssistant): string => {
+  const d = (x: unknown) => describe(x, hass);
   if (!isObj(v)) return String(v);
   if (Array.isArray(v.choose)) {
-    const calls = (v.choose as unknown[]).flatMap((o) => (isObj(o) ? asArray(o.sequence) : [])).map(describe);
+    const calls = (v.choose as unknown[]).flatMap((o) => (isObj(o) ? asArray(o.sequence) : [])).map(d);
     return `choose: ${calls.join(" · ")}`;
   }
-  if (v.if !== undefined || v.then !== undefined) return `if/then: ${[...asArray(v.then), ...asArray(v.else)].map(describe).join(" · ")}`;
-  if (Array.isArray(v.sequence)) return v.sequence.map(describe).join(" · ");
+  if (v.if !== undefined || v.then !== undefined) return `if/then: ${[...asArray(v.then), ...asArray(v.else)].map(d).join(" · ")}`;
+  if (Array.isArray(v.sequence)) return v.sequence.map(d).join(" · ");
   const nested = asArray(v.conditions);
   if ((v.condition === "or" || v.condition === "and") && nested.length) {
-    return `${v.condition === "or" ? "any of" : "all of"}: ${nested.map(describe).join(" · ")}`;
+    return `${v.condition === "or" ? "any of" : "all of"}: ${nested.map(d).join(" · ")}`;
+  }
+  if (v.delay !== undefined) {
+    const s = durationSeconds(v.delay);
+    return s === null ? `wait ${JSON.stringify(v.delay)}` : `wait ${Math.floor(s / 3600)}h${String(Math.floor((s % 3600) / 60)).padStart(2, "0")}`;
+  }
+  if ((v.condition === "device" || v.trigger === "device" || v.platform === "device") && v.device_id) {
+    return `${deviceName(hass, v.device_id)} ${String(v.type ?? "").replace(/_/g, " ")}`.trim();
   }
   const call = callOf(v);
   if (call) {
     const data = Object.entries(call.data).map(([k, x]) => `${k} ${String(x)}`);
-    return [call.service, [...call.entities, ...call.areas].join(", "), ...data].filter(Boolean).join(" ");
+    const targets = [...call.entities.map((e) => entityName(hass, e)), ...(call.devices ?? []).map((x) => deviceName(hass, x)), ...call.areas];
+    return [call.service, targets.join(", "), ...data].filter(Boolean).join(" ");
   }
   const kind = str(v.trigger) ?? str(v.platform) ?? str(v.condition);
-  const entity = asArray(v.entity_id).join(", ");
+  const entity = asArray(v.entity_id).map((e) => entityName(hass, String(e))).join(", ");
   const attr = v.attribute ? ` ${String(v.attribute)}` : "";
   const parts = [kind === "state" ? null : kind, entity + attr, v.state !== undefined ? `is ${asArray(v.state).join(" or ")}` : null, v.at ? `at ${String(v.at)}` : null];
   return parts.filter(Boolean).join(" ") || JSON.stringify(v);
@@ -259,7 +289,7 @@ export function automationAsHeating(
       triggerDays = t.weekday ? haDays(t.weekday) : null;
     } else if (kind === "state" && scheduleEntity && helpers[scheduleEntity] && String(t.to ?? "on") === "on" && !schedule) {
       schedule = { entity: scheduleEntity, helper: helpers[scheduleEntity], ref: "trigger", index: i };
-    } else unmapped.push(`When ${describe(t)}`);
+    } else unmapped.push(`When ${describe(t, hass)}`);
   });
 
   const states: number[] = [];
@@ -276,14 +306,14 @@ export function automationAsHeating(
     } else if (kind === "state" && entity && typeof c.state === "string" && !c.attribute && !c.for) {
       states.push(i);
       stateConds.push({ type: "state", entity, is: c.state });
-    } else unmapped.push(`If ${describe(c)}`);
+    } else unmapped.push(`If ${describe(c, hass)}`);
   });
 
   const next = actions[action + 1];
   const delaySeconds = isObj(next) && next.delay !== undefined ? durationSeconds(next.delay) : null;
   const delay = delaySeconds !== null ? action + 1 : null;
   actions.forEach((a, i) => {
-    if (i !== action && i !== delay) unmapped.push(`Then ${describe(a)}`);
+    if (i !== action && i !== delay) unmapped.push(`Then ${describe(a, hass)}`);
   });
 
   const then = actionOf(call)!;
@@ -424,12 +454,12 @@ export function schedulerAsHeating(hass: HomeAssistant, item: SchedulerItem, tar
     }
     const end = slot.stop ? hhmm(slot.stop) : starts[(i + 1) % starts.length] === starts[i] ? fromMinutes(minutes(starts[i]) + 1) : starts[(i + 1) % starts.length];
     rules.push({
-      label: `${item.name || "Schedule"} ${hhmm(slot.start)}`,
+      label: `${item.name || "Schedule"} ${hhmm(slot.start)}${presetNote(call, action)}`,
       when: [...(days && days.length < 7 ? [{ type: "weekday", days } as WeekdayCondition] : []), { type: "time", start: hhmm(slot.start), end: end === "00:00" ? "24:00" : end }],
       then: action,
     });
     slots.push(i);
-    if (asArray(slot.conditions).length) unmapped.push(`${hhmm(slot.start)}: only if ${asArray(slot.conditions).map(describe).join(" · ")}`);
+    if (asArray(slot.conditions).length) unmapped.push(`${hhmm(slot.start)}: only if ${asArray(slot.conditions).map((c) => describe(c, hass)).join(" · ")}`);
   });
   if (!rules.length && !unmapped.length) return null;
   const entityId = item.entity_id ?? `switch.schedule_${item.schedule_id}`;
