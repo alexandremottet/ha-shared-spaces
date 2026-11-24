@@ -29,6 +29,8 @@ async def test_two_heaters_make_group_thermostat_and_zone_then_delete_cleans_up(
     )
     assert created["success"], created
     assert _domains(hass) == ["generic_thermostat", "group", DOMAIN]
+    zone_data = hass.config_entries.async_entries(DOMAIN)[0].data
+    assert set(zone_data) == {"area_id", "managed_entries", "comfort_temp", "eco_temp", "default_override_hours", "max_override_hours", "presence_entity"}
     zones = (await _ws(hass, hass_ws_client, "list_zones"))["result"]
     assert len(zones) == 1
     zone = zones[0]
@@ -58,11 +60,14 @@ async def test_one_heater_needs_no_group_and_existing_thermostat_is_kept(hass, h
     await _ws(hass, hass_ws_client, "delete_zone", entry_id=zone["entry_id"])
     await hass.async_block_till_done()
 
+    er.async_get(hass).async_get_or_create("climate", "test", "existing", suggested_object_id="existing")
     hass.states.async_set("climate.existing", "heat", {"temperature": 19})
     created = await _ws(hass, hass_ws_client, "create_area_zone", area_id=area.id, climate_entity="climate.existing")
     assert created["success"], created
     zone = (await _ws(hass, hass_ws_client, "list_zones"))["result"][0]
     assert not zone["managed"] and zone["climate_entity"] == "climate.existing"
+    assert er.async_get(hass).async_get("climate.existing").area_id == area.id
+    assert "climate_entity" not in hass.config_entries.async_get_entry(zone["entry_id"]).data
     await _ws(hass, hass_ws_client, "delete_zone", entry_id=zone["entry_id"])
     await hass.async_block_till_done()
     assert _domains(hass) == []
@@ -73,6 +78,9 @@ async def test_create_area_zone_errors(hass, hass_ws_client, hass_read_only_acce
     area = await _setup(hass)
     missing = await _ws(hass, hass_ws_client, "create_area_zone", area_id="nope", climate_entity="climate.x")
     assert missing["error"]["code"] == "not_found"
+    hass.states.async_set("climate.no_id", "heat")
+    no_id = await _ws(hass, hass_ws_client, "create_area_zone", area_id=area.id, climate_entity="climate.no_id")
+    assert no_id["error"]["code"] == "invalid_format"
     no_sensor = await _ws(hass, hass_ws_client, "create_area_zone", area_id=area.id, heaters=["switch.radiator_a"])
     assert no_sensor["error"]["code"] == "invalid_format"
     bad_heater = await _ws(hass, hass_ws_client, "create_area_zone", area_id=area.id, heaters=["light.x"], temperature_sensor="sensor.office_temp")

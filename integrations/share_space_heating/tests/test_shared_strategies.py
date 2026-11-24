@@ -5,12 +5,12 @@ from pathlib import Path
 import pytest
 from homeassistant.exceptions import ServiceValidationError
 from homeassistant.setup import async_setup_component
-from pytest_homeassistant_custom_component.common import MockConfigEntry, async_mock_service
+from pytest_homeassistant_custom_component.common import async_mock_service
 
 from custom_components.share_space_heating.const import DATA_STRATEGIES, DOMAIN
 from custom_components.share_space_heating.store import StrategyStore
 
-from .helpers import CLIMATE, SENSOR, _spy_base, setup_zone
+from .helpers import CLIMATE, SENSOR, _spy_base, setup_zone, zone_entry
 from .test_rules_blueprint import BLUEPRINT
 
 ECO = {"version": 1, "rules": [], "fallback": {"label": "Eco all day", "then": {"type": "eco"}}}
@@ -175,13 +175,7 @@ async def test_two_zones_share_one_strategy_with_own_planning(hass, freezer):
     _planning(hass, "b", "off")
     entry_a, _ = await setup_zone(hass)
     hass.states.async_set("climate.other", "heat", {"temperature": 20.0})
-    entry_b = MockConfigEntry(
-        domain=DOMAIN,
-        data={"name": "Other", "climate_entity": "climate.other", "presence_entity": None},
-        unique_id="climate.other",
-        title="Other",
-    )
-    entry_b.add_to_hass(hass)
+    entry_b = zone_entry(hass, "Other", "climate.other")
     async_mock_service(hass, "climate", "set_temperature")
     assert await hass.config_entries.async_setup(entry_b.entry_id)
     await hass.async_block_till_done()

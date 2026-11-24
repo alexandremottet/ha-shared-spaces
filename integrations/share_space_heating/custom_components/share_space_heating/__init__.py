@@ -9,14 +9,17 @@ import logging
 
 import voluptuous as vol
 
-from homeassistant.config_entries import ConfigEntry
+from homeassistant.config_entries import ConfigEntry, ConfigEntryState
 from homeassistant.const import ATTR_ENTITY_ID
-from homeassistant.core import HomeAssistant, ServiceCall
-from homeassistant.exceptions import ServiceValidationError
+from homeassistant.core import Event, HomeAssistant, ServiceCall, callback
+from homeassistant.exceptions import ConfigEntryNotReady, ServiceValidationError
+from homeassistant.helpers import area_registry as ar
 from homeassistant.helpers import config_validation as cv
+from homeassistant.helpers import device_registry as dr
 from homeassistant.helpers import entity_registry as er
 
 from . import websocket_api
+from .area import zone_area, zone_climate, zone_presence
 from .const import (
     BLUEPRINT_DIR,
     DATA_SETTINGS,
@@ -124,6 +127,7 @@ async def async_setup(hass: HomeAssistant, config: dict) -> bool:
     await settings.async_load()
     hass.data[DOMAIN] = {DATA_STORE: store, DATA_ZONES: {}, DATA_STRATEGIES: strategies, DATA_SETTINGS: settings}
     _register_services(hass)
+    _follow_registries(hass)
     await hass.async_add_executor_job(
         _install_blueprints, Path(hass.config.path(BLUEPRINT_DIR))
     )
@@ -193,9 +197,51 @@ def _register_services(hass: HomeAssistant) -> None:
     hass.services.async_register(DOMAIN, SERVICE_CLEAR_OVERRIDE, clear_override, CLEAR_SCHEMA)
 
 
+def _follow_registries(hass: HomeAssistant) -> None:
+    """Zones follow what HA's areas hold: reload when their thermostat or presence changes."""
+    pending: set[str] = set()
+
+    async def _reload(entry_id: str) -> None:
+        try:
+            await hass.config_entries.async_reload(entry_id)
+        finally:
+            pending.discard(entry_id)
+
+    @callback
+    def _changed(_event: Event) -> None:
+        areas = ar.async_get(hass)
+        for entry in hass.config_entries.async_entries(DOMAIN):
+            if entry.entry_id in pending:
+                continue
+            area = areas.async_get_area(zone_area(entry))
+            if area is None:
+                # the zone is the area's heating: it goes with the area
+                pending.add(entry.entry_id)
+                hass.async_create_task(hass.config_entries.async_remove(entry.entry_id))
+                continue
+            if area.name != entry.title:
+                hass.config_entries.async_update_entry(entry, title=area.name)
+                continue
+            zone = hass.data[DOMAIN][DATA_ZONES].get(entry.entry_id)
+            climate = zone_climate(hass, entry)
+            if zone is None:
+                stale = entry.state is ConfigEntryState.SETUP_RETRY and climate is not None
+            else:
+                stale = (zone.climate_entity, zone.presence_entity) != (climate, zone_presence(hass, entry))
+            if stale:
+                pending.add(entry.entry_id)
+                hass.async_create_task(_reload(entry.entry_id))
+
+    for event in (ar.EVENT_AREA_REGISTRY_UPDATED, dr.EVENT_DEVICE_REGISTRY_UPDATED, er.EVENT_ENTITY_REGISTRY_UPDATED):
+        hass.bus.async_listen(event, _changed)
+
+
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     domain_data = hass.data[DOMAIN]
-    zone = Zone(hass, entry, domain_data[DATA_STORE])
+    climate = zone_climate(hass, entry)
+    if climate is None:
+        raise ConfigEntryNotReady(f"No thermostat in area {entry.title}: assign one to it in Home Assistant")
+    zone = Zone(hass, entry, domain_data[DATA_STORE], climate, zone_presence(hass, entry))
     entry.async_on_unload(zone.async_stop)
     domain_data[DATA_ZONES][entry.entry_id] = zone
     try:

@@ -858,26 +858,6 @@ export class MockHassController {
       },
       true
     );
-    ws(
-      "share_space_heating/create_zone",
-      "heating",
-      (m) => {
-        if (!this._climates.has(String(m.climate_entity))) throw HA_ERROR("failed", "Zone not created");
-        const config: ZoneConfig = {
-          entry_id: `zone_${++this._logId}`,
-          name: String(m.name),
-          climate_entity: String(m.climate_entity),
-          presence_entity: (m.presence_entity as string | null | undefined) ?? null,
-          comfort_temp: Number(m.comfort_temp ?? 21),
-          eco_temp: Number(m.eco_temp ?? 17),
-          default_override_hours: Number(m.default_override_hours ?? 3),
-          max_override_hours: 12,
-        };
-        this._addZone(config);
-        return { entry_id: config.entry_id, entity_id: this._zoneEntityId(config) };
-      },
-      true
-    );
 
     ws("share_space_heating/get_settings", "heating", () => ({ outdoor_entity: this._outdoorEntity }));
     ws(

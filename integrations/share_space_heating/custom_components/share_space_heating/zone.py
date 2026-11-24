@@ -14,14 +14,12 @@ from homeassistant.util import slugify
 
 from .climate import BAD_STATES, ClimateDriver, matches_requested
 from .const import (
-    CONF_CLIMATE_ENTITY,
     CONF_COMFORT_TEMP,
     CONF_DEFAULT_OVERRIDE_HOURS,
     CONF_ECO_TEMP,
     CONF_FROST_TEMP,
     CONF_MAX_OVERRIDE_HOURS,
     CONF_OFF_MODE,
-    CONF_PRESENCE_ENTITY,
     CONF_TARGET_TEMPLATE,
     DEFAULT_COMFORT_TEMP,
     DEFAULT_ECO_TEMP,
@@ -46,11 +44,21 @@ from .template_hook import TargetTemplate
 class Zone:
     """Priority: manual override > target template > base target / presence (zone mode)."""
 
-    def __init__(self, hass: HomeAssistant, entry: ConfigEntry, store: OverrideStore) -> None:
+    def __init__(
+        self,
+        hass: HomeAssistant,
+        entry: ConfigEntry,
+        store: OverrideStore,
+        climate_entity: str,
+        presence_entity: str | None,
+    ) -> None:
         self.hass = hass
         self.entry = entry
         self._store = store
-        self.climate = ClimateDriver(hass, self.climate_entity)
+        # resolved from the area at setup; the zone reloads when HA moves devices
+        self.climate_entity = climate_entity
+        self.presence_entity = presence_entity
+        self.climate = ClimateDriver(hass, climate_entity)
         self.base = BaseTarget()
         self.override_temp: float | None = None
         self.override_until: datetime | None = None
@@ -67,14 +75,6 @@ class Zone:
     @property
     def _conf(self) -> dict:
         return {**self.entry.data, **self.entry.options}
-
-    @property
-    def climate_entity(self) -> str:
-        return self._conf[CONF_CLIMATE_ENTITY]
-
-    @property
-    def presence_entity(self) -> str | None:
-        return self._conf.get(CONF_PRESENCE_ENTITY) or None
 
     @property
     def comfort_temp(self) -> float:

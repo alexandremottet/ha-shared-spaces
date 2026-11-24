@@ -37,7 +37,7 @@ export interface HeatingZone {
   template_result?: string | null;
   template_error?: string | null;
   area_id?: string | null;
-  /** Set when Share Space built the thermostat from heater switches + a sensor. */
+  /** Read live from the HA helpers Share Space built (heater switches + a sensor). */
   heaters?: string[] | null;
   heater_switch?: string | null;
   temperature_sensor?: string | null;
@@ -59,18 +59,6 @@ export interface HeatingZoneAttributes {
   eco_temp?: number;
   frost_temp?: number;
   outdoor_entity?: string | null;
-}
-
-export interface CreateZoneInput {
-  climate_entity: string;
-  name?: string;
-  presence_entity?: string | null;
-  comfort_temp?: number;
-  eco_temp?: number;
-  default_override_hours?: number;
-  max_override_hours?: number;
-  frost_temp?: number;
-  off_mode?: "frost" | "hvac_off";
 }
 
 export interface ZoneUpdate {
@@ -151,9 +139,6 @@ export const runAreaActions = (hass: HomeAssistant, area: string, state: "on" | 
 
 export const listZones = (hass: HomeAssistant) =>
   hass.callWS<HeatingZone[]>({ type: "share_space_heating/list_zones" });
-
-export const createZone = (hass: HomeAssistant, input: CreateZoneInput) =>
-  hass.callWS<{ entry_id: string; entity_id: string }>({ type: "share_space_heating/create_zone", ...input });
 
 /** Zone for an area: an existing thermostat, or heater switches + a temperature sensor (Share Space builds the thermostat). */
 export type AreaZoneInput = { area_id: string } & (

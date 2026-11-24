@@ -2,6 +2,8 @@
 from datetime import datetime, timedelta
 from zoneinfo import ZoneInfo
 
+from homeassistant.helpers import area_registry as ar
+from homeassistant.helpers import entity_registry as er
 from pytest_homeassistant_custom_component.common import MockConfigEntry, async_mock_service
 
 from custom_components.share_space_heating.const import DOMAIN
@@ -49,16 +51,34 @@ def planning_states(schedule, now: datetime, tz: ZoneInfo) -> dict:
     return {"on": on(cur), "next_on": next_on, "previous_off": prev_off}
 
 
+def place_climate(hass, area_name: str, climate: str):
+    """Put a thermostat in an area the way the HA UI does, creating both as needed."""
+    area = ar.async_get(hass).async_get_or_create(area_name)
+    reg = er.async_get(hass)
+    if reg.async_get(climate) is None:
+        # the registry would rename it climate.x_2 while a state holds the id
+        state = hass.states.get(climate)
+        hass.states.async_remove(climate)
+        object_id = climate.split(".", 1)[1]
+        reg.async_get_or_create("climate", "test", object_id, suggested_object_id=object_id)
+        if state:
+            hass.states.async_set(climate, state.state, state.attributes)
+    reg.async_update_entity(climate, area_id=area.id)
+    return area
+
+
+def zone_entry(hass, name: str, climate: str, **data) -> MockConfigEntry:
+    """A zone the way HA holds it: an area, the thermostat placed in it, the zone pointing at the area."""
+    area = place_climate(hass, name, climate)
+    entry = MockConfigEntry(domain=DOMAIN, data={"area_id": area.id, **data}, unique_id=area.id, title=name, version=2)
+    entry.add_to_hass(hass)
+    return entry
+
+
 async def setup_zone(hass, **extra):
     hass.states.async_set(CLIMATE, "heat", {"temperature": 20.0})
     calls = async_mock_service(hass, "climate", "set_temperature")
-    entry = MockConfigEntry(
-        domain=DOMAIN,
-        data={"name": "Office", "climate_entity": CLIMATE, "presence_entity": None, **extra},
-        unique_id=CLIMATE,
-        title="Office",
-    )
-    entry.add_to_hass(hass)
+    entry = zone_entry(hass, "Office", CLIMATE, **extra)
     assert await hass.config_entries.async_setup(entry.entry_id)
     await hass.async_block_till_done()
     return entry, calls
