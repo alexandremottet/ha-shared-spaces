@@ -91,10 +91,27 @@ export class ShareSpaceOverview extends LitElement {
       grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
       gap: 24px;
     }
+    /* no heating in my area: the planning takes the whole width */
+    .top.single {
+      grid-template-columns: minmax(0, 1fr);
+    }
     @media (max-width: 720px) {
       .top {
         grid-template-columns: minmax(0, 1fr);
       }
+    }
+    /* My place is set once: it sits on the title line instead of taking a column */
+    .head {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px 16px;
+      margin-bottom: 12px;
+    }
+    .place {
+      flex: 0 1 380px;
+      min-width: 0;
     }
     section {
       display: flex;
@@ -211,16 +228,15 @@ export class ShareSpaceOverview extends LitElement {
     const mine = area ? zones.filter((vm) => entityArea(hass, vm.climateEntity) === area) : [];
     const others = zones.filter((vm) => !mine.includes(vm));
     return html`
-      <div class="panel top">
-        <section>
-          <h3>${t("My area")}</h3>
-          ${this._workArea}
-          ${mine.map((vm) => this._zone(hass, vm))}
-        </section>
-        <section>
+      <div class="panel">
+        <div class="head">
           <h3>${t("My planning")}</h3>
-          ${this._planning}
-        </section>
+          <div class="place">${this._workArea}</div>
+        </div>
+        <div class="top ${mine.length ? "" : "single"}">
+          ${mine.length ? html`<section>${mine.map((vm) => this._zone(hass, vm))}</section>` : nothing}
+          <section>${this._planning}</section>
+        </div>
       </div>
       ${others.length
         ? html`<section class="panel">
