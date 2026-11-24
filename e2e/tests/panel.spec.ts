@@ -34,10 +34,10 @@ test("Space Admin sees everyone's planning, read only", async ({ page }) => {
   await page.getByRole("button", { name: "Plannings" }).click();
   const people = page.locator("share-space-people-planning");
   await expect(people.getByRole("heading", { name: "Everyone's planning" })).toBeVisible();
-  const user1 = people.locator("details", { hasText: "User 1" });
-  await user1.locator("summary").click();
-  await expect(user1.getByLabel(/^Next \d+ days$/)).toBeVisible();
-  await expect(user1.locator("week-schedule, day-schedule")).toHaveCount(0);
+  const roster = people.locator("area-roster-view");
+  await expect(roster.locator("person-lane-track.total").first()).toBeVisible();
+  await expect(roster.locator("person-lane-track", { hasText: "User 1" }).first()).toBeVisible();
+  await expect(roster.locator("week-schedule, day-schedule")).toHaveCount(0);
 });
 
 test("a user does not see other people's planning", async ({ page }) => {

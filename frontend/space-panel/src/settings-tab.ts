@@ -3,6 +3,7 @@ import type { TemplateResult } from "lit";
 import { customElement, property } from "lit/decorators.js";
 import { haCardSurface } from "ha-share-space-ui";
 import { selectStyles } from "./select-styles";
+import "./multi-select";
 import type { SpaceRole } from "ha-share-space-ui/ha";
 
 const ROLE_LABEL: Record<SpaceRole, string> = {
@@ -67,14 +68,19 @@ export class ShareSpaceSettings extends LitElement {
       <h4>Outdoor temperature</h4>
       <label class="field">
         Sensor
-        <select
-          @change=${(e: Event) =>
-            this.dispatchEvent(new CustomEvent("outdoor-change", { detail: (e.target as HTMLSelectElement).value || null }))}
-        >
-          <option value="" ?selected=${!current}>None</option>
-          ${current && !known ? html`<option value=${current} selected>${current} (unavailable)</option>` : nothing}
-          ${this.outdoorOptions.map((o) => html`<option value=${o.id} ?selected=${o.id === current}>${o.name}</option>`)}
-        </select>
+        <share-space-multi-select
+          single
+          label="Outdoor temperature sensor"
+          placeholder="None"
+          .options=${[
+            { value: "", label: "None" },
+            ...(current && !known ? [{ value: current, label: `${current} (unavailable)` }] : []),
+            ...this.outdoorOptions.map((o) => ({ value: o.id, label: o.name })),
+          ]}
+          .selected=${[current]}
+          @selection-change=${(e: CustomEvent<string[]>) =>
+            this.dispatchEvent(new CustomEvent("outdoor-change", { detail: e.detail[0] || null }))}
+        ></share-space-multi-select>
       </label>
       <p class="muted">Rules that follow the outdoor temperature read this sensor (e.g. Old building's preheat). None: they use their default.</p>
     </section>`;

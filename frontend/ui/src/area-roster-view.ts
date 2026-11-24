@@ -100,6 +100,8 @@ function computeOverlapSegments(people: RosterPerson[], day: WeekDay): OverlapSe
 export class AreaRosterView extends LitElement {
   @property({ attribute: false }) people: RosterPerson[] = [];
   @property({ type: String }) viewMode: RosterViewMode = "lanes";
+  /** Lanes view: first lane of each day merges everyone, under this label. */
+  @property({ type: String }) totalLabel?: string;
 
   static styles = css`
     :host {
@@ -130,6 +132,9 @@ export class AreaRosterView extends LitElement {
       height: var(--area-roster-swatch-size, 10px);
       border-radius: 2px;
       flex: none;
+    }
+    .total {
+      --day-schedule-label-font-weight: 700;
     }
     .placeholder {
       color: var(--area-roster-placeholder-color, inherit);
@@ -163,6 +168,9 @@ export class AreaRosterView extends LitElement {
     if (this.viewMode === "lanes") {
       return html`
         <div class="day-heading">${day}</div>
+        ${this.totalLabel
+          ? html`<person-lane-track class="total" .label=${this.totalLabel} .color=${"var(--area-roster-total-color, var(--primary-color))"} .periods=${computeMergedPeriods(this.people, day)}></person-lane-track>`
+          : null}
         ${this.people.map(
           (person) => html`
             <person-lane-track

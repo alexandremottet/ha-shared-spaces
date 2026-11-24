@@ -15,6 +15,8 @@ export class ShareSpaceMultiSelect extends LitElement {
   @property({ attribute: false }) options: MultiOption[] = [];
   @property({ attribute: false }) selected: string[] = [];
   @property({ type: Boolean }) disabled = false;
+  /** One value at most: options are picked, not checked, and the menu closes on a pick. */
+  @property({ type: Boolean }) single = false;
   @state() private _open = false;
   @query(".menu") private _menu?: HTMLElement;
   @query("button.toggle") private _button?: HTMLElement;
@@ -69,8 +71,27 @@ export class ShareSpaceMultiSelect extends LitElement {
       cursor: pointer;
       white-space: nowrap;
     }
-    label:hover {
+    label:hover,
+    button.option:hover {
       background: var(--secondary-background-color);
+    }
+    button.option {
+      display: block;
+      width: 100%;
+      padding: 6px 12px 6px 28px;
+      border: 0;
+      background: none;
+      color: inherit;
+      font: inherit;
+      text-align: left;
+      white-space: nowrap;
+      cursor: pointer;
+      position: relative;
+    }
+    button.option[aria-checked="true"]::before {
+      content: "✓";
+      position: absolute;
+      left: 10px;
     }
   `;
 
@@ -138,7 +159,22 @@ export class ShareSpaceMultiSelect extends LitElement {
       </button>
       ${this._open
         ? html`<div class="menu" popover="manual" role="group" aria-label=${this.label} @keydown=${(e: KeyboardEvent) => e.key === "Escape" && (this._open = false)}>
-            ${this.options.map(
+            ${this.single
+              ? this.options.map(
+                  (o) => html`<button
+                    class="option"
+                    role="menuitemradio"
+                    aria-checked=${this.selected.includes(o.value)}
+                    ?disabled=${this.disabled}
+                    @click=${() => {
+                      this._open = false;
+                      this.dispatchEvent(new CustomEvent("selection-change", { detail: [o.value] }));
+                    }}
+                  >
+                    ${o.label}
+                  </button>`,
+                )
+              : this.options.map(
               (o) => html`<label
                 ><input
                   type="checkbox"

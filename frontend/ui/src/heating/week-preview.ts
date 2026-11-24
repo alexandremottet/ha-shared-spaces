@@ -85,6 +85,39 @@ export class ShareSpaceWeekPreview extends LitElement {
       position: absolute;
       top: 0;
       bottom: 0;
+      container-type: inline-size;
+    }
+    /* start and end times on the bar itself; dropped when the bar is too short to hold them */
+    .t {
+      position: absolute;
+      top: 0;
+      bottom: 0;
+      display: flex;
+      align-items: center;
+      padding: 0 3px;
+      font-size: 10px;
+      line-height: 1;
+      font-variant-numeric: tabular-nums;
+      color: var(--text-primary-color, #fff);
+      text-shadow: 0 0 2px rgba(0, 0, 0, 0.35);
+      pointer-events: none;
+      white-space: nowrap;
+    }
+    .t.s {
+      left: 0;
+    }
+    .t.e {
+      right: 0;
+    }
+    @container (max-width: 64px) {
+      .t.e {
+        display: none;
+      }
+    }
+    @container (max-width: 30px) {
+      .t.s {
+        display: none;
+      }
     }
     .seg.off,
     .legend i.off {
@@ -156,6 +189,7 @@ export class ShareSpaceWeekPreview extends LitElement {
     if (days.length < 2) return nothing;
     const fmt = new Intl.DateTimeFormat([], { timeZone: tz, weekday: "short", hour: "2-digit", minute: "2-digit" });
     const dayFmt = new Intl.DateTimeFormat([], { timeZone: tz, weekday: "short", day: "numeric" });
+    const hm = new Intl.DateTimeFormat([], { timeZone: tz, hour: "numeric", minute: "2-digit", hourCycle: "h23" });
     const bands = previewBands(segments, this.planned);
     return html`<div class="preview" aria-label="Next ${days.length - 1} days">
       ${days.slice(0, -1).map((ds, i) => {
@@ -171,8 +205,13 @@ export class ShareSpaceWeekPreview extends LitElement {
               const label = "off" in r ? "off" : `${r.target}°`;
               const tip = `${KIND_LABELS[s.kind]} · ${s.segment.reason} · ${label} · ${fmt.format(s.start)} – ${fmt.format(s.end)}`;
               const dim = this.highlight !== null && this.highlight !== s.segment.reason;
+              // a bar running on from the day before or into the next one has no edge here to label
+              const times =
+                s.kind === "off"
+                  ? nothing
+                  : html`${a > ds ? html`<span class="t s">${hm.format(a)}</span>` : nothing}${b < de ? html`<span class="t e">${hm.format(b)}</span>` : nothing}`;
               return html`<div class="seg ${s.kind} ${dim ? "dim" : ""}" style="left:${((a - ds) / span) * 100}%;width:${((b - a) / span) * 100}%" title=${tip} tabindex="0" role="img" aria-label=${tip}
-                @mouseenter=${() => this._hover(s.segment.reason)} @mouseleave=${() => this._hover(null)} @focus=${() => this._hover(s.segment.reason)} @blur=${() => this._hover(null)}></div>`;
+                @mouseenter=${() => this._hover(s.segment.reason)} @mouseleave=${() => this._hover(null)} @focus=${() => this._hover(s.segment.reason)} @blur=${() => this._hover(null)}>${times}</div>`;
             })}
           ${now >= ds && now < de ? html`<div class="now" style="left:${((now - ds) / span) * 100}%" title="Now"></div>` : nothing}
         </div></div>`;
