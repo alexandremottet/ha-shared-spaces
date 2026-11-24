@@ -3,6 +3,7 @@ import type { PropertyValues, TemplateResult } from "lit";
 import { customElement, property, state } from "lit/decorators.js";
 import { haCardSurface } from "ha-share-space-ui";
 import { findCardView, loadExistingHeating } from "ha-share-space-ui/ha";
+import { buttonStyles } from "./button-styles";
 import type { ExistingHeating, HeatingTarget, HomeAssistant } from "ha-share-space-ui/ha";
 
 const SOURCE: Record<ExistingHeating["kind"], string> = { automation: "Automation", scheduler: "Scheduler" };
@@ -16,16 +17,18 @@ export class ShareSpaceExistingHeating extends LitElement {
   @property({ type: Boolean }) rulesActive = false;
   /** Bumped to reload after the page changed these objects. */
   @property({ type: Number }) version = 0;
-  /** The area has no Share Space rules yet: offer to migrate or start from scratch. */
-  @property({ type: Boolean }) choosing = false;
-  /** The rules being edited were copied from these items. */
-  @property({ type: Boolean }) migrated = false;
   @state() private _items: ExistingHeating[] | null = null;
   private _loaded = "";
 
-  static styles = css`
+  static styles = [
+    buttonStyles,
+    css`
     :host {
       display: block;
+    }
+    .panel {
+      ${haCardSurface}
+      padding: 16px;
       margin-top: 16px;
     }
     h3 {
@@ -91,14 +94,6 @@ export class ShareSpaceExistingHeating extends LitElement {
       cursor: pointer;
       color: var(--primary-color);
     }
-    .choice {
-      ${haCardSurface}
-      padding: 12px;
-      margin-top: 8px;
-      display: flex;
-      flex-direction: column;
-      gap: 8px;
-    }
     .actions {
       display: flex;
       gap: 8px;
@@ -109,7 +104,8 @@ export class ShareSpaceExistingHeating extends LitElement {
       padding: 8px 12px;
       margin-top: 8px;
     }
-  `;
+  `,
+  ];
 
   protected willUpdate(changed: PropertyValues): void {
     const key = JSON.stringify([this.target, this.version]);
@@ -141,10 +137,6 @@ export class ShareSpaceExistingHeating extends LitElement {
   private _enabled(item: ExistingHeating): boolean {
     const state = this.hass?.states[item.entityId]?.state;
     return state === undefined ? item.enabled : state !== "off";
-  }
-
-  private _emit(name: string): void {
-    this.dispatchEvent(new CustomEvent(name, { bubbles: true, composed: true }));
   }
 
   private _renderItem(item: ExistingHeating): TemplateResult {
@@ -187,33 +179,20 @@ export class ShareSpaceExistingHeating extends LitElement {
   protected render(): TemplateResult | typeof nothing {
     if (!this.target) return nothing;
     const items = this._items;
-    if (items === null) return html`<h3>Already in Home Assistant</h3><div class="muted">Looking for schedules and automations…</div>`;
+    if (items === null) return html`<section class="panel"><h3>Already in Home Assistant</h3><div class="muted">Looking for schedules and automations…</div></section>`;
     if (!items.length) return nothing;
     const running = items.filter((i) => this._enabled(i));
-    const lost = running.flatMap((i) => i.unmapped).length;
-    return html`<h3>Already in Home Assistant</h3>
+    return html`<section class="panel">
+      <h3>Already in Home Assistant</h3>
       <div class="muted">
         Schedules and automations that heat this area today, read only here. Saving Share Space rules for this area turns the ones that
         are on off, so the rules are its only heating.
       </div>
-      ${this.choosing
-        ? html`<div class="choice" role="group" aria-label="Start this area's rules">
-            <div>This area has no Share Space rules yet. Start them:</div>
-            <div class="actions">
-              <button class="primary" @click=${() => this._emit("migrate")}>Migrate what is on</button>
-              <button @click=${() => this._emit("start-scratch")}>Start from scratch</button>
-            </div>
-            <div class="muted">
-              Migrate copies ${running.map((i) => i.name).join(", ")} into the rules${lost ? html`; the lines marked "Not copied" stay out` : ""}.
-              Nothing changes in Home Assistant until you save.
-            </div>
-          </div>`
-        : nothing}
-      ${this.migrated ? html`<div class="banner" role="status">Copied into the rules above. Check them, then save.</div>` : nothing}
       ${this.rulesActive && running.length
         ? html`<div class="banner" role="status">Share Space rules are on too: both act on the radiators. Save the rules again to turn these off, or turn the rules off.</div>`
         : nothing}
-      ${items.map((i) => this._renderItem(i))}`;
+      ${items.map((i) => this._renderItem(i))}
+    </section>`;
   }
 }
 

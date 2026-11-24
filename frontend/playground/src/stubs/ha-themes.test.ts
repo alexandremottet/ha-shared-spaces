@@ -27,7 +27,7 @@ describe("share-space-themes YAML", () => {
     expect(names).toContain("Le Portemine");
     expect(css).toContain('html[data-theme="Le Portemine"][data-mode="dark"]');
     expect(css).toContain("--ha-card-backdrop-filter: blur(18px) saturate(1.5);");
-    expect(css).toContain("--primary-color: #6f95f5;");
+    expect(css).toContain("--primary-color: #86a6ec;");
     expect(css).not.toContain("card-mod");
   });
 });

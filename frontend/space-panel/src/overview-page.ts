@@ -10,6 +10,7 @@ import type { ZoneViewModel } from "ha-share-space-heating-card/view-model";
 import "ha-share-space-planning-cards/my-planning-card";
 import "ha-share-space-planning-cards/work-area-card";
 import { HEATING_SENSOR_PREFIX, renderHeatingControl } from "./heating";
+import "./overview-planning";
 
 type CardEl = HTMLElement & { hass?: HomeAssistant; setConfig(config: Record<string, unknown>): void };
 
@@ -181,6 +182,11 @@ export class ShareSpaceOverview extends LitElement {
           ${this._planning}
         </section>
       </div>
+      ${Object.keys(hass.states).some((id) => id.startsWith("binary_sensor.share_space_") && hass.states[id].attributes.schedule)
+        ? html`<section class="panel">
+            <share-space-overview-planning .hass=${hass} .initial=${area}></share-space-overview-planning>
+          </section>`
+        : nothing}
       ${others.length
         ? html`<section class="panel">
             <h3>${mine.length ? "Other areas" : "Heating"}</h3>

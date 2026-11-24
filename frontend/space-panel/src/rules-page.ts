@@ -1,7 +1,7 @@
-import { LitElement, css, html } from "lit";
+import { LitElement, css, html, nothing } from "lit";
 import type { PropertyValues, TemplateResult } from "lit";
 import { customElement, property, state } from "lit/decorators.js";
-import { afterSave, climateHeated, entityStates, heatedKey, isDirty, sensorReadings, sameRules, strategyHeatedAreas, undoRules } from "ha-share-space-ui";
+import { afterSave, haCardSurface, climateHeated, entityStates, heatedKey, isDirty, sensorReadings, sameRules, strategyHeatedAreas, undoRules } from "ha-share-space-ui";
 import type { RuleStrategy, RulesSource, SavedRules, ScheduleRanges } from "ha-share-space-ui";
 import {
   deleteStrategy,
@@ -45,6 +45,7 @@ import type {
 } from "ha-share-space-ui/ha";
 import "./rules-tab";
 import "./rules-summary";
+import { buttonStyles } from "./button-styles";
 import "./existing-heating";
 
 const messageOf = (err: unknown): string => {
@@ -80,9 +81,31 @@ export class ShareSpaceRulesPage extends LitElement {
   @state() private _existingVersion = 0;
   private _started = false;
 
-  static styles = css`
+  static styles = [
+    buttonStyles,
+    css`
     :host {
       display: block;
+    }
+    .panel {
+      ${haCardSurface}
+      padding: 16px;
+    }
+    .choice {
+      ${haCardSurface}
+      padding: 12px 16px;
+      margin-bottom: 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+    .choice .actions {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+    .muted {
+      color: var(--secondary-text-color);
     }
     .back {
       all: unset;
@@ -94,7 +117,8 @@ export class ShareSpaceRulesPage extends LitElement {
     .back:focus-visible {
       outline: 2px solid var(--primary-color);
     }
-  `;
+  `,
+  ];
   private _sig = "";
   private _usesSig = "";
 
@@ -162,6 +186,24 @@ export class ShareSpaceRulesPage extends LitElement {
     this._choice = "";
     this._origin = origin;
     this._draft = origin === "migrate" ? { ...base, rules: this._existingOn().flatMap((i) => structuredClone(i.rules)) } : base;
+  }
+
+  // First rules of an area HA already heats: migrate them or start empty; after migrating, a reminder to check them.
+  private _renderStart(): TemplateResult | typeof nothing {
+    if (this._origin === "migrate") return html`<div class="choice" role="status">Copied from Home Assistant below. Check the rules, then save.</div>`;
+    if (!this._choosing) return nothing;
+    const running = this._existingOn();
+    const lost = running.some((i) => i.unmapped.length);
+    return html`<div class="choice" role="group" aria-label="Start this area's rules">
+      <div>This area has no Share Space rules yet. Home Assistant heats it with ${running.map((i) => i.name).join(", ")}.</div>
+      <div class="actions">
+        <button class="primary" @click=${() => this._start("migrate")}>Migrate what is on</button>
+        <button @click=${() => this._start("scratch")}>Start from scratch</button>
+      </div>
+      <div class="muted">
+        Migrate copies them into the rules${lost ? ', except the lines marked "Not copied" below' : ""}. Nothing changes in Home Assistant until you save.
+      </div>
+    </div>`;
   }
 
   // The area has no Share Space rules yet while HA already heats it.
@@ -522,10 +564,6 @@ export class ShareSpaceRulesPage extends LitElement {
         .target=${target}
         .version=${this._existingVersion}
         .rulesActive=${!!active}
-        .choosing=${this._choosing}
-        .migrated=${this._origin === "migrate"}
-        @migrate=${() => this._start("migrate")}
-        @start-scratch=${() => this._start("scratch")}
         @existing-loaded=${(e: CustomEvent<ExistingHeating[]>) => (this._existing = e.detail)}
       ></share-space-existing-heating>`;
     if (!this._zone)
@@ -537,8 +575,9 @@ export class ShareSpaceRulesPage extends LitElement {
         @zone-select=${(e: CustomEvent<string>) => void this._select(e.detail)}
       ></share-space-rules-summary>`;
     const back = html`<button class="back" ?disabled=${this._busy} @click=${() => void this._select("")}>← All areas</button>`;
-    // the choice comes first; once made, the list is only a reminder of what saving turns off
-    return this._choosing ? html`${back}${existing}${tab}` : html`${back}${tab}${existing}`;
+    return html`${back}
+      <section class="panel">${this._renderStart()}${tab}</section>
+      ${existing}`;
   }
 }
 

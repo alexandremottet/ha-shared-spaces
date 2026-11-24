@@ -30,6 +30,8 @@ import "./rules-page";
 import "./extension-points-page";
 import "./overview-page";
 import "./theme-picker";
+
+const DEFAULT_THEME = "Le Portemine";
 import "./zones-settings";
 import "./users-settings";
 import "./dashboard-tab";
@@ -220,7 +222,7 @@ private _prefsFor = "";
     if (this._role === "user") {
       return [overview, ...(this._plans?.length ? [{ id: "space", label: "Space" }] : []), ...dashboards];
     }
-    return [overview, { id: "space", label: "Space" }, ...dashboards, { id: "rules", label: "Rules" }, { id: "settings", label: "Settings" }];
+    return [overview, { id: "space", label: "Space" }, ...dashboards, { id: "rules", label: "Areas" }, { id: "settings", label: "Settings" }];
   }
 
   private get _activeTab(): string {
@@ -233,7 +235,16 @@ private _prefsFor = "";
     return plans.find((p) => p.id === this._planId) ?? plans[0] ?? null;
   }
 
+  private _themeDefaulted = false;
+
   protected willUpdate(changed: PropertyValues): void {
+    // a browser that never picked a theme starts on Le Portemine, when it is installed
+    if (changed.has("hass") && this.hass && !this._themeDefaulted) {
+      this._themeDefaulted = true;
+      if (!this.hass.selectedTheme?.theme && this.hass.themes?.themes?.[DEFAULT_THEME]) {
+        this.dispatchEvent(new CustomEvent("settheme", { detail: { theme: DEFAULT_THEME }, bubbles: true, composed: true }));
+      }
+    }
     if (changed.has("hass") && this.hass && !this._loadedFor) {
       this._loadedFor = this.hass;
       void this._load();
