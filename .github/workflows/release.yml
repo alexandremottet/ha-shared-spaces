@@ -1,15 +1,22 @@
 name: Release
 
-# Push to main: release v<root package.json version> if new, plus every component
-# whose <component>-v<version> release is new. Bump versions with `pnpm version-packages`
-# (and the root package.json for a new global release), merge, done.
-# Tag v<version>: same, pinned to that tag. Tag <component>-v<version>: that component only.
+# Manual only: Actions > Release > Run workflow, when a release is worth it.
+# Reads the pending changesets with the Changesets CLI: nothing pending, nothing to release.
+# Applies them (component versions and changelogs), bumps the global version by the
+# highest bump they ask for (or the one picked here), commits "chore: release v<version>" to main, then publishes v<version> and every
+# component release that is new. "Dry run" builds the packages and shows the plan only.
 on:
-  push:
-    branches: [main]
-    tags:
-      - "v*"
-      - "share_space*-v*"
+  workflow_dispatch:
+    inputs:
+      bump:
+        description: Global version bump (auto = highest bump in the pending changesets)
+        type: choice
+        options: [auto, patch, minor, major]
+        default: auto
+      dry_run:
+        description: Dry run (build and show the plan, publish nothing)
+        type: boolean
+        default: false
 
 permissions:
   contents: write
@@ -22,27 +29,67 @@ jobs:
   release:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - name: Resolve tag
-        id: tag
+      - name: Only from main
+        if: github.ref != 'refs/heads/main' && !inputs.dry_run
         run: |
-          if [ "$GITHUB_REF_TYPE" = tag ]; then
-            echo "name=$GITHUB_REF_NAME" >> "$GITHUB_OUTPUT"
-          else
-            echo "name=v$(jq -r .version package.json)" >> "$GITHUB_OUTPUT"
-          fi
+          echo "Run the release from main (a dry run works from any branch)."
+          exit 1
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
       - uses: pnpm/action-setup@v4
       - uses: actions/setup-node@v4
         with:
           node-version: 22
           cache: pnpm
       - run: pnpm install --frozen-lockfile
+      - name: Apply changesets and bump the global version
+        id: tag
+        env:
+          BUMP: ${{ inputs.bump }}
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          pnpm changeset status --output=changeset-status.json
+          jq -r '.releases[] | "\(.name) \(.oldVersion) -> \(.newVersion) (\(.type))"' changeset-status.json
+          if [ "$(jq '.releases | length' changeset-status.json)" = 0 ]; then
+            echo "No pending changeset: nothing to release." >&2
+            exit 1
+          fi
+          if [ "$BUMP" = auto ]; then
+            BUMP=$(jq -r '[.releases[].type] | if index("major") then "major" elif index("minor") then "minor" else "patch" end' changeset-status.json)
+          fi
+          rm changeset-status.json
+          pnpm version-packages
+          npm version "$BUMP" --no-git-tag-version >/dev/null
+          tag="v$(jq -r .version package.json)"
+          if gh release view "$tag" >/dev/null 2>&1; then
+            echo "$tag is already released." >&2
+            exit 1
+          fi
+          pnpm install --lockfile-only
+          git status --short
+          echo "name=$tag" >> "$GITHUB_OUTPUT"
+      - name: Commit the release to main
+        if: ${{ !inputs.dry_run }}
+        env:
+          TAG: ${{ steps.tag.outputs.name }}
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898299+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -m "chore: release $TAG"
+          git push origin HEAD:main
       # space-panel builds into share_space_space/frontend, which is gitignored
       - run: pnpm build
       - name: Package
         id: package
         run: echo "plan=$(node scripts/release.mjs "${{ steps.tag.outputs.name }}")" >> "$GITHUB_OUTPUT"
+      - name: Show the plan
+        env:
+          PLAN: ${{ steps.package.outputs.plan }}
+        run: jq . <<<"$PLAN"
       - name: Publish
+        if: ${{ !inputs.dry_run }}
         env:
           GH_TOKEN: ${{ github.token }}
           PLAN: ${{ steps.package.outputs.plan }}
@@ -53,7 +100,7 @@ jobs:
               echo "$tag already released, skipping"
               return
             fi
-            gh release create "$tag" "$@" --title "$title" --notes-file "$notes" --target "$GITHUB_SHA" --latest="$latest"
+            gh release create "$tag" "$@" --title "$title" --notes-file "$notes" --target "$(git rev-parse HEAD)" --latest="$latest"
           }
           tag=$(jq -r .tag <<<"$PLAN")
           latest=false; [[ $tag == v* ]] && latest=true
