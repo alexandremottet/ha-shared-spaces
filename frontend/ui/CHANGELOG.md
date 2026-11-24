@@ -1,5 +1,12 @@
 # ha-share-space-ui
 
+## 1.2.0
+
+### Minor Changes
+
+- 6a95268: Rules can look at one person's planning: the "planned" condition takes "one person's planning", which holds when a same person's own planning matches, whatever area they work in. The Lunch room strategy now heats the kitchen from 11:00 to 14:00 when someone is here both in the morning and in the afternoon, or is planned between 12:00 and 14:00 (someone planned 8:00–18:00 counts). An unedited Lunch room gets the new rules. An area nobody works in, such as a kitchen, runs its rules and shows its computed week instead of "No planning for this area yet". Share Space adds an "Everyone" sensor carrying each person's planning for this.
+- 75f8e30: Week previews show each bar's start and end time on the bar itself (hidden when the bar is too short). The Plannings page shows the whole week as lanes: everyone merged first, then each person. The period editor's time fields and the outdoor temperature sensor menu are drawn like Share Space's other fields and dropdowns.
+
 ## 1.1.0
 
 ### Minor Changes
