@@ -47,17 +47,19 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           PLAN: ${{ steps.package.outputs.plan }}
         run: |
-          release() { # tag title notes assets...
-            local tag=$1 title=$2 notes=$3; shift 3
+          release() { # tag title notes latest assets...
+            local tag=$1 title=$2 notes=$3 latest=$4; shift 4
             if gh release view "$tag" >/dev/null 2>&1; then
               echo "$tag already released, skipping"
               return
             fi
-            gh release create "$tag" "$@" --title "$title" --notes-file "$notes" --target "$GITHUB_SHA"
+            gh release create "$tag" "$@" --title "$title" --notes-file "$notes" --target "$GITHUB_SHA" --latest="$latest"
           }
+          tag=$(jq -r .tag <<<"$PLAN")
+          latest=false; [[ $tag == v* ]] && latest=true
           mapfile -t assets < <(jq -r '.assets[]' <<<"$PLAN")
-          release "$(jq -r .tag <<<"$PLAN")" "$(jq -r .title <<<"$PLAN")" "$(jq -r .notes <<<"$PLAN")" "${assets[@]}"
+          release "$tag" "$(jq -r .title <<<"$PLAN")" "$(jq -r .notes <<<"$PLAN")" "$latest" "${assets[@]}"
           jq -c '.components[]' <<<"$PLAN" | while read -r component; do
             release "$(jq -r .tag <<<"$component")" "$(jq -r .title <<<"$component")" \
-              "$(jq -r .notes <<<"$component")" "$(jq -r .asset <<<"$component")"
+              "$(jq -r .notes <<<"$component")" false "$(jq -r .asset <<<"$component")"
           done
