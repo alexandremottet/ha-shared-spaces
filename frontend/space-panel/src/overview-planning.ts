@@ -53,6 +53,25 @@ export class ShareSpaceOverviewPlanning extends LitElement {
     .muted {
       color: var(--secondary-text-color);
     }
+    .week {
+      position: relative;
+    }
+    /* frosted veil over the week: the planned bars still show through */
+    .no-rules {
+      position: absolute;
+      inset: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 16px;
+      text-align: center;
+      font-weight: 500;
+      color: var(--primary-text-color);
+      border-radius: 8px;
+      background: color-mix(in srgb, var(--card-background-color, #fff) 30%, transparent);
+      backdrop-filter: blur(4px);
+      -webkit-backdrop-filter: blur(4px);
+    }
   `,
   ];
 
@@ -126,6 +145,7 @@ export class ShareSpaceOverviewPlanning extends LitElement {
           ${areas.map((a) => html`<option value=${a.id} ?selected=${a.id === this._area}>${a.name}</option>`)}
         </select>
       </div>
+      <div class="week">
       <share-space-rule-preview
         .strategy=${strategy}
         .schedule=${schedule}
@@ -135,7 +155,8 @@ export class ShareSpaceOverviewPlanning extends LitElement {
         .readings=${sensorReadings(strategy, hass.states, (attrs?.outdoor_entity as string | null | undefined) ?? null)}
         .states=${entityStates(strategy, hass.states)}
       ></share-space-rule-preview>
-      ${this._strategy ? nothing : html`<div class="muted">No Share Space rules for this area yet: the week shows who is planned.</div>`}`;
+      ${this._strategy ? nothing : html`<div class="no-rules" role="note">No Share Space rules for this area yet: the week shows who is planned.</div>`}
+      </div>`;
   }
 }
 
