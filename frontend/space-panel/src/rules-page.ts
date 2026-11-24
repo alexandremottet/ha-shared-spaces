@@ -26,8 +26,22 @@ import {
   useZoneStrategy,
   zoneRulesIds,
   errorMessage,
+  createAreaZone,
+  detectedZone,
+  listDetectedAreas,
+  setExistingEnabled,
 } from "ha-share-space-ui/ha";
-import type { AreaInfo, HeatingZone, HomeAssistant, SharedStrategy, StrategyAutomation, StrategyUse, ZoneRules } from "ha-share-space-ui/ha";
+import type {
+  AreaInfo,
+  DetectedArea,
+  ExistingHeating,
+  HeatingZone,
+  HomeAssistant,
+  SharedStrategy,
+  StrategyAutomation,
+  StrategyUse,
+  ZoneRules,
+} from "ha-share-space-ui/ha";
 import "./rules-tab";
 import "./existing-heating";
 
@@ -56,6 +70,10 @@ export class ShareSpaceRulesPage extends LitElement {
   @state() private _shared: SharedStrategy[] | null = null;
   @state() private _uses: StrategyUse[] = [];
   @state() private _choice = "";
+  @state() private _detected: DetectedArea[] = [];
+  /** HA automations or Scheduler items copied into the rules, turned off once the rules are saved. */
+  @state() private _replacing: ExistingHeating[] = [];
+  @state() private _existingVersion = 0;
   private _started = false;
   private _sig = "";
   private _usesSig = "";
@@ -84,14 +102,47 @@ export class ShareSpaceRulesPage extends LitElement {
   }
 
   private async _init(hass: HomeAssistant): Promise<void> {
-    const [zones, areas] = await Promise.allSettled([listZones(hass), listAreas(hass)]);
+    const [zones, areas, detected] = await Promise.allSettled([listZones(hass), listAreas(hass), listDetectedAreas(hass)]);
     this._areas = areas.status === "fulfilled" ? areas.value : [];
-    if (zones.status === "fulfilled") this._zones = zones.value;
+    this._detected = detected.status === "fulfilled" ? detected.value : [];
+    if (zones.status === "fulfilled") this._zones = this._withDetected(zones.value);
     else {
       this._zones = [];
       if (!isBackendMissing(zones.reason)) this._error = messageOf(zones.reason);
     }
     await this._loadShared(hass);
+  }
+
+  // Areas whose heating HA holds but that have no zone yet are listed too; the zone is created with their first rule.
+  private _withDetected(zones: HeatingZone[]): HeatingZone[] {
+    const zoned = new Set(zones.map((z) => z.area_id));
+    return [...zones, ...this._detected.filter((d) => !zoned.has(d.area_id)).map(detectedZone)];
+  }
+
+  private async _refreshZones(hass: HomeAssistant): Promise<void> {
+    this._detected = await listDetectedAreas(hass).catch(() => this._detected);
+    this._zones = this._withDetected(await listZones(hass));
+  }
+
+  // First save for an area found in HA: create its zone now, then save to it.
+  private async _materialize(hass: HomeAssistant, zone: HeatingZone): Promise<HeatingZone> {
+    if (!zone.pending) return zone;
+    const { entity_id } = await createAreaZone(hass, zone.pending);
+    await this._refreshZones(hass);
+    const created = this._zones?.find((z) => z.entity_id === entity_id);
+    if (!created) throw new Error("The heating zone was created but is not listed yet; try again.");
+    this._zone = entity_id;
+    this._targetId = strategyAutomationId(entity_id);
+    return created;
+  }
+
+  private _replace(item: ExistingHeating): void {
+    if (this._replacing.some((r) => r.entityId === item.entityId)) return;
+    const base = this._draft ?? emptyRules();
+    this._choice = "";
+    this._saved = this._rules?.state === "managed" && !this._rules.strategy && this._rules.rules ? { rules: this._rules.rules, previous: this._rules.previous } : null;
+    this._draft = { ...base, rules: [...base.rules, ...structuredClone(item.rules)] };
+    this._replacing = [...this._replacing, item];
   }
 
   // Shared strategies and which zones use them; null hides the shared UI (backend without them).
@@ -139,6 +190,7 @@ export class ShareSpaceRulesPage extends LitElement {
     this._rules = null;
     this._startingNew = false;
     this._choice = "";
+    this._replacing = [];
     if (!this.hass || !entityId) return;
     this._loading = true;
     await this._load(entityId);
@@ -167,6 +219,7 @@ export class ShareSpaceRulesPage extends LitElement {
   }
 
   private _discard(): void {
+    this._replacing = [];
     if (this._startingNew) void this._select(this._zone);
     else if (this._choice !== (this._sharedById(this._zoneOn)?.id ?? "")) this._choose(this._sharedById(this._zoneOn)?.id ?? "", true);
     else this._draft = this._saved?.rules ?? emptyRules();
@@ -196,9 +249,9 @@ export class ShareSpaceRulesPage extends LitElement {
     this._error = "";
     try {
       await fn(hass, zone);
-      this._zones = await listZones(hass);
+      await this._refreshZones(hass);
       if (this._shared !== null) await this._loadShared(this.hass ?? hass);
-      await this._load(zone.entity_id);
+      await this._load(this._zone);
       after?.();
     } catch (err) {
       this._error = messageOf(err);
@@ -223,14 +276,18 @@ export class ShareSpaceRulesPage extends LitElement {
     opts: { exclusive: boolean; force?: boolean },
     before?: (hass: HomeAssistant) => Promise<unknown>,
   ): Promise<void> {
-    const id = this._targetId;
     const area = this._area;
     if (!area) return Promise.resolve();
-    return this._run(async (hass, zone) => {
+    return this._run(async (hass, found) => {
+      const zone = await this._materialize(hass, found);
+      const id = this._targetId;
       if (!opts.force) await this._guard(hass, zone, id);
       await before?.(hass);
       await saveZoneRules(hass, zone, area, source, id);
       if (opts.exclusive) await useZoneStrategy(() => this.hass ?? hass, zone, id);
+      for (const item of this._replacing) await setExistingEnabled(hass, item, false);
+      if (this._replacing.length) this._existingVersion++;
+      this._replacing = [];
     });
   }
 
@@ -269,11 +326,12 @@ export class ShareSpaceRulesPage extends LitElement {
   // New shared strategy from the shown rules; the zone points at it when it has an area.
   private _share(name: string): void {
     const rules = this._draft ?? emptyRules();
-    const id = this._targetId;
     const area = this._area;
     let created = "";
     void this._run(
-      async (hass, zone) => {
+      async (hass, found) => {
+        const zone = area ? await this._materialize(hass, found) : found;
+        const id = this._targetId;
         if (area) await this._guard(hass, zone, id);
         created = (await saveStrategy(hass, { name, rules, previous: null })).id;
         if (!area) return;
@@ -361,7 +419,10 @@ export class ShareSpaceRulesPage extends LitElement {
     const zoneOn = this._zoneOn;
     const users = Object.fromEntries((this._shared ?? []).map((s) => [s.id, strategyUsers(this._uses, s.id)]));
     const switching = (this._choice || null) !== zoneOn && !!(this._rules || this._choice);
-    const target = zone && this._area ? { area: this._area, entities: [zone.climate_entity, ...(zone.heaters ?? []), ...(zone.heater_switch ? [zone.heater_switch] : [])] } : null;
+    const target =
+      zone && this._area
+        ? { area: this._area, entities: [zone.climate_entity, ...(zone.heaters ?? []), ...(zone.heater_switch ? [zone.heater_switch] : [])].filter(Boolean) }
+        : null;
     return html`<share-space-rules-tab
       .zones=${this._zones}
       .zone=${this._zone}
@@ -403,7 +464,14 @@ export class ShareSpaceRulesPage extends LitElement {
       @strategy-delete=${(e: CustomEvent<string>) => this._deleteShared(e.detail)}
       @make-copy=${() => this._makeCopy()}
     ></share-space-rules-tab>
-      <share-space-existing-heating .hass=${hass} .target=${target} .rulesActive=${!!active}></share-space-existing-heating>`;
+      <share-space-existing-heating
+        .hass=${hass}
+        .target=${target}
+        .version=${this._existingVersion}
+        .rulesActive=${!!active}
+        .replacing=${this._replacing.map((r) => r.entityId)}
+        @replace-with-rules=${(e: CustomEvent<ExistingHeating>) => this._replace(e.detail)}
+      ></share-space-existing-heating>`;
   }
 }
 

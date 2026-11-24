@@ -91,9 +91,8 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
     person_calendar_store = PersonPlannings(hass)
     await person_calendar_store.async_load()
-    await person_calendar_store.async_migrate()
     person_area_store = PersonAreas(hass)
-    await person_area_store.async_migrate()
+    await person_area_store.async_load()
     area_actions_store = AreaActionsStore(hass)
     await area_actions_store.async_load()
     hass.data[DOMAIN][entry.entry_id] = {

@@ -108,8 +108,8 @@ async function writeAutomation(hass: HomeAssistant, area: string, actions: AreaA
 }
 
 /**
- * An area's occupied/empty actions, read from its HA automation. Actions Share Space kept itself before
- * are moved into that automation the first time an admin opens them.
+ * An area's occupied/empty actions, read from its HA automation. Actions older versions kept in Share Space
+ * itself are read as they are, and move into the automation the first time they are saved.
  */
 export async function getAreaActions(hass: HomeAssistant, area: string): Promise<AreaActions> {
   const entity = automationEntity(hass, area);
@@ -118,13 +118,7 @@ export async function getAreaActions(hass: HomeAssistant, area: string): Promise
     const read = readAreaActions(config) ?? { on_actions: [], off_actions: [] };
     return { ...read, enabled: hass.states[entity]?.state === "on" };
   }
-  const legacy = await legacyActions(hass, area);
-  if (!legacy) return { on_actions: [], off_actions: [], enabled: true };
-  if (hass.user?.is_admin) {
-    if (!empty(legacy)) await writeAutomation(hass, area, legacy, null);
-    await hass.callWS({ type: "share_space/forget_area_actions", area });
-  }
-  return legacy;
+  return (await legacyActions(hass, area)) ?? { on_actions: [], off_actions: [], enabled: true };
 }
 
 /** Saves an area's actions into its HA automation (created on the first action, removed with the last). */
@@ -135,6 +129,7 @@ export async function setAreaActions(hass: HomeAssistant, area: string, partial:
   const entity = automationEntity(hass, area);
   if (!entity) {
     if (!empty(next)) await writeAutomation(hass, area, next, null);
+    await hass.callWS({ type: "share_space/forget_area_actions", area }).catch(() => undefined);
     return;
   }
   if (empty(next)) {

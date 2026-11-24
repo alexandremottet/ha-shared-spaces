@@ -261,6 +261,13 @@ export class MockHassController {
         { action: "climate.set_preset_mode", target: { entity_id: "climate.workshop" }, data: { preset_mode: "eco" } },
       ],
     });
+    add("workshop_sunset", {
+      alias: "Workshop at sunset",
+      description: "",
+      triggers: [{ trigger: "sun", event: "sunset" }],
+      conditions: [],
+      actions: [{ choose: [{ conditions: [], sequence: [{ action: "climate.set_hvac_mode", target: { entity_id: "climate.workshop" }, data: { hvac_mode: "auto" } }] }] }],
+    });
     this._scheduleHelpers = [
       {
         id: "workshop_hours",
@@ -988,8 +995,8 @@ export class MockHassController {
       },
       true
     );
-    ws("share_space_heating/get_settings", "heating", () => ({ outdoor_entity: this._outdoorEntity, ignored_areas: [] }));
-    ws("share_space_heating/manage_area", "heating", () => ({}), true);
+    ws("share_space_heating/get_settings", "heating", () => ({ outdoor_entity: this._outdoorEntity }));
+    ws("share_space_heating/detected_areas", "heating", () => []);
     ws(
       "share_space_heating/save_settings",
       "heating",

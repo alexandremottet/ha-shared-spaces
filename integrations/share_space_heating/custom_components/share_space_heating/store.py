@@ -6,8 +6,6 @@ import uuid
 from pathlib import Path
 
 from homeassistant.core import HomeAssistant
-from homeassistant.helpers import area_registry as ar
-from homeassistant.helpers import label_registry as lr
 from homeassistant.helpers.storage import Store
 
 from .const import (
@@ -97,11 +95,8 @@ class StrategyStore:
         return True
 
 
-NOT_MANAGED_LABEL = "Share Space: not managed"
-
-
 class SettingsStore:
-    """Space-wide heating settings: `{outdoor_entity}`; areas not managed are an HA label."""
+    """Space-wide heating settings: `{outdoor_entity}`."""
 
     def __init__(self, hass: HomeAssistant) -> None:
         self._hass = hass
@@ -117,36 +112,4 @@ class SettingsStore:
 
     async def async_set_outdoor_entity(self, entity_id: str | None) -> None:
         self._data["outdoor_entity"] = entity_id
-        await self._store.async_save(self._data)
-
-    @property
-    def ignored_areas(self) -> list[str]:
-        """Areas carrying the "not managed" HA label: Share Space does not set their heating up."""
-        label = lr.async_get(self._hass).async_get_label_by_name(NOT_MANAGED_LABEL)
-        if label is None:
-            return []
-        return sorted(a.id for a in ar.async_get(self._hass).areas.values() if label.label_id in a.labels)
-
-    async def async_set_ignored(self, area_id: str, ignored: bool) -> None:
-        areas = ar.async_get(self._hass)
-        area = areas.async_get_area(area_id)
-        labels = lr.async_get(self._hass)
-        label = labels.async_get_label_by_name(NOT_MANAGED_LABEL)
-        if area is None or (label is None and not ignored):
-            return
-        if label is None:
-            label = labels.async_create(
-                NOT_MANAGED_LABEL, icon="mdi:radiator-off", description="Share Space does not set up heating in these areas."
-            )
-        wanted = set(area.labels) | {label.label_id} if ignored else set(area.labels) - {label.label_id}
-        if wanted != set(area.labels):
-            areas.async_update(area_id, labels=wanted)
-
-    async def async_migrate(self) -> None:
-        """Ignored areas used to be kept here; they are an HA label now."""
-        old = self._data.pop("ignored_areas", None)
-        if old is None:
-            return
-        for area_id in old:
-            await self.async_set_ignored(area_id, True)
         await self._store.async_save(self._data)

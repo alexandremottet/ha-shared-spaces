@@ -56,17 +56,19 @@ describe("area actions automation", () => {
     expect(await getAreaActions(hass, "bureau")).toEqual({ on_actions: on, off_actions: off, enabled: false });
   });
 
-  it("moves actions Share Space kept into an automation, then forgets them", async () => {
+  it("reads actions older versions kept, without writing anything", async () => {
     const { hass, calls } = fakeHass({ legacy: { on_actions: on, off_actions: [], enabled: true } });
     expect(await getAreaActions(hass, "bureau")).toEqual({ on_actions: on, off_actions: [], enabled: true });
-    expect(calls.find((c) => c[0] === "api")?.slice(1, 3)).toEqual(["POST", "config/automation/config/share_space_bureau_occupancy"]);
-    expect(calls.at(-1)).toEqual(["ws", { type: "share_space/forget_area_actions", area: "bureau" }]);
+    expect(calls.some((c) => c[0] === "api" || c[0] === "service")).toBe(false);
   });
 
-  it("does not move kept actions for a non-admin", async () => {
-    const { hass, calls } = fakeHass({ legacy: { on_actions: on, off_actions: [], enabled: true }, admin: false });
-    await getAreaActions(hass, "bureau");
-    expect(calls.some((c) => c[0] === "api")).toBe(false);
+  it("moves kept actions into an automation when they are saved", async () => {
+    const { hass, calls } = fakeHass({ legacy: { on_actions: on, off_actions: [], enabled: true } });
+    await setAreaActions(hass, "bureau", { off_actions: off });
+    const post = calls.find((c) => c[0] === "api")!;
+    expect(post.slice(1, 3)).toEqual(["POST", "config/automation/config/share_space_bureau_occupancy"]);
+    expect(readAreaActions(post[3] as Record<string, unknown>)).toEqual({ on_actions: on, off_actions: off });
+    expect(calls.at(-1)).toEqual(["ws", { type: "share_space/forget_area_actions", area: "bureau" }]);
   });
 
   it("creates the automation on the first action, turns it off, deletes it with the last", async () => {

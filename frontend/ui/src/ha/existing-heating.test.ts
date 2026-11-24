@@ -68,6 +68,27 @@ describe("automationAsHeating", () => {
     expect(item.haPath).toBe("/config/automation/edit/1763116012338");
   });
 
+  it("is read only when Share Space cannot express all of it", () => {
+    const item = automationAsHeating(hass, "automation.pause_dej", pauseDej, cuisine)!;
+    expect(item.compatible).toBe(false);
+    const simple = automationAsHeating(hass, "automation.pause_dej", { ...pauseDej, conditions: [], actions: pauseDej.actions.slice(0, 2) }, cuisine)!;
+    expect(simple.compatible).toBe(true);
+  });
+
+  it("shows heating it cannot read as rules at all, read only", () => {
+    const nested = {
+      id: "9",
+      alias: "Night",
+      triggers: [{ trigger: "sun", event: "sunset" }],
+      actions: [{ choose: [{ conditions: [], sequence: [{ action: "climate.set_hvac_mode", target: { entity_id: "climate.rue" }, data: { hvac_mode: "auto" } }] }] }],
+    };
+    const item = automationAsHeating(hass, "automation.pause_dej", nested, rue)!;
+    expect(item.rules).toEqual([]);
+    expect(item.compatible).toBe(false);
+    expect(item.unmapped[0]).toBe("When sun");
+    expect(automationAsHeating(hass, "automation.pause_dej", nested, cuisine)).toBeNull();
+  });
+
   it("is not heating of an area it does not act on", () => {
     expect(automationAsHeating(hass, "automation.pause_dej", pauseDej, rue)).toBeNull();
   });

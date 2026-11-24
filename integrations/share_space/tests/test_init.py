@@ -256,10 +256,10 @@ async def test_planning_lives_in_a_schedule_helper(hass, hass_ws_client):
     assert result == {"calendar": {"tuesday": [{"start": "08:00", "end": "24:00"}]}, "schedule_entity": "schedule.planning_alice"}
 
 
-async def test_old_store_moves_into_home_assistant(hass, hass_storage):
+async def test_old_data_is_used_as_is_until_edited_in_share_space(hass, hass_storage):
     from homeassistant.helpers import entity_registry as er
 
-    hass_storage["share_space.person_areas"] = {"version": 1, "minor_version": 1, "key": "share_space.person_areas", "data": {"person.bob": "office", "person.ghost": "office"}}
+    hass_storage["share_space.person_areas"] = {"version": 1, "minor_version": 1, "key": "share_space.person_areas", "data": {"person.bob": "office"}}
     hass_storage["share_space.person_calendars"] = {
         "version": 1,
         "minor_version": 1,
@@ -267,9 +267,16 @@ async def test_old_store_moves_into_home_assistant(hass, hass_storage):
         "data": {"person.bob": {"friday": [{"start": "10:00", "end": "11:00"}]}},
     }
     entry = await _setup_entry(hass)
-    assert er.async_get(hass).async_get("person.bob").area_id == "office"
-    assert hass.data[DOMAIN][entry.entry_id][DATA_PERSON_CALENDAR_STORE].get("person.bob") == {"friday": [{"start": "10:00", "end": "11:00"}]}
-    assert hass.states.get("schedule.planning_bob") is not None
-    assert "share_space.person_areas" not in hass_storage
-    assert "share_space.person_calendars" not in hass_storage
+    plannings = hass.data[DOMAIN][entry.entry_id][DATA_PERSON_CALENDAR_STORE]
+    assert er.async_get(hass).async_get("person.bob").area_id is None
+    assert hass.states.async_entity_ids("schedule") == []
+    assert plannings.get("person.bob") == {"friday": [{"start": "10:00", "end": "11:00"}]}
     assert hass.states.get("binary_sensor.share_space_office").attributes["persons"] == ["person.bob"]
+
+    await hass.services.async_call(DOMAIN, "set_calendar", {"person": "person.bob", "calendar": {"monday": [{"start": "09:00", "end": "10:00"}]}}, blocking=True)
+    await hass.services.async_call(DOMAIN, "assign_person_area", {"person": "person.bob", "area": "office"}, blocking=True)
+    await hass.async_block_till_done()
+    assert hass.states.get("schedule.planning_bob") is not None
+    assert er.async_get(hass).async_get("person.bob").area_id == "office"
+    assert hass_storage["share_space.person_calendars"]["data"] == {}
+    assert hass_storage["share_space.person_areas"]["data"] == {}

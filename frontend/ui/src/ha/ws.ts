@@ -47,6 +47,8 @@ export interface HeatingZone {
   heater_switch?: string | null;
   temperature_sensor?: string | null;
   managed?: boolean;
+  /** Not created yet: what HA holds, created with the area's first rule. */
+  pending?: AreaZoneInput;
 }
 
 export interface HeatingZoneAttributes {
@@ -412,8 +414,6 @@ export const nameTaken = (shared: Array<{ id: string; name: string }>, name: str
 
 export interface HeatingSettings {
   outdoor_entity: string | null;
-  /** Areas whose heating the admin removed: not set up again on their own. */
-  ignored_areas?: string[];
 }
 
 export const getHeatingSettings = (hass: HomeAssistant) =>
@@ -423,9 +423,32 @@ export const getHeatingSettings = (hass: HomeAssistant) =>
 export const saveHeatingSettings = (hass: HomeAssistant, settings: HeatingSettings) =>
   hass.callWS<HeatingSettings>({ type: "share_space_heating/save_settings", outdoor_entity: settings.outdoor_entity });
 
-/** Undo a removal: Share Space sets the area's heating up again from what HA holds. */
-export const manageArea = (hass: HomeAssistant, areaId: string) =>
-  hass.callWS<Record<string, never>>({ type: "share_space_heating/manage_area", area_id: areaId });
+/** Heating HA already holds in an area without a zone; Share Space creates the zone with the area's first rule. */
+export type DetectedArea = AreaZoneInput & { name: string };
+
+export const listDetectedAreas = (hass: HomeAssistant) =>
+  hass.callWS<DetectedArea[]>({ type: "share_space_heating/detected_areas" });
+
+export const PENDING_ZONE_PREFIX = "pending:";
+
+/** A zone not created yet, standing for heating found in HA, until the area's first rule is saved. */
+export function detectedZone(d: DetectedArea): HeatingZone {
+  const { name, ...input } = d;
+  return {
+    entry_id: "",
+    name,
+    entity_id: `${PENDING_ZONE_PREFIX}${d.area_id}`,
+    climate_entity: "climate_entity" in d ? d.climate_entity : "",
+    presence_entity: null,
+    mode: "manual_only",
+    target: 0,
+    override_until: null,
+    area_id: d.area_id,
+    heaters: "heaters" in d ? d.heaters : null,
+    temperature_sensor: "temperature_sensor" in d ? d.temperature_sensor : null,
+    pending: input,
+  };
+}
 
 export const listStrategies = (hass: HomeAssistant) =>
   hass.callWS<SharedStrategy[]>({ type: "share_space_heating/list_strategies" });

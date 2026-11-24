@@ -15,6 +15,10 @@ export class ShareSpaceExistingHeating extends LitElement {
   @property({ attribute: false }) target: HeatingTarget | null = null;
   /** Share Space rules are on for this area too. */
   @property({ type: Boolean }) rulesActive = false;
+  /** Bumped to reload after the page changed these objects. */
+  @property({ type: Number }) version = 0;
+  /** Entity ids of the items to turn off once the area's Share Space rules are saved. */
+  @property({ attribute: false }) replacing: string[] = [];
   @state() private _items: ExistingHeating[] | null = null;
   @state() private _drafts: Record<string, Rule[]> = {};
   @state() private _undo: Record<string, Rule[]> = {};
@@ -70,6 +74,12 @@ export class ShareSpaceExistingHeating extends LitElement {
     .error {
       color: var(--error-color);
     }
+    .readonly {
+      opacity: 0.85;
+    }
+    .note {
+      font-size: 0.9em;
+    }
     .banner {
       ${haCardSurface}
       padding: 8px 12px;
@@ -78,8 +88,8 @@ export class ShareSpaceExistingHeating extends LitElement {
   `;
 
   protected willUpdate(changed: PropertyValues): void {
-    const key = JSON.stringify(this.target);
-    if ((changed.has("target") || changed.has("hass")) && this.hass && this.target && key !== this._loaded) {
+    const key = JSON.stringify([this.target, this.version]);
+    if ((changed.has("target") || changed.has("hass") || changed.has("version")) && this.hass && this.target && key !== this._loaded) {
       this._loaded = key;
       void this._load();
     }
@@ -121,19 +131,47 @@ export class ShareSpaceExistingHeating extends LitElement {
     }
   }
 
+  // Live from HA, so turning it off here or in HA shows at once.
+  private _enabled(item: ExistingHeating): boolean {
+    const state = this.hass?.states[item.entityId]?.state;
+    return state === undefined ? item.enabled : state !== "off";
+  }
+
+  private _replace(item: ExistingHeating): void {
+    this.dispatchEvent(new CustomEvent("replace-with-rules", { detail: item, bubbles: true, composed: true }));
+  }
+
   private _renderItem(item: ExistingHeating): TemplateResult {
     const draft = this._drafts[item.entityId];
     const rules = draft ?? item.rules;
     const busy = this._busy === item.entityId;
     const undo = this._undo[item.entityId];
+    const replacing = this.replacing.includes(item.entityId);
+    const rows = rules.map(
+      (rule, i) => html`<share-space-rule-row
+        .rule=${rule}
+        .index=${i}
+        .count=${rules.length}
+        @rule-change=${(e: CustomEvent<{ rule: Rule }>) => {
+          e.stopPropagation();
+          this._setDraft(item, replaceAt(rules, i, e.detail.rule));
+        }}
+        @rule-remove=${(e: Event) => {
+          e.stopPropagation();
+          this._setDraft(item, removeAt(rules, i));
+        }}
+        @rule-move=${(e: Event) => e.stopPropagation()}
+      ></share-space-rule-row>`,
+    );
     return html`<div class="item">
       <div class="head">
         <span class="badge">${SOURCE[item.kind]}</span>
         <span class="name">${item.name}</span>
+        ${item.compatible ? nothing : html`<span class="badge">Read only</span>`}
         <label
           ><input
             type="checkbox"
-            .checked=${item.enabled}
+            .checked=${this._enabled(item)}
             ?disabled=${busy}
             @change=${(e: Event) => void setExistingEnabled(this.hass!, item, (e.target as HTMLInputElement).checked)}
           />
@@ -141,36 +179,25 @@ export class ShareSpaceExistingHeating extends LitElement {
         >
         <button @click=${() => this._open(item.haPath)}>Open in Home Assistant</button>
       </div>
-      ${rules.map(
-        (rule, i) => html`<share-space-rule-row
-          .rule=${rule}
-          .index=${i}
-          .count=${rules.length}
-          @rule-change=${(e: CustomEvent<{ rule: Rule }>) => {
-            e.stopPropagation();
-            this._setDraft(item, replaceAt(rules, i, e.detail.rule));
-          }}
-          @rule-remove=${(e: Event) => {
-            e.stopPropagation();
-            this._setDraft(item, removeAt(rules, i));
-          }}
-          @rule-move=${(e: Event) => e.stopPropagation()}
-        ></share-space-rule-row>`,
-      )}
+      ${item.compatible ? rows : html`<div class="readonly" inert>${rows}</div>`}
       ${item.unmapped.length
-        ? html`<div class="muted">Also in Home Assistant, kept as is:</div>
+        ? html`<div class="muted">${item.compatible ? "Also in Home Assistant, kept as is:" : "Share Space cannot show this as rules:"}</div>
             <ul class="unmapped muted">
               ${item.unmapped.map((u) => html`<li>${u}</li>`)}
             </ul>`
         : nothing}
-      ${draft || undo
-        ? html`<div class="actions">
-            ${draft
-              ? html`<button class="primary" ?disabled=${busy} @click=${() => void this._save(item, draft, item.rules)}>Save to Home Assistant</button>
-                  <button ?disabled=${busy} @click=${() => this._discard(item)}>Cancel</button>`
-              : html`<button ?disabled=${busy} @click=${() => void this._save(item, undo, null)}>Undo last change</button>`}
-          </div>`
+      ${replacing
+        ? html`<div class="note" role="status">Copied into the Share Space rules above. It is turned off when you save them.</div>`
         : nothing}
+      <div class="actions">
+        ${draft
+          ? html`<button class="primary" ?disabled=${busy} @click=${() => void this._save(item, draft, item.rules)}>Save to Home Assistant</button>
+              <button ?disabled=${busy} @click=${() => this._discard(item)}>Cancel</button>`
+          : undo
+            ? html`<button ?disabled=${busy} @click=${() => void this._save(item, undo, null)}>Undo last change</button>`
+            : nothing}
+        ${replacing || draft ? nothing : html`<button ?disabled=${busy} @click=${() => this._replace(item)}>Replace with Share Space rules</button>`}
+      </div>
       ${this._errors[item.entityId] ? html`<div class="error" role="alert">${this._errors[item.entityId]}</div>` : nothing}
     </div>`;
   }
@@ -185,9 +212,12 @@ export class ShareSpaceExistingHeating extends LitElement {
     const items = this._items;
     if (items === null) return html`<h3>Already in Home Assistant</h3><div class="muted">Looking for schedules and automations…</div>`;
     if (!items.length) return nothing;
-    const running = items.some((i) => i.enabled);
+    const running = items.some((i) => this._enabled(i));
     return html`<h3>Already in Home Assistant</h3>
-      <div class="muted">Schedules and automations that already heat this area. Changes are saved into them, so Home Assistant shows the same.</div>
+      <div class="muted">
+        Schedules and automations that already heat this area. Changes are saved into them, so Home Assistant shows the same. What Share
+        Space cannot show as rules is read only: edit it in Home Assistant, or replace it with Share Space rules or a shared strategy.
+      </div>
       ${this.rulesActive && running
         ? html`<div class="banner" role="status">Share Space rules are on too: both act on the radiators. Turn one of them off.</div>`
         : nothing}

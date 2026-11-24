@@ -1,17 +1,11 @@
-"""Heating an HA area already holds, and the zones Share Space sets up for it on its own."""
+"""Heating an HA area already holds."""
 from __future__ import annotations
-
-import logging
 
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers import area_registry as ar
 
 from .area import area_entities, entity_area, managed_devices, zone_climate
-from .const import CONF_AREA, DATA_SETTINGS, DOMAIN
-from .provision import ProvisionError, async_create_area_zone
-
-_LOGGER = logging.getLogger(__name__)
-DATA_AUTO_PENDING = "auto_zones_pending"
+from .const import CONF_AREA, DOMAIN
 
 
 def _ours(entity_id: str) -> bool:
@@ -65,35 +59,12 @@ def detect_area_heating(hass: HomeAssistant, area_id: str) -> dict | None:
     return {"heaters": heaters, "temperature_sensor": sensor}
 
 
-async def async_auto_zones(hass: HomeAssistant) -> None:
-    """Give every area HA already heats a zone, except areas the admin removed."""
-    settings = hass.data[DOMAIN][DATA_SETTINGS]
-    ignored = set(settings.ignored_areas)
+def detected_areas(hass: HomeAssistant) -> list[dict]:
+    """Areas without a zone whose heating HA already holds; nothing is created until the area gets a rule."""
     zoned = {entry.data.get(CONF_AREA) for entry in hass.config_entries.async_entries(DOMAIN)}
+    out = []
     for area in ar.async_get(hass).async_list_areas():
-        if area.id in zoned or area.id in ignored:
+        if area.id in zoned or (found := detect_area_heating(hass, area.id)) is None:
             continue
-        found = detect_area_heating(hass, area.id)
-        if found is None:
-            continue
-        try:
-            await async_create_area_zone(hass, area.id, auto=True, **found)
-        except ProvisionError as err:
-            _LOGGER.info("Could not set up heating for %s: %s", area.name, err)
-
-
-def async_schedule_auto_zones(hass: HomeAssistant) -> None:
-    """Run `async_auto_zones` once, however many registry events ask for it meanwhile."""
-    data = hass.data.get(DOMAIN)
-    if data is None or data.get(DATA_AUTO_PENDING):
-        return
-    data[DATA_AUTO_PENDING] = True
-
-    async def _run() -> None:
-        try:
-            await async_auto_zones(hass)
-        finally:
-            data[DATA_AUTO_PENDING] = False
-
-    hass.async_create_task(_run())
-
+        out.append({"area_id": area.id, "name": area.name, **found})
+    return sorted(out, key=lambda a: a["name"])

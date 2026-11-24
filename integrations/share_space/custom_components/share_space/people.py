@@ -1,11 +1,12 @@
 """People and their plannings, held in Home Assistant itself.
 
 A person's area is the `person` entity's own HA area. A person's weekly planning is an HA
-Schedule helper; Share Space only keeps which helper belongs to which person.
+Schedule helper; Share Space only keeps which helper belongs to which person. What older
+versions kept in Share Space's own storage is still read, and moves into HA the first time
+it is edited in Share Space.
 """
 from __future__ import annotations
 
-import logging
 from collections.abc import Callable
 
 from homeassistant.components.websocket_api.const import DOMAIN as WS_DOMAIN
@@ -23,8 +24,6 @@ from .const import (
     STORAGE_VERSION,
 )
 
-_LOGGER = logging.getLogger(__name__)
-
 SCHEDULE_ICON = "mdi:calendar-account"
 
 
@@ -33,19 +32,30 @@ class PersonAreas:
 
     def __init__(self, hass: HomeAssistant) -> None:
         self._hass = hass
+        self._legacy_store: Store[dict] = Store(hass, STORAGE_VERSION, STORAGE_KEY_PERSON_AREAS)
+        self._legacy: dict[str, str] = {}
+
+    async def async_load(self) -> None:
+        self._legacy = await self._legacy_store.async_load() or {}
 
     def _registry(self) -> er.EntityRegistry:
         return er.async_get(self._hass)
 
+    def _all(self) -> dict[str, str]:
+        out = {p: a for p, a in self._legacy.items() if a}
+        for e in self._registry().entities.values():
+            if e.domain == "person" and e.area_id:
+                out[e.entity_id] = e.area_id
+        return out
+
     def get(self, person: str) -> str | None:
-        entry = self._registry().async_get(person)
-        return entry.area_id if entry else None
+        return self._all().get(person)
 
     def persons_in_area(self, area: str) -> list[str]:
-        return sorted(e.entity_id for e in er.async_entries_for_area(self._registry(), area) if e.domain == "person")
+        return sorted(p for p, a in self._all().items() if a == area)
 
     def areas(self) -> set[str]:
-        return {e.area_id for e in self._registry().entities.values() if e.domain == "person" and e.area_id}
+        return set(self._all().values())
 
     async def async_set(self, person: str, area: str | None) -> None:
         registry = self._registry()
@@ -54,22 +64,8 @@ class PersonAreas:
         if area and ar.async_get(self._hass).async_get_area(area) is None:
             raise ServiceValidationError(f"Unknown area {area}")
         registry.async_update_entity(person, area_id=area or None)
-
-    async def async_migrate(self) -> None:
-        """Move the areas Share Space used to keep in its own store onto the person entities."""
-        store: Store[dict] = Store(self._hass, STORAGE_VERSION, STORAGE_KEY_PERSON_AREAS)
-        old = await store.async_load()
-        if old is None:
-            return
-        registry = self._registry()
-        for person, area in old.items():
-            entry = registry.async_get(person)
-            if entry is None or not area or ar.async_get(self._hass).async_get_area(area) is None:
-                _LOGGER.warning("Share Space: could not move the area of %s (%s) to Home Assistant", person, area)
-                continue
-            if entry.area_id is None:
-                registry.async_update_entity(person, area_id=area)
-        await store.async_remove()
+        if self._legacy.pop(person, None) is not None:
+            await self._legacy_store.async_save(self._legacy)
 
 
 def _schedule_collection(hass: HomeAssistant):
@@ -118,9 +114,12 @@ class PersonPlannings:
         self._hass = hass
         self._store: Store[dict] = Store(hass, STORAGE_VERSION, STORAGE_KEY_PERSON_PLANNINGS)
         self._links: dict[str, str] = {}
+        self._legacy_store: Store[dict] = Store(hass, STORAGE_VERSION, STORAGE_KEY_PERSON_CALENDARS)
+        self._legacy: dict[str, dict] = {}
 
     async def async_load(self) -> None:
         self._links = await self._store.async_load() or {}
+        self._legacy = await self._legacy_store.async_load() or {}
 
     def _item(self, person: str) -> dict | None:
         item_id = self._links.get(person)
@@ -128,10 +127,7 @@ class PersonPlannings:
 
     def get(self, person: str) -> dict | None:
         item = self._item(person)
-        return _to_calendar(item) if item else None
-
-    def persons(self) -> list[str]:
-        return list(self._links)
+        return _to_calendar(item) if item else self._legacy.get(person)
 
     def schedule_entity(self, person: str) -> str | None:
         item_id = self._links.get(person)
@@ -155,6 +151,8 @@ class PersonPlannings:
         created = await collection.async_create_item({"name": f"Planning {self._person_name(person)}", "icon": SCHEDULE_ICON, **days})
         self._links[person] = created["id"]
         await self._store.async_save(self._links)
+        if self._legacy.pop(person, None) is not None:
+            await self._legacy_store.async_save(self._legacy)
 
     @callback
     def async_listen(self, on_change: Callable[[], None]) -> Callable[[], None]:
@@ -168,14 +166,3 @@ class PersonPlannings:
                 on_change()
 
         return _schedule_collection(self._hass).async_add_listener(_changed)
-
-    async def async_migrate(self) -> None:
-        """Move plannings Share Space used to keep in its own store into Schedule helpers."""
-        store: Store[dict] = Store(self._hass, STORAGE_VERSION, STORAGE_KEY_PERSON_CALENDARS)
-        old = await store.async_load()
-        if old is None:
-            return
-        for person, calendar in old.items():
-            if person not in self._links and calendar:
-                await self.async_set(person, calendar)
-        await store.async_remove()

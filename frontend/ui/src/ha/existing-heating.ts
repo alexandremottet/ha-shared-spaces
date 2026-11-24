@@ -19,6 +19,8 @@ export interface ExistingHeating {
   haPath: string;
   /** Conditions the rules may use when edited. */
   editable: Condition["type"][];
+  /** Share Space can show all of it as rules; otherwise it is read only (edit it in HA, or replace it). */
+  compatible: boolean;
   source: AutomationSource | SchedulerSource;
 }
 
@@ -92,6 +94,35 @@ function hitsArea(hass: HomeAssistant, call: HeatingCall, target: HeatingTarget)
   return call.areas.includes(target.area) || call.entities.some((e) => target.entities.includes(e) || entityAreaId(hass, e) === target.area);
 }
 
+const HEATING_DOMAINS = ["climate", "switch", "homeassistant", "input_boolean", "script", "scene"];
+
+/** A call anywhere in the actions (inside choose, if, sequence...) that acts on the area's heating. */
+function heatingCallIn(hass: HomeAssistant, v: unknown, target: HeatingTarget): boolean {
+  if (Array.isArray(v)) return v.some((x) => heatingCallIn(hass, x, target));
+  if (!isObj(v)) return false;
+  const call = callOf(v);
+  if (call && HEATING_DOMAINS.includes(call.service.split(".")[0]) && hitsArea(hass, call, target)) return true;
+  return Object.values(v).some((x) => typeof x === "object" && heatingCallIn(hass, x, target));
+}
+
+/** Shown as it is in HA: Share Space cannot express it as rules. */
+function readOnlyAutomation(hass: HomeAssistant, entityId: string, config: Obj, triggers: unknown[], conditions: unknown[], actions: unknown[]): ExistingHeating {
+  const id = String(config.id ?? hass.states[entityId]?.attributes.id ?? "");
+  return {
+    kind: "automation",
+    id,
+    entityId,
+    name: String(config.alias ?? entityId),
+    enabled: hass.states[entityId]?.state !== "off",
+    rules: [],
+    unmapped: [...triggers.map((t) => `When ${describe(t)}`), ...conditions.map((c) => `If ${describe(c)}`), ...actions.map((a) => `Then ${describe(a)}`)],
+    haPath: `/config/automation/edit/${id}`,
+    editable: [],
+    compatible: false,
+    source: { config, trigger: null, weekdayCondition: null, states: [], action: -1, delay: null, schedule: null },
+  };
+}
+
 /** The Share Space action a heating service call means; null when it means something else. */
 export function actionOf(call: HeatingCall): Action | null {
   const [domain, service] = call.service.split(".");
@@ -131,6 +162,12 @@ function callFor(action: Action, original: HeatingCall): { service: string; data
 
 const describe = (v: unknown): string => {
   if (!isObj(v)) return String(v);
+  if (Array.isArray(v.choose)) {
+    const calls = (v.choose as unknown[]).flatMap((o) => (isObj(o) ? asArray(o.sequence) : [])).map(describe);
+    return `choose: ${calls.join(" · ")}`;
+  }
+  if (v.if !== undefined || v.then !== undefined) return `if/then: ${[...asArray(v.then), ...asArray(v.else)].map(describe).join(" · ")}`;
+  if (Array.isArray(v.sequence)) return v.sequence.map(describe).join(" · ");
   const nested = asArray(v.conditions);
   if ((v.condition === "or" || v.condition === "and") && nested.length) {
     return `${v.condition === "or" ? "any of" : "all of"}: ${nested.map(describe).join(" · ")}`;
@@ -204,7 +241,7 @@ export function automationAsHeating(
     const call = callOf(a);
     return !!call && hitsArea(hass, call, target) && actionOf(call) !== null;
   });
-  if (action < 0) return null;
+  if (action < 0) return heatingCallIn(hass, actions, target) ? readOnlyAutomation(hass, entityId, config, triggers, conditions, actions) : null;
   const call = callOf(actions[action])!;
   const unmapped: string[] = [];
   const when: Condition[] = [];
@@ -278,6 +315,7 @@ export function automationAsHeating(
     unmapped,
     haPath: `/config/automation/edit/${id}`,
     editable: ["weekday", "time", "state"],
+    compatible: unmapped.length === 0,
     source: { config, trigger, weekdayCondition, states, action, delay, schedule: resolved },
   };
 }
@@ -405,6 +443,7 @@ export function schedulerAsHeating(hass: HomeAssistant, item: SchedulerItem, tar
     unmapped,
     haPath: `/config/entities?search=${encodeURIComponent(entityId)}`,
     editable: ["weekday", "time"],
+    compatible: unmapped.length === 0 && rules.length > 0,
     source: { item, slots },
   };
 }
@@ -495,6 +534,7 @@ export async function loadExistingHeating(hass: HomeAssistant, target: HeatingTa
 
 /** Write edited rules back into the same HA object. */
 export async function saveExistingHeating(hass: HomeAssistant, item: ExistingHeating, rules: Rule[]): Promise<void> {
+  if (!item.compatible) throw new Error("Share Space cannot express all of it: edit it in Home Assistant, or replace it with Share Space rules");
   if (item.kind === "scheduler") {
     await hass.callService("scheduler", "edit", schedulerFromRules(item, rules));
     return;
