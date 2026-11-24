@@ -80,7 +80,16 @@ if (globalMatch) {
     notes.push(`- \`${component.name}\` ${componentVersionValue} (${componentTag})`);
     if (section) sections.push(`## ${component.name} ${componentVersionValue}\n\n${section}`);
   }
-  writeFileSync(plan.notes, [...notes, "", ...sections].join("\n") + "\n");
+  const install = [
+    "## Install or update",
+    "",
+    "In Home Assistant's Terminal (the Terminal & SSH add-on), then restart Home Assistant:",
+    "",
+    "```sh",
+    `curl -fsSL https://raw.githubusercontent.com/alexandremottet/ha-shared-spaces/main/scripts/update.sh | sh -s -- ${tag}`,
+    "```",
+  ];
+  writeFileSync(plan.notes, [...notes, "", ...install, "", ...sections].join("\n") + "\n");
 } else if (componentMatch) {
   const [, name, version] = componentMatch;
   const component = COMPONENTS.find((candidate) => candidate.name === name);
