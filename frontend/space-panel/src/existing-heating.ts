@@ -62,10 +62,34 @@ export class ShareSpaceExistingHeating extends LitElement {
       border-radius: 10px;
       background: var(--secondary-background-color);
     }
-    .unmapped {
-      margin: 0;
-      padding-left: 18px;
+    .mapping {
+      border-collapse: collapse;
+      width: 100%;
       font-size: 0.9em;
+    }
+    .mapping th,
+    .mapping td {
+      text-align: left;
+      vertical-align: top;
+      padding: 4px 8px;
+      border-top: 1px solid var(--divider-color, rgba(0, 0, 0, 0.12));
+    }
+    .mapping th {
+      color: var(--secondary-text-color);
+      font-weight: 500;
+      border-top: none;
+    }
+    .mapping td:first-child {
+      width: 50%;
+      color: var(--secondary-text-color);
+    }
+    .mapping .lost {
+      color: var(--warning-color, #b26a00);
+      font-style: italic;
+    }
+    summary {
+      cursor: pointer;
+      color: var(--primary-color);
     }
     .choice {
       ${haCardSurface}
@@ -133,12 +157,29 @@ export class ShareSpaceExistingHeating extends LitElement {
         <span class="badge">${on ? "On" : "Off"}</span>
         <button @click=${() => this._open(item.haPath)}>Open in Home Assistant</button>
       </div>
-      <div inert>${item.rules.map((rule, i) => html`<share-space-rule-row .rule=${rule} .areaNames=${names} .index=${i} .count=${item.rules.length}></share-space-rule-row>`)}</div>
-      ${item.unmapped.length
-        ? html`<div class="muted">${on ? "Not copied when migrating:" : "Share Space cannot show this as rules:"}</div>
-            <ul class="unmapped muted">
-              ${item.unmapped.map((u) => html`<li>${u}</li>`)}
-            </ul>`
+      <table class="mapping">
+        <thead>
+          <tr>
+            <th scope="col">In Home Assistant</th>
+            <th scope="col">In Share Space rules</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${item.mapping.map(
+            (m) => html`<tr>
+              <td>${m.ha}</td>
+              <td class=${m.rules === null ? "lost" : ""}>${m.rules ?? "Not copied"}</td>
+            </tr>`,
+          )}
+        </tbody>
+      </table>
+      ${item.rules.length
+        ? html`<details>
+            <summary>As Share Space rules</summary>
+            <div inert>
+              ${item.rules.map((rule, i) => html`<share-space-rule-row .rule=${rule} .areaNames=${names} .index=${i} .count=${item.rules.length}></share-space-rule-row>`)}
+            </div>
+          </details>`
         : nothing}
     </div>`;
   }
@@ -163,7 +204,7 @@ export class ShareSpaceExistingHeating extends LitElement {
               <button @click=${() => this._emit("start-scratch")}>Start from scratch</button>
             </div>
             <div class="muted">
-              Migrate copies ${running.map((i) => i.name).join(", ")} into the rules${lost ? html`; the lines listed under "Not copied" stay out` : ""}.
+              Migrate copies ${running.map((i) => i.name).join(", ")} into the rules${lost ? html`; the lines marked "Not copied" stay out` : ""}.
               Nothing changes in Home Assistant until you save.
             </div>
           </div>`

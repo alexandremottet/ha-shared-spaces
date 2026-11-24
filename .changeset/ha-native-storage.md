@@ -17,3 +17,7 @@ Share Space keeps its data in Home Assistant itself, and changes nothing until y
 - Saving Share Space rules for an area turns off the HA automations and Scheduler items that heated it (shown under Save before clicking); they are not deleted.
 - Scheduler items open on the dashboard showing the Scheduler card; an admin can make HA open on Share Space for everyone.
 - Removed: services `share_space.set_area_actions` and `share_space.run_area_actions`; WS `share_space_heating/manage_area` (replaced by `detected_areas`).
+- Overview shows the thermostats Home Assistant already has, before any rule is saved (set directly on the thermostat; timed overrides come with the area's first rule).
+- Rules opens on a list of every heated area: what drives it (a shared strategy, custom rules, or the HA automations and Scheduler items) and whether it is on. "All areas" goes back to it.
+- Each HA automation or Scheduler item shows, line by line, what it becomes in Share Space rules, and which lines are not copied.
+- Settings → Dashboards: one dropdown picks the dashboards shown as tabs, and one per view picks who sees it.

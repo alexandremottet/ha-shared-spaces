@@ -60,6 +60,13 @@ describe("automationAsHeating", () => {
       },
     ]);
     expect(item.unmapped).toEqual([]);
+    expect(item.mapping).toEqual([
+      { ha: expect.stringMatching(/^When /), rules: "11:30–13:10 and mon, tue, wed, thu, fri" },
+      { ha: expect.stringMatching(/^If any of: /), rules: "bureau rue heated" },
+      { ha: expect.stringMatching(/^Then /), rules: "then Comfort" },
+      { ha: "Then wait 1h40", rules: "the window ends at 13:10" },
+      { ha: expect.stringMatching(/^Then /), rules: "after the window, the area's other rules apply" },
+    ]);
     expect(item.haPath).toBe("/config/automation/edit/1763116012338");
   });
 

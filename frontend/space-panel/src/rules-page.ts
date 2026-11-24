@@ -1,4 +1,4 @@
-import { LitElement, html } from "lit";
+import { LitElement, css, html } from "lit";
 import type { PropertyValues, TemplateResult } from "lit";
 import { customElement, property, state } from "lit/decorators.js";
 import { afterSave, climateHeated, entityStates, heatedKey, isDirty, sensorReadings, sameRules, strategyHeatedAreas, undoRules } from "ha-share-space-ui";
@@ -44,6 +44,7 @@ import type {
   ZoneRules,
 } from "ha-share-space-ui/ha";
 import "./rules-tab";
+import "./rules-summary";
 import "./existing-heating";
 
 const messageOf = (err: unknown): string => {
@@ -78,6 +79,22 @@ export class ShareSpaceRulesPage extends LitElement {
   @state() private _existing: ExistingHeating[] = [];
   @state() private _existingVersion = 0;
   private _started = false;
+
+  static styles = css`
+    :host {
+      display: block;
+    }
+    .back {
+      all: unset;
+      cursor: pointer;
+      color: var(--primary-color);
+      margin-bottom: 8px;
+      display: inline-block;
+    }
+    .back:focus-visible {
+      outline: 2px solid var(--primary-color);
+    }
+  `;
   private _sig = "";
   private _usesSig = "";
 
@@ -511,8 +528,17 @@ export class ShareSpaceRulesPage extends LitElement {
         @start-scratch=${() => this._start("scratch")}
         @existing-loaded=${(e: CustomEvent<ExistingHeating[]>) => (this._existing = e.detail)}
       ></share-space-existing-heating>`;
+    if (!this._zone)
+      return html`<share-space-rules-summary
+        .hass=${hass}
+        .zones=${this._zones}
+        .shared=${this._shared}
+        .version=${this._existingVersion}
+        @zone-select=${(e: CustomEvent<string>) => void this._select(e.detail)}
+      ></share-space-rules-summary>`;
+    const back = html`<button class="back" ?disabled=${this._busy} @click=${() => void this._select("")}>← All areas</button>`;
     // the choice comes first; once made, the list is only a reminder of what saving turns off
-    return this._choosing ? html`${existing}${tab}` : html`${tab}${existing}`;
+    return this._choosing ? html`${back}${existing}${tab}` : html`${back}${tab}${existing}`;
   }
 }
 
