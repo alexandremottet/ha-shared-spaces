@@ -16,3 +16,4 @@ dist/
 
 # Copy of a real HA used for local testing: never committed
 .ha-replica/
+.playwright-mcp/
