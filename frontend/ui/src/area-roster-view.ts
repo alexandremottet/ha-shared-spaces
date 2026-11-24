@@ -8,6 +8,8 @@ import type { TimesPlacement } from "./period-text";
 import "./overlap-track";
 import type { OverlapSegment } from "./overlap-track";
 import { mergeAdjacentPeriods } from "./merge-periods";
+import { dayName } from "./period-text";
+import { t } from "./i18n";
 
 export interface RosterPerson {
   id: string;
@@ -170,7 +172,7 @@ export class AreaRosterView extends LitElement {
   private _renderDay(day: WeekDay) {
     if (this.viewMode === "lanes") {
       return html`
-        <div class="day-heading">${day}</div>
+        <div class="day-heading">${dayName(day)}</div>
         ${this.totalLabel
           ? html`<person-lane-track class="total" .times=${this.times} .label=${this.totalLabel} .color=${"var(--area-roster-total-color, var(--primary-color))"} .periods=${computeMergedPeriods(this.people, day)}></person-lane-track>`
           : null}
@@ -189,13 +191,13 @@ export class AreaRosterView extends LitElement {
 
     if (this.viewMode === "merged") {
       return html`
-        <div class="day-heading">${day}</div>
+        <div class="day-heading">${dayName(day)}</div>
         <person-lane-track .periods=${computeMergedPeriods(this.people, day)}></person-lane-track>
       `;
     }
 
     return html`
-      <div class="day-heading">${day}</div>
+      <div class="day-heading">${dayName(day)}</div>
       <overlap-track
         .segments=${computeOverlapSegments(this.people, day)}
         .personOrder=${this.people.map((person) => person.id)}
@@ -206,7 +208,7 @@ export class AreaRosterView extends LitElement {
 
   protected render() {
     if (this.people.length === 0) {
-      return html`<p class="placeholder"><slot name="empty">No one is assigned to this area yet.</slot></p>`;
+      return html`<p class="placeholder"><slot name="empty">${t("No one is assigned to this area yet.")}</slot></p>`;
     }
     return html` ${this._renderLegend()} ${WEEK_DAYS.map((day) => this._renderDay(day))} `;
   }

@@ -7,6 +7,7 @@ import type { RuleError } from "../validate";
 import type { ValueUnit } from "./edit";
 import { defaultCurve, fixedOf, parseNumber, removeAt, replaceAt, scopeErrors } from "./edit";
 import { sensorField } from "./sensor-field";
+import { t } from "../../i18n";
 import { OUTDOOR } from "../value";
 import { ruleStyles } from "./styles";
 
@@ -64,22 +65,22 @@ export class ShareSpaceRuleValue extends LitElement {
     };
     return html`<div class="curve">
       <div class="row">
-        <span>${c.entity === OUTDOOR ? "outdoor temperature (Settings)" : "sensor"}</span>
+        <span>${c.entity === OUTDOOR ? t("outdoor temperature (Settings)") : t("sensor")}</span>
         ${sensorField(c.entity, (entity) => patch({ entity }), this._bad(".entity"))}
       </div>
       ${c.points.map(
         (p, i) => html`<div class="row">
-          <span>when it is</span>${this._number(`Point ${i + 1} outdoor °C`, p.at, (at) => setPoint(i, { at }), this._bad(`.points[${i}].at`))}
-          <span>→</span>${this._number(`Point ${i + 1} ${this.label}`, p.value, (value) => setPoint(i, { value }), this._bad(`.points[${i}].value`))}<span>${this.unit}</span>
-          ${c.points.length > 2 ? html`<button class="danger" aria-label="Remove point ${i + 1}" @click=${() => patch({ points: removeAt(c.points, i) })}>✕</button>` : nothing}
+          <span>${t("when it is")}</span>${this._number(t("Point {n} outdoor °C", { n: i + 1 }), p.at, (at) => setPoint(i, { at }), this._bad(`.points[${i}].at`))}
+          <span>→</span>${this._number(t("Point {n} {label}", { n: i + 1, label: this.label }), p.value, (value) => setPoint(i, { value }), this._bad(`.points[${i}].value`))}<span>${this.unit}</span>
+          ${c.points.length > 2 ? html`<button class="danger" aria-label=${t("Remove point {n}", { n: i + 1 })} @click=${() => patch({ points: removeAt(c.points, i) })}>✕</button>` : nothing}
         </div>`,
       )}
       <div class="row">
-        ${c.points.length < MAX_POINTS ? html`<button aria-label="Add point" @click=${addPoint}>+ Add point</button>` : nothing}
-        <span>no reading: use</span>${this._number("Value when there is no outdoor reading", c.default, (d) => patch({ default: d }), this._bad(".default"))}
+        ${c.points.length < MAX_POINTS ? html`<button aria-label=${t("Add point")} @click=${addPoint}>+ ${t("Add point")}</button>` : nothing}
+        <span>${t("no reading: use")}</span>${this._number(t("Value when there is no outdoor reading"), c.default, (d) => patch({ default: d }), this._bad(".default"))}
         ${this._spark(c.points)}
       </div>
-      <div class="muted">Straight line between points, flat before the first and after the last.</div>
+      <div class="muted">${t("Straight line between points, flat before the first and after the last.")}</div>
     </div>`;
   }
 
@@ -95,7 +96,7 @@ export class ShareSpaceRuleValue extends LitElement {
     const sx = (x: number) => 4 + ((x - x0 + pad) / (x1 - x0 + 2 * pad || 1)) * 152;
     const sy = (y: number) => 44 - ((y - y0) / (y1 - y0 || 1)) * 40;
     const line = [`4,${sy(ys[0])}`, ...points.map((p) => `${sx(p.at)},${sy(p.value)}`), `156,${sy(ys[ys.length - 1])}`].join(" ");
-    return html`<svg viewBox="0 0 160 48" role="img" aria-label="Curve preview">
+    return html`<svg viewBox="0 0 160 48" role="img" aria-label=${t("Curve preview")}>
       ${svg`<polyline points=${line} fill="none" stroke="currentColor" stroke-width="2" />`}
       ${points.map((p) => svg`<circle cx=${sx(p.at)} cy=${sy(p.value)} r="3" fill="currentColor" />`)}
     </svg>`;
@@ -105,9 +106,9 @@ export class ShareSpaceRuleValue extends LitElement {
     const v = this.value;
     const curve = typeof v === "object";
     return html`<div class="row">
-        <select aria-label="${this.label} mode" @change=${(e: Event) => this._emit((e.target as HTMLSelectElement).value === "curve" ? defaultCurve(this.unit, fixedOf(v)) : fixedOf(v))}>
-          <option value="fixed" ?selected=${!curve}>Fixed</option>
-          <option value="curve" ?selected=${curve}>Follow outdoor temperature</option>
+        <select aria-label=${t("{label} mode", { label: this.label })} @change=${(e: Event) => this._emit((e.target as HTMLSelectElement).value === "curve" ? defaultCurve(this.unit, fixedOf(v)) : fixedOf(v))}>
+          <option value="fixed" ?selected=${!curve}>${t("Fixed")}</option>
+          <option value="curve" ?selected=${curve}>${t("Follow outdoor temperature")}</option>
         </select>
         ${curve ? nothing : html`${this._number(this.label, v, (n) => this._emit(n), this.errors.length > 0)}<span>${this.unit}</span>`}
       </div>

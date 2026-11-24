@@ -1,12 +1,12 @@
 import { LitElement, css, html, nothing } from "lit";
 import type { PropertyValues, TemplateResult } from "lit";
 import { customElement, property, state } from "lit/decorators.js";
-import { haCardSurface } from "ha-share-space-ui";
+import { haCardSurface, t } from "ha-share-space-ui";
 import { findCardView, loadExistingHeating } from "ha-share-space-ui/ha";
 import { buttonStyles } from "./button-styles";
 import type { ExistingHeating, HeatingTarget, HomeAssistant } from "ha-share-space-ui/ha";
 
-const SOURCE: Record<ExistingHeating["kind"], string> = { automation: "Automation", scheduler: "Scheduler" };
+const sourceLabel = (kind: ExistingHeating["kind"]): string => (kind === "scheduler" ? t("Scheduler") : t("Automation"));
 
 // Rules tab: heating the area already gets from HA, read only; the admin migrates it into Share Space rules or starts from scratch.
 @customElement("share-space-existing-heating")
@@ -62,7 +62,7 @@ export class ShareSpaceExistingHeating extends LitElement {
     .badge {
       font-size: 0.75em;
       padding: 2px 8px;
-      border-radius: 10px;
+      border-radius: 4px;
       background: var(--secondary-background-color);
     }
     .mapping {
@@ -144,30 +144,30 @@ export class ShareSpaceExistingHeating extends LitElement {
     const names = Object.fromEntries(Object.values(this.hass?.areas ?? {}).map((a) => [a.area_id, a.name]));
     return html`<div class="item ${on ? "" : "off"}">
       <div class="head">
-        <span class="badge">${SOURCE[item.kind]}</span>
+        <span class="badge">${sourceLabel(item.kind)}</span>
         <span class="name">${item.name}</span>
-        <span class="badge">${on ? "On" : "Off"}</span>
-        <button @click=${() => this._open(item.haPath)}>Open in Home Assistant</button>
+        <span class="badge">${on ? t("On") : t("Off")}</span>
+        <button @click=${() => this._open(item.haPath)}>${t("Open in Home Assistant")}</button>
       </div>
       <table class="mapping">
         <thead>
           <tr>
-            <th scope="col">In Home Assistant</th>
-            <th scope="col">In Share Space rules</th>
+            <th scope="col">${t("In Home Assistant")}</th>
+            <th scope="col">${t("In Share Space rules")}</th>
           </tr>
         </thead>
         <tbody>
           ${item.mapping.map(
             (m) => html`<tr>
               <td>${m.ha}</td>
-              <td class=${m.rules === null ? "lost" : ""}>${m.rules ?? "Not copied"}</td>
+              <td class=${m.rules === null ? "lost" : ""}>${m.rules ?? t("Not copied")}</td>
             </tr>`,
           )}
         </tbody>
       </table>
       ${item.rules.length
         ? html`<details>
-            <summary>As Share Space rules</summary>
+            <summary>${t("As Share Space rules")}</summary>
             <div inert>
               ${item.rules.map((rule, i) => html`<share-space-rule-row .rule=${rule} .areaNames=${names} .index=${i} .count=${item.rules.length}></share-space-rule-row>`)}
             </div>
@@ -179,17 +179,16 @@ export class ShareSpaceExistingHeating extends LitElement {
   protected render(): TemplateResult | typeof nothing {
     if (!this.target) return nothing;
     const items = this._items;
-    if (items === null) return html`<section class="panel"><h3>Already in Home Assistant</h3><div class="muted">Looking for schedules and automations…</div></section>`;
+    if (items === null) return html`<section class="panel"><h3>${t("Already in Home Assistant")}</h3><div class="muted">${t("Looking for schedules and automations…")}</div></section>`;
     if (!items.length) return nothing;
     const running = items.filter((i) => this._enabled(i));
     return html`<section class="panel">
-      <h3>Already in Home Assistant</h3>
+      <h3>${t("Already in Home Assistant")}</h3>
       <div class="muted">
-        Schedules and automations that heat this area today, read only here. Saving Share Space rules for this area turns the ones that
-        are on off, so the rules are its only heating.
+        ${t("Schedules and automations that heat this area today, read only here. Saving Share Space rules for this area turns the ones that are on off, so the rules are its only heating.")}
       </div>
       ${this.rulesActive && running.length
-        ? html`<div class="banner" role="status">Share Space rules are on too: both act on the radiators. Save the rules again to turn these off, or turn the rules off.</div>`
+        ? html`<div class="banner" role="status">${t("Share Space rules are on too: both act on the radiators. Save the rules again to turn these off, or turn the rules off.")}</div>`
         : nothing}
       ${items.map((i) => this._renderItem(i))}
     </section>`;

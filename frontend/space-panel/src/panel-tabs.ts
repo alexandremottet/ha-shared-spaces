@@ -1,6 +1,7 @@
 import { LitElement, html, css } from "lit";
 import type { TemplateResult } from "lit";
 import { customElement, property, state } from "lit/decorators.js";
+import { t } from "ha-share-space-ui";
 
 export interface PanelTab {
   id: string;
@@ -82,7 +83,7 @@ export class ShareSpacePanelTabs extends LitElement {
       flex-direction: column;
       gap: 4px;
       padding: 6px;
-      border-radius: 16px;
+      border-radius: 4px;
       /* themes may give cards a see-through background: the menu must hide what is under it */
       background: var(--primary-background-color, #fff);
       background-image: linear-gradient(var(--card-background-color), var(--card-background-color));
@@ -121,7 +122,7 @@ export class ShareSpacePanelTabs extends LitElement {
       min-height: 40px;
       padding: 0 18px;
       border: none;
-      border-radius: 20px;
+      border-radius: 4px;
       cursor: pointer;
       font: inherit;
       font-weight: 500;
@@ -164,7 +165,7 @@ export class ShareSpacePanelTabs extends LitElement {
           class="trigger active ${current?.admin ? "admin" : ""}"
           aria-haspopup="menu"
           aria-expanded=${this._open ? "true" : "false"}
-          aria-label="Pages"
+          aria-label=${t("Pages")}
           @click=${() => (this._open = !this._open)}
         >
           <span>${current?.label ?? ""}</span>${CHEVRON}

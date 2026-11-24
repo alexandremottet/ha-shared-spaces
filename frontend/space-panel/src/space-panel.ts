@@ -3,6 +3,7 @@ import type { PropertyValues, TemplateResult } from "lit";
 import { customElement, property, state } from "lit/decorators.js";
 import { styleMap } from "lit/directives/style-map.js";
 import "ha-share-space-ui";
+import { t } from "ha-share-space-ui";
 import {
   getFloorplans,
   saveFloorplan,
@@ -21,6 +22,7 @@ import {
   setOpensShareSpaceForEveryone,
   SHARE_SPACE_PANEL,
   errorMessage,
+  syncLanguage,
 } from "ha-share-space-ui/ha";
 import type { SharePrefs, HomeAssistant, Floorplan, Hotspot, AreaInfo, SpaceDashboard } from "ha-share-space-ui/ha";
 import { zoneViewModel } from "ha-share-space-heating-card/view-model";
@@ -51,7 +53,7 @@ type Pt = [number, number];
 
 const TOGGLE_DOMAINS = ["light", "switch", "fan", "input_boolean"];
 const KINDS: Array<Hotspot["target"]["kind"]> = ["heating", "area", "entity", "card"];
-const KIND_LABEL: Record<string, string> = { heating: "Heating", area: "Area", entity: "Entity", card: "Card" };
+const kindLabel = (k: string): string => ({ heating: t("Heating"), area: t("Area"), entity: t("Entity"), card: t("Card") })[k] ?? k;
 
 const ICON_BACK = html`<svg viewBox="0 0 24 24" width="24" height="24"><path fill="currentColor" d="M20 11H7.83l5.59-5.59L12 4l-8 8 8 8 1.41-1.41L7.83 13H20v-2z"/></svg>`;
 const ICON_LOGOUT = html`<svg viewBox="0 0 24 24" width="22" height="22"><path fill="currentColor" d="M16 17v-3H9v-4h7V7l5 5-5 5M14 2a2 2 0 0 1 2 2v2h-2V4H5v16h9v-2h2v2a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9z"/></svg>`;
@@ -218,18 +220,18 @@ private _prefsFor = "";
   }
 
   private get _tabs() {
-    const overview = { id: "overview", label: "Overview" };
-    const dashboards = this._dashboards.map((d) => ({ id: `dash:${d.url_path ?? "lovelace"}`, label: d.title }));
+    const overview = { id: "overview", label: t("Overview") };
+    const dashboards = this._dashboards.map((d) => ({ id: `dash:${d.url_path ?? "lovelace"}`, label: d.url_path == null && d.title === "Dashboard" ? t("Dashboard") : d.title }));
     if (this._role === "user") {
-      return [overview, ...(this._plans?.length ? [{ id: "space", label: "Space" }] : []), ...dashboards];
+      return [overview, ...(this._plans?.length ? [{ id: "space", label: t("Space") }] : []), ...dashboards];
     }
     return [
       overview,
-      { id: "space", label: "Space" },
+      { id: "space", label: t("Space") },
       ...dashboards,
-      { id: "plannings", label: "Plannings", admin: true },
-      { id: "rules", label: "Areas", admin: true },
-      { id: "settings", label: "Settings", admin: true },
+      { id: "plannings", label: t("Plannings"), admin: true },
+      { id: "rules", label: t("Areas"), admin: true },
+      { id: "settings", label: t("Settings"), admin: true },
     ];
   }
 
@@ -246,6 +248,7 @@ private _prefsFor = "";
   private _themeDefaulted = false;
 
   protected willUpdate(changed: PropertyValues): void {
+    if (changed.has("hass") && this.hass && syncLanguage(this.hass)) this.requestUpdate();
     // a browser that never picked a theme starts on Le Portemine, when it is installed
     if (changed.has("hass") && this.hass && !this._themeDefaulted) {
       this._themeDefaulted = true;
@@ -388,7 +391,7 @@ private _prefsFor = "";
       host.replaceChildren(el);
       this._placePopover();
     } catch (err) {
-      this._cardError = err instanceof Error ? err.message : "Could not render card";
+      this._cardError = err instanceof Error ? err.message : t("Could not render card");
     }
   }
 
@@ -631,7 +634,7 @@ private _prefsFor = "";
     .btn {
       min-height: 44px;
       padding: 0 18px;
-      border-radius: 22px;
+      border-radius: 4px;
       border: none;
       cursor: pointer;
       font: inherit;
@@ -711,7 +714,7 @@ private _prefsFor = "";
       position: absolute;
       transform: translate(-50%, -50%);
       pointer-events: none;
-      border-radius: 14px;
+      border-radius: 4px;
       padding: 4px 10px;
       font-size: 0.9em;
       white-space: nowrap;
@@ -733,7 +736,7 @@ private _prefsFor = "";
       width: min(380px, calc(100vw - 24px));
       max-height: calc(100vh - 24px);
       overflow: auto;
-      border-radius: var(--ha-card-border-radius, 12px);
+      border-radius: var(--ha-card-border-radius, 6px);
       background: var(--card-background-color);
       box-shadow: 0 6px 24px rgba(0, 0, 0, 0.35);
     }
@@ -797,7 +800,7 @@ private _prefsFor = "";
       overflow: auto;
       box-sizing: border-box;
       padding: 16px;
-      border-radius: var(--ha-card-border-radius, 12px);
+      border-radius: var(--ha-card-border-radius, 6px);
       background: var(--card-background-color);
       box-shadow: 0 6px 24px rgba(0, 0, 0, 0.35);
       display: flex;
@@ -821,7 +824,7 @@ private _prefsFor = "";
       color: var(--primary-text-color);
       background: var(--secondary-background-color);
       border: 1px solid var(--divider-color);
-      border-radius: 8px;
+      border-radius: 4px;
     }
     textarea {
       min-height: 120px;
@@ -839,7 +842,7 @@ private _prefsFor = "";
     const plan = this._plan;
     const tab = this._activeTab;
     return html`
-      ${this._fullHa ? html`<button class="fab exit" aria-label="Back" @click=${this._exit}>${ICON_BACK}</button>` : nothing}
+      ${this._fullHa ? html`<button class="fab exit" aria-label=${t("Back")} @click=${this._exit}>${ICON_BACK}</button>` : nothing}
       <div class="top">
       ${this._tabs.length > 1
         ? html`<share-space-panel-tabs
@@ -856,11 +859,11 @@ private _prefsFor = "";
         <div class="actions">
           <share-space-theme-picker .hass=${this.hass}></share-space-theme-picker>
           ${this.hass?.user?.name ? html`<span class="user" title=${this.hass.user.name}>${this.hass.user.name}</span>` : nothing}
-          <button class="fab logout" aria-label="Log out" title="Log out" @click=${this._logout}>${ICON_LOGOUT}</button>
+          <button class="fab logout" aria-label=${t("Log out")} title=${t("Log out")} @click=${this._logout}>${ICON_LOGOUT}</button>
         </div>
       </div>
       <div class="space" ?hidden=${tab !== "space"}>
-        ${plans === null && !this._draft ? html`<div class="center muted">Loading…</div>` : nothing}
+        ${plans === null && !this._draft ? html`<div class="center muted">${t("Loading…")}</div>` : nothing}
         ${plan ? this._renderStage(plan) : plans !== null ? this._renderEmpty() : nothing}
         ${plan ? this._renderBar(plans ?? []) : nothing}
         ${this._edit && this._draft ? this._renderEditor(this._draft) : nothing}
@@ -908,11 +911,11 @@ private _prefsFor = "";
   private _renderEmpty(): TemplateResult {
     return html`
       <div class="center">
-        <div class="big">No floor plan yet</div>
+        <div class="big">${t("No floor plan yet")}</div>
         ${this._error ? html`<div class="error">${this._error}</div>` : nothing}
         ${this._isAdmin
-          ? html`<button class="btn primary" @click=${this._createPlan}>Create plan</button>`
-          : html`<div class="muted">Ask an administrator to create one.</div>`}
+          ? html`<button class="btn primary" @click=${this._createPlan}>${t("Create plan")}</button>`
+          : html`<div class="muted">${t("Ask an administrator to create one.")}</div>`}
       </div>
     `;
   }
@@ -938,10 +941,10 @@ private _prefsFor = "";
           : nothing}
         <span class="spacer"></span>
         ${this._error ? html`<span class="error">${this._error}</span>` : nothing}
-        ${this._isAdmin && !this._edit ? html`<button class="btn" @click=${this._startEdit}>Edit</button>` : nothing}
+        ${this._isAdmin && !this._edit ? html`<button class="btn" @click=${this._startEdit}>${t("Edit")}</button>` : nothing}
         ${this._edit
-          ? html`<button class="btn" @click=${this._cancelEdit}>Cancel</button>
-              <button class="btn primary" ?disabled=${this._saving} @click=${this._save}>Save</button>`
+          ? html`<button class="btn" @click=${this._cancelEdit}>${t("Cancel")}</button>
+              <button class="btn primary" ?disabled=${this._saving} @click=${this._save}>${t("Save")}</button>`
           : nothing}
       </div>
     `;
@@ -1020,7 +1023,7 @@ private _prefsFor = "";
       >
         <div class="pop-head">
           <span>${h.label}</span>
-          <button class="icon-btn" aria-label="Close" @click=${this._closePopover}>${ICON_CLOSE}</button>
+          <button class="icon-btn" aria-label=${t("Close")} @click=${this._closePopover}>${ICON_CLOSE}</button>
         </div>
         <div class="pop-body">
           ${this._renderTarget(h)}
@@ -1037,7 +1040,7 @@ private _prefsFor = "";
     switch (h.target.kind) {
       case "heating": {
         const vm = typeof ref === "string" ? zoneViewModel(hass, ref) : null;
-        if (!vm) return html`<div class="error">Entity not found: ${String(ref)}</div>`;
+        if (!vm) return html`<div class="error">${t("Entity not found: {id}", { id: String(ref) })}</div>`;
         return renderHeatingControl(hass, vm, (fn) => void this._run(fn), true);
       }
       case "area": {
@@ -1046,16 +1049,16 @@ private _prefsFor = "";
         const sensor = hass.states[info?.entity_id ?? `binary_sensor.share_space_${id}`];
         const names = (info?.persons ?? []).map((p) => String(hass.states[p]?.attributes.friendly_name ?? p));
         return html`
-          <div class="big">${sensor ? (sensor.state === "on" ? "Occupied" : "Empty") : "Unknown"}</div>
+          <div class="big">${sensor ? (sensor.state === "on" ? t("Occupied") : t("Empty")) : t("Unknown")}</div>
           ${names.length
             ? html`<ul>${names.map((n) => html`<li>${n}</li>`)}</ul>`
-            : html`<div class="muted">Nobody assigned</div>`}
+            : html`<div class="muted">${t("Nobody assigned")}</div>`}
         `;
       }
       case "entity": {
         const id = String(ref);
         const st = hass.states[id];
-        if (!st) return html`<div class="error">Entity not found: ${id}</div>`;
+        if (!st) return html`<div class="error">${t("Entity not found: {id}", { id })}</div>`;
         const unit = st.attributes.unit_of_measurement ? ` ${st.attributes.unit_of_measurement}` : "";
         const toggle = TOGGLE_DOMAINS.includes(id.split(".")[0]);
         return html`
@@ -1064,7 +1067,7 @@ private _prefsFor = "";
           ${toggle
             ? html`<div class="row" style="margin-top:12px">
                 <button class="btn primary" @click=${() => this._run(() => hass.callService("homeassistant", "toggle", { entity_id: id }))}>
-                  Toggle
+                  ${t("Toggle")}
                 </button>
               </div>`
             : nothing}
@@ -1080,11 +1083,11 @@ private _prefsFor = "";
     return html`
       <div class="editor">
         <label>
-          Plan name
+          ${t("Plan name")}
           <input .value=${plan.name} @input=${(e: Event) => (this._draft = { ...plan, name: (e.target as HTMLInputElement).value })} />
         </label>
         <label>
-          Image URL
+          ${t("Image URL")}
           <input
             placeholder="/local/space.png"
             .value=${plan.image_url}
@@ -1093,9 +1096,9 @@ private _prefsFor = "";
               this._draft = { ...plan, image_url: (e.target as HTMLInputElement).value.trim() };
             }}
           />
-          <span>Leave empty for the placeholder. Drag on the image to draw a hotspot.</span>
+          <span>${t("Leave empty for the placeholder. Drag on the image to draw a hotspot.")}</span>
         </label>
-        ${sel ? this._renderHotspotEditor(sel) : html`<div class="muted">Draw a rectangle, or tap a hotspot to edit it.</div>`}
+        ${sel ? this._renderHotspotEditor(sel) : html`<div class="muted">${t("Draw a rectangle, or tap a hotspot to edit it.")}</div>`}
       </div>
     `;
   }
@@ -1106,23 +1109,23 @@ private _prefsFor = "";
     const setTarget = (t: Partial<Hotspot["target"]>) => this._patchHotspot(h.id, { target: { ...h.target, ...t } });
     return html`
       <label>
-        Label
+        ${t("Label")}
         <input .value=${h.label} @input=${(e: Event) => this._patchHotspot(h.id, { label: (e.target as HTMLInputElement).value })} />
       </label>
       <label>
-        Type
+        ${t("Type")}
         <select
           @change=${(e: Event) => {
             const k = (e.target as HTMLSelectElement).value as Hotspot["target"]["kind"];
             this._patchHotspot(h.id, { target: { kind: k, ref: k === "card" ? { type: "markdown", content: "Hello" } : "" } });
           }}
         >
-          ${KINDS.map((k) => html`<option value=${k} ?selected=${k === kind}>${KIND_LABEL[k]}</option>`)}
+          ${KINDS.map((k) => html`<option value=${k} ?selected=${k === kind}>${kindLabel(k)}</option>`)}
         </select>
       </label>
       ${kind === "card" ? this._cardEditor(h, ref, setTarget) : this._refEditor(kind, ref, setTarget)}
       <div class="row">
-        <button class="btn danger" @click=${() => this._deleteHotspot(h.id)}>Delete hotspot</button>
+        <button class="btn danger" @click=${() => this._deleteHotspot(h.id)}>${t("Delete hotspot")}</button>
       </div>
     `;
   }
@@ -1140,14 +1143,14 @@ private _prefsFor = "";
       ></ha-entity-picker>`;
     }
     return html`<label>
-      ${kind === "area" ? "Area id" : "Entity id"}
+      ${kind === "area" ? t("Area id") : t("Entity id")}
       <input .value=${value} @input=${(e: Event) => setTarget({ ref: (e.target as HTMLInputElement).value.trim() })} />
     </label>`;
   }
 
   private _cardEditor(h: Hotspot, ref: unknown, setTarget: (t: Partial<Hotspot["target"]>) => void): TemplateResult {
     return html`<label>
-      Card config (JSON)
+      ${t("Card config (JSON)")}
       <textarea
         .value=${JSON.stringify(ref, null, 2)}
         @change=${(e: Event) => {

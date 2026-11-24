@@ -1,0 +1,143 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Zone de chauffage",
+        "data": {
+          "area_id": "Zone",
+          "presence_entity": "Capteur de présence (facultatif, par défaut l'occupation Share Space de la zone)",
+          "comfort_temp": "Température confort",
+          "eco_temp": "Température éco",
+          "default_override_hours": "Durée de dérogation par défaut (heures)",
+          "max_override_hours": "Durée de dérogation maximale (heures)",
+          "frost_temp": "Température hors-gel (arrêt)",
+          "off_mode": "Comportement à l'arrêt"
+        },
+        "description": "La zone pilote le thermostat que Home Assistant place dans cette zone."
+      }
+    },
+    "abort": {
+      "already_configured": "Cette zone a déjà une zone de chauffage.",
+      "area_not_found": "Zone introuvable."
+    },
+    "error": {
+      "no_thermostat": "Cette zone n'a pas de thermostat. Assignez-en un dans Home Assistant d'abord."
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Zone de chauffage",
+        "data": {
+          "presence_entity": "Capteur de présence (facultatif, par défaut l'occupation Share Space de la zone)",
+          "comfort_temp": "Température confort",
+          "eco_temp": "Température éco",
+          "default_override_hours": "Durée de dérogation par défaut (heures)",
+          "max_override_hours": "Durée de dérogation maximale (heures)",
+          "frost_temp": "Température hors-gel (arrêt)",
+          "off_mode": "Comportement à l'arrêt"
+        }
+      }
+    }
+  },
+  "services": {
+    "set_override": {
+      "name": "Définir une dérogation",
+      "description": "Maintenir une température pendant une durée limitée.",
+      "fields": {
+        "entity_id": {
+          "name": "Zone",
+          "description": "Le capteur de la zone."
+        },
+        "temperature": {
+          "name": "Température",
+          "description": "Température à maintenir."
+        },
+        "hours": {
+          "name": "Heures",
+          "description": "Durée ; par défaut, le réglage de la zone."
+        }
+      }
+    },
+    "extend_override": {
+      "name": "Prolonger la dérogation",
+      "description": "Ajoute du temps à la dérogation en cours, ou en démarre une à la consigne actuelle.",
+      "fields": {
+        "entity_id": {
+          "name": "Zone",
+          "description": "Le capteur de la zone."
+        },
+        "hours": {
+          "name": "Heures",
+          "description": "Heures à ajouter."
+        }
+      }
+    },
+    "clear_override": {
+      "name": "Annuler la dérogation",
+      "description": "Reprendre le planning.",
+      "fields": {
+        "entity_id": {
+          "name": "Zone",
+          "description": "Le capteur de la zone."
+        }
+      }
+    },
+    "set_base_target": {
+      "name": "Définir la consigne de base",
+      "description": "Définit la consigne de base de la zone depuis une automatisation. Sans température, préréglage ni arrêt, la consigne de base est effacée.",
+      "fields": {
+        "entity_id": {
+          "name": "Zone",
+          "description": "Le capteur de la zone."
+        },
+        "temperature": {
+          "name": "Température",
+          "description": "Température de base."
+        },
+        "preset": {
+          "name": "Préréglage",
+          "description": "Utilise la température confort ou éco de la zone."
+        },
+        "off": {
+          "name": "Arrêt",
+          "description": "Hors-gel ou thermostat éteint, selon le comportement à l'arrêt de la zone."
+        },
+        "reason": {
+          "name": "Motif",
+          "description": "Pourquoi cette consigne s'applique ; affiché comme règle active."
+        }
+      }
+    },
+    "run_rules": {
+      "name": "Exécuter les règles",
+      "description": "Évalue maintenant une liste de règles Share Space ou une stratégie partagée et définit la consigne de base de la zone. Ignoré tant que le planning de la zone n'est pas chargé.",
+      "fields": {
+        "entity_id": {
+          "name": "Zone",
+          "description": "Le capteur de la zone."
+        },
+        "area": {
+          "name": "Zone",
+          "description": "Identifiant de zone Share Space."
+        },
+        "rules": {
+          "name": "Règles",
+          "description": "JSON de stratégie de règles {version, rules, fallback}. Indiquez exactement l'un de rules ou strategy."
+        },
+        "strategy": {
+          "name": "Stratégie partagée",
+          "description": "Identifiant d'une stratégie partagée enregistrée depuis le panneau Share Space."
+        }
+      }
+    }
+  },
+  "selector": {
+    "off_mode": {
+      "options": {
+        "frost": "Température hors-gel",
+        "hvac_off": "Éteindre le thermostat"
+      }
+    }
+  }
+}

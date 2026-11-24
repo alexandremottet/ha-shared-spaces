@@ -1,3 +1,4 @@
+import "./i18n-fr";
 import { html, css, nothing } from "lit";
 import { customElement, state } from "lit/decorators.js";
 import "ha-share-space-ui";
@@ -15,7 +16,7 @@ import {
   planningSchedule,
   errorMessage,
 } from "ha-share-space-ui/ha";
-import { strategyTimeline } from "ha-share-space-ui";
+import { strategyTimeline, t } from "ha-share-space-ui";
 import type { StrategySegment } from "ha-share-space-ui";
 import type { ZoneStrategy } from "ha-share-space-ui/ha";
 import type { HomeAssistant, LovelaceConfigForm, LovelaceGridOptions } from "ha-share-space-ui/ha";
@@ -54,7 +55,7 @@ export class ShareSpaceHeatingCard extends ShareSpaceCardBase<CardConfig> {
       .banner {
         margin: 0 16px 12px;
         padding: 8px 12px;
-        border-radius: var(--ha-card-border-radius, 12px);
+        border-radius: var(--ha-card-border-radius, 6px);
         border: 1px solid var(--primary-color);
         font-size: 0.9em;
       }
@@ -69,12 +70,29 @@ export class ShareSpaceHeatingCard extends ShareSpaceCardBase<CardConfig> {
         color: var(--primary-text-color);
         background: transparent;
         border: 1px solid var(--divider-color);
-        border-radius: 20px;
+        border-radius: 4px;
       }
       .tools button.active {
         background: var(--primary-color);
         color: var(--text-primary-color, #fff);
         border-color: transparent;
+      }
+      ha-card {
+        transition: box-shadow 0.6s;
+      }
+      ha-card.heating {
+        box-shadow: 0 0 18px -2px color-mix(in srgb, var(--state-climate-heat-color, #ff8100) 55%, transparent);
+        animation: glow 3s ease-in-out infinite;
+      }
+      @keyframes glow {
+        50% {
+          box-shadow: 0 0 26px 0 color-mix(in srgb, var(--state-climate-heat-color, #ff8100) 70%, transparent);
+        }
+      }
+      @media (prefers-reduced-motion: reduce) {
+        ha-card.heating {
+          animation: none;
+        }
       }
       share-space-strategy-editor {
         margin-top: 12px;
@@ -127,14 +145,14 @@ export class ShareSpaceHeatingCard extends ShareSpaceCardBase<CardConfig> {
     if (!next) return null;
     const sameDay = new Intl.DateTimeFormat("en-CA", { timeZone: tz }).format(next.start) === new Intl.DateTimeFormat("en-CA", { timeZone: tz }).format(now);
     const when = new Intl.DateTimeFormat([], { timeZone: tz, hour: "2-digit", minute: "2-digit", ...(sameDay ? {} : { weekday: "short" }) }).format(next.start);
-    const label = "off" in next.result ? "off" : `${next.result.target}°`;
-    return `next: ${label} at ${when}`;
+    const label = "off" in next.result ? t("off") : `${next.result.target}°`;
+    return t("next: {label} at {when}", { label, when });
   }
 
   private _renderBanner(hass: HomeAssistant, vm: NonNullable<ReturnType<typeof zoneViewModel>>) {
     if (vm.mode !== "automation") return nothing;
     const next = this._nextChange(hass);
-    return html`<div class="banner" role="status">Automation · ${vm.activeRule ?? "Active"} · ${vm.target}°${next ? html` · ${next}` : nothing}</div>`;
+    return html`<div class="banner" role="status">${t(next ? "Automation · {rule} · {target}° · {next}" : "Automation · {rule} · {target}°", { rule: vm.activeRule ?? t("Active"), target: vm.target, next: next ?? "" })}</div>`;
   }
 
   private async _run(fn: () => Promise<unknown>): Promise<void> {
@@ -152,12 +170,13 @@ export class ShareSpaceHeatingCard extends ShareSpaceCardBase<CardConfig> {
     if (!cfg || !hass) return nothing;
     const vm = zoneViewModel(hass, cfg.entity);
     if (!vm) {
-      return html`<ha-card><div class="error" style="padding:16px">Entity not found: ${cfg.entity}</div></ha-card>`;
+      return html`<ha-card><div class="error" style="padding:16px">${t("Entity not found: {entity}", { entity: cfg.entity })}</div></ha-card>`;
     }
     const zone = vm.serviceEntityId;
     const name = cfg.name ?? vm.name;
+    const heating = vm.hvacAction === "heating";
     return html`
-      <ha-card>
+      <ha-card class=${heating ? "heating" : ""}>
         <div class="header">${name}</div>
         <share-space-heating-control
           .currentTemperature=${vm.currentTemperature}
@@ -172,6 +191,7 @@ export class ShareSpaceHeatingCard extends ShareSpaceCardBase<CardConfig> {
           .reason=${vm.activeRule}
           .durations=${cfg.durations ?? [1, 2, 3, 6]}
           .presets=${vm.presets}
+          .heating=${heating}
           @override-requested=${(e: CustomEvent<{ temperature: number; hours: number }>) =>
             zone && this._run(() => setOverride(hass, zone, e.detail.temperature, e.detail.hours))}
           @override-extended=${(e: CustomEvent<{ hours: number }>) =>
@@ -187,11 +207,11 @@ export class ShareSpaceHeatingCard extends ShareSpaceCardBase<CardConfig> {
             )}
         ></share-space-heating-control>
         ${this._renderBanner(hass, vm)}
-        ${vm.hvacAction && vm.hvacAction !== "off" ? html`<div class="status">${vm.hvacAction}</div>` : nothing}
+        ${vm.hvacAction && vm.hvacAction !== "off" ? html`<div class="status">${t(vm.hvacAction)}</div>` : nothing}
         ${this._error ? html`<div class="error">${this._error}</div>` : nothing}
         ${zone && hass.user?.is_admin
           ? html`<div class="tools">
-              <button class=${this._showStrategy ? "active" : ""} @click=${() => (this._showStrategy = !this._showStrategy)}>Strategy</button>
+              <button class=${this._showStrategy ? "active" : ""} @click=${() => (this._showStrategy = !this._showStrategy)}>${t("Strategy")}</button>
               ${this._showStrategy ? html`<share-space-strategy-editor .hass=${hass} .zone=${zone}></share-space-strategy-editor>` : nothing}
             </div>`
           : nothing}

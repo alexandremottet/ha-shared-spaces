@@ -9,6 +9,8 @@ import { waitForHaPeriodEditDialog } from "./ha-dialog-controls";
 import "./ha-period-edit-dialog";
 
 import type { HomeAssistant } from "./hass";
+import { syncLanguage } from "./hass";
+import { t } from "../i18n";
 import { findMyPerson } from "./my-person";
 import { isBackendMissing } from "./ws";
 import { renderBackendMissing } from "./card-base";
@@ -32,6 +34,7 @@ export abstract class ShareSpaceScheduleView extends LitElement {
   @state() protected _backendMissing = false;
 
   protected willUpdate(changed: PropertyValues): void {
+    if (changed.has("hass")) syncLanguage(this.hass);
     if (changed.has("hass") && this.hass && !this._initialized) {
       this._initialized = true;
       this._initialize();
@@ -143,9 +146,9 @@ export abstract class ShareSpaceScheduleView extends LitElement {
   private _renderAreaPicker() {
     return html`
       <div class="area-picker">
-        <label for="area-select">Area</label>
+        <label for="area-select">${t("Area")}</label>
         <select id="area-select" @change=${this._onAreaSelected}>
-          <option value="" ?selected=${!this._area} disabled>Select an area…</option>
+          <option value="" ?selected=${!this._area} disabled>${t("Select an area…")}</option>
           ${this._areas.map(
             (area) =>
               html`<option value=${area.area_id} ?selected=${area.area_id === this._area}>${area.name}</option>`
@@ -169,7 +172,7 @@ export abstract class ShareSpaceScheduleView extends LitElement {
         <div class="content">
           <ha-card header="Share Space">
             <div class="card-content">
-              <p>No person entity is linked to your account.</p>
+              <p>${t("No person entity is linked to your account.")}</p>
             </div>
           </ha-card>
         </div>
@@ -182,9 +185,9 @@ export abstract class ShareSpaceScheduleView extends LitElement {
           <div class="card-content">
             ${this._renderAreaPicker()}
             ${!this._area
-              ? html`<p class="placeholder">You're not assigned to an area yet. Pick one above to see your schedule.</p>`
+              ? html`<p class="placeholder">${t("You're not assigned to an area yet. Pick one above to see your schedule.")}</p>`
               : this._calendar === null
-                ? html`<p class="placeholder">Loading…</p>`
+                ? html`<p class="placeholder">${t("Loading…")}</p>`
                 : html`
                     <week-schedule .calendar=${this._calendar} @calendar-changed=${this._onCalendarChanged}>
                       ${this._haDialogReady ? html`<ha-period-edit-dialog slot="dialog"></ha-period-edit-dialog>` : null}

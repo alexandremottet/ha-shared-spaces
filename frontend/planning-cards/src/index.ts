@@ -1,3 +1,4 @@
+import "./i18n-fr";
 import "./my-planning-card";
 import "./work-area-card";
 import "./area-planning-card";

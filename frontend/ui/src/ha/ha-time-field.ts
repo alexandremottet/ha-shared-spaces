@@ -1,6 +1,7 @@
 import { safeCustomElement } from "../define";
 import { LitElement, css, html } from "lit";
 import { property } from "lit/decorators.js";
+import { t } from "../i18n";
 import type { TimeOfDay } from "../types";
 
 /** Time of day field drawn like Share Space's other fields (same box as its selects). */
@@ -25,7 +26,7 @@ export class HaTimeField extends LitElement {
     input {
       min-height: 36px;
       padding: 0 10px;
-      border-radius: 8px;
+      border-radius: 4px;
       border: 1px solid var(--divider-color);
       background: var(--card-background-color);
       color: var(--primary-text-color);
@@ -42,7 +43,7 @@ export class HaTimeField extends LitElement {
     return html`<label
       ><span>${this.label}</span><input
         type="time"
-        aria-label=${this.label || "Time"}
+        aria-label=${this.label || t("Time")}
         .value=${this.value}
         @change=${(e: Event) => {
           e.stopPropagation();

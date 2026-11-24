@@ -1,26 +1,27 @@
+import { t } from "../../i18n";
 import type { Action, ActionType, Condition, ConditionType, CurveValue, Rule, RuleStrategy, Value } from "../types";
 import type { RuleError } from "../validate";
 import { OUTDOOR } from "../value";
 
-/** Beginner-facing names, in the order of the type select. */
-export const CONDITION_LABELS: Record<ConditionType, string> = {
-  occupied: "Area occupied",
-  occupied_within: "Occupied again within",
-  between_days: "Between working days",
-  weekday: "Day of week",
-  time: "Time between",
-  planned: "Planned during",
-  sensor: "Outdoor temperature",
-  state: "Entity state",
-  heated: "Another area heated",
-};
+export const CONDITION_TYPES: ConditionType[] = ["occupied", "occupied_within", "between_days", "weekday", "time", "planned", "sensor", "state", "heated"];
+export const ACTION_TYPES: ActionType[] = ["comfort", "eco", "off", "temperature"];
 
-export const ACTION_LABELS: Record<ActionType, string> = {
-  comfort: "Comfort",
-  eco: "Eco",
-  off: "Off",
-  temperature: "Temperature",
-};
+/** Beginner-facing names, in the order of the type select. */
+export const conditionLabel = (type: ConditionType): string =>
+  ({
+    occupied: t("Area occupied"),
+    occupied_within: t("Occupied again within"),
+    between_days: t("Between working days"),
+    weekday: t("Day of week"),
+    time: t("Time between"),
+    planned: t("Planned during"),
+    sensor: t("Outdoor temperature"),
+    state: t("Entity state"),
+    heated: t("Another area heated"),
+  })[type];
+
+export const actionLabel = (type: ActionType): string =>
+  ({ comfort: t("Comfort"), eco: t("Eco"), off: t("Off"), temperature: t("Temperature") })[type];
 
 export const DEFAULT_TEMPERATURE = 20;
 
@@ -62,7 +63,16 @@ export function defaultCurve(unit: ValueUnit, fixed: number): CurveValue {
 export const fixedOf = (v: Value): number => (typeof v === "number" ? v : v.points[v.points.length - 1]?.value ?? 0);
 
 const fmt = (n: number) => (Number.isFinite(n) ? String(Math.round(n * 10) / 10) : "?");
-const shortEntity = (id: string) => (id === OUTDOOR ? "outdoor" : id ? id.split(".").pop()!.replace(/_/g, " ") : "sensor");
+const shortEntity = (id: string) => (id === OUTDOOR ? t("outdoor") : id ? id.split(".").pop()!.replace(/_/g, " ") : t("sensor"));
+const DAY_SHORT: Record<string, () => string> = {
+  mon: () => t("mon"),
+  tue: () => t("tue"),
+  wed: () => t("wed"),
+  thu: () => t("thu"),
+  fri: () => t("fri"),
+  sat: () => t("sat"),
+  sun: () => t("sun"),
+};
 
 /** "3 h", or "9 → 1 h (outdoor temp)" for a curve. */
 export function describeValue(v: Value, unit: ValueUnit): string {
@@ -73,31 +83,37 @@ export function describeValue(v: Value, unit: ValueUnit): string {
 
 /** One-line node text for the graph. */
 export function describeCondition(c: Condition, areaNames: Record<string, string> = {}): string {
-  const not = c.negate ? "not " : "";
+  const text = describePositive(c, areaNames);
+  return c.negate ? t("not {text}", { text }) : text;
+}
+
+function describePositive(c: Condition, areaNames: Record<string, string>): string {
   switch (c.type) {
     case "occupied":
-      return `${not}occupied`;
+      return t("occupied");
     case "occupied_within":
-      return `${not}occupied within ${describeValue(c.hours, "h")}`;
+      return t("occupied within {value}", { value: describeValue(c.hours, "h") });
     case "between_days":
-      return `${not}between days (≤ ${fmt(c.gap_hours)} h)`;
+      return t("between days (≤ {hours} h)", { hours: fmt(c.gap_hours) });
     case "weekday":
-      return `${not}${c.days.length === 7 ? "every day" : c.days.map((d) => d.slice(0, 3)).join(", ")}`;
+      return c.days.length === 7 ? t("every day") : c.days.map((d) => DAY_SHORT[d.slice(0, 3)]()).join(", ");
     case "time":
-      return `${not}${c.start}–${c.end}`;
-    case "planned":
-      return `${not}${c.who === "anyone" ? "someone planned" : "planned"} ${c.windows.map((w) => `${w.start}–${w.end}`).join(c.match === "any" ? " or " : " and ")}`;
+      return `${c.start}–${c.end}`;
+    case "planned": {
+      const windows = c.windows.map((w) => `${w.start}–${w.end}`).join(c.match === "any" ? ` ${t("or")} ` : ` ${t("and")} `);
+      return c.who === "anyone" ? t("someone planned {windows}", { windows }) : t("planned {windows}", { windows });
+    }
     case "sensor":
-      return `${not}${c.entity === OUTDOOR ? "outdoor" : shortEntity(c.entity)} ${c.op === "below" ? "<" : ">"} ${fmt(c.than)}`;
+      return `${c.entity === OUTDOOR ? t("outdoor") : shortEntity(c.entity)} ${c.op === "below" ? "<" : ">"} ${fmt(c.than)}`;
     case "state":
-      return `${not}${shortEntity(c.entity)} is ${c.is}`;
+      return t("{entity} is {state}", { entity: shortEntity(c.entity), state: c.is });
     case "heated":
-      return `${not}${c.areas.map((a) => areaNames[a] ?? a.replace(/_/g, " ")).join(" or ") || "an area"} heated`;
+      return t("{areas} heated", { areas: c.areas.map((a) => areaNames[a] ?? a.replace(/_/g, " ")).join(` ${t("or")} `) || t("an area") });
   }
 }
 
 export function describeAction(a: Action): string {
-  return a.type === "temperature" ? describeValue(a.value, "°C") : ACTION_LABELS[a.type];
+  return a.type === "temperature" ? describeValue(a.value, "°C") : actionLabel(a.type);
 }
 
 export function defaultAction(type: ActionType): Action {
@@ -152,7 +168,7 @@ export function scopeErrors(errors: readonly RuleError[], prefix: string): RuleE
 }
 
 export function blankRule(): Rule {
-  return { label: "New rule", when: [defaultCondition("occupied")], then: { type: "comfort" } };
+  return { label: t("New rule"), when: [defaultCondition("occupied")], then: { type: "comfort" } };
 }
 
 export const withRules = (s: RuleStrategy, rules: Rule[]): RuleStrategy => ({ ...s, rules });

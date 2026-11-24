@@ -1,7 +1,7 @@
 import { LitElement, css, html, nothing } from "lit";
 import type { PropertyValues, TemplateResult } from "lit";
 import { customElement, property, state } from "lit/decorators.js";
-import { entityStates, sensorReadings } from "ha-share-space-ui";
+import { entityStates, sensorReadings, t } from "ha-share-space-ui";
 import type { RuleStrategy } from "ha-share-space-ui";
 import { EVERYONE_AREA, hassNow, hassTimeZone, listStrategies, listZones, loadZoneRules, personPlannings, planningSchedule } from "ha-share-space-ui/ha";
 import type { HeatingZone, HomeAssistant } from "ha-share-space-ui/ha";
@@ -10,11 +10,11 @@ import { selectStyles } from "./select-styles";
 const OCCUPANCY_PREFIX = "binary_sensor.share_space_";
 
 // Without saved rules the week shows only when people are planned.
-export const PLANNED_ONLY: RuleStrategy = {
+export const plannedOnly = (): RuleStrategy => ({
   version: 1,
-  rules: [{ label: "Planned", when: [{ type: "occupied" }], then: { type: "comfort" } }],
-  fallback: { label: "Nobody planned", then: { type: "off" } },
-};
+  rules: [{ label: t("Planned"), when: [{ type: "occupied" }], then: { type: "comfort" } }],
+  fallback: { label: t("Nobody planned"), then: { type: "off" } },
+});
 
 // Overview: an area's week as the Rules editor previews it (planned presence, and the heating its saved rules give).
 @customElement("share-space-overview-planning")
@@ -67,7 +67,7 @@ export class ShareSpaceOverviewPlanning extends LitElement {
       text-align: center;
       font-weight: 500;
       color: var(--primary-text-color);
-      border-radius: 8px;
+      border-radius: 4px;
       background: color-mix(in srgb, var(--card-background-color, #fff) 60%, transparent);
       backdrop-filter: blur(4px);
       -webkit-backdrop-filter: blur(4px);
@@ -139,16 +139,16 @@ export class ShareSpaceOverviewPlanning extends LitElement {
     const hass = this.hass;
     if (!hass) return nothing;
     const areas = this._areas(hass);
-    if (!areas.length) return html`<h3>Planning</h3><div class="muted">No heated area and nobody planned yet.</div>`;
+    if (!areas.length) return html`<h3>${t("Planning")}</h3><div class="muted">${t("No heated area and nobody planned yet.")}</div>`;
     const schedule = planningSchedule(hass, this._area) ?? {};
     const now = hassNow(hass);
     const tz = hassTimeZone(hass);
     const zone = this._zone(this._area);
     const attrs = zone ? hass.states[zone].attributes : undefined;
-    const strategy = this._strategy ?? PLANNED_ONLY;
+    const strategy = this._strategy ?? plannedOnly();
     return html`<div class="head">
-        <h3>Planning</h3>
-        <select aria-label="Area" @change=${(e: Event) => (this._area = (e.target as HTMLSelectElement).value)}>
+        <h3>${t("Planning")}</h3>
+        <select aria-label=${t("Area")} @change=${(e: Event) => (this._area = (e.target as HTMLSelectElement).value)}>
           ${areas.map((a) => html`<option value=${a.id} ?selected=${a.id === this._area}>${a.name}</option>`)}
         </select>
       </div>
@@ -163,7 +163,7 @@ export class ShareSpaceOverviewPlanning extends LitElement {
         .readings=${sensorReadings(strategy, hass.states, (attrs?.outdoor_entity as string | null | undefined) ?? null)}
         .states=${entityStates(strategy, hass.states)}
       ></share-space-rule-preview>
-      ${this._strategy ? nothing : html`<div class="no-rules" role="note">No Share Space rules for this area yet: the week shows who is planned.</div>`}
+      ${this._strategy ? nothing : html`<div class="no-rules" role="note">${t("No Share Space rules for this area yet: the week shows who is planned.")}</div>`}
       </div>`;
   }
 }

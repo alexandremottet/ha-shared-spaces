@@ -7,6 +7,7 @@ Share Space Frosted:
       backdrop-filter: var(--ha-card-backdrop-filter);
       -webkit-backdrop-filter: var(--ha-card-backdrop-filter);
     }
+  ha-card-border-radius: "6px"
   ha-card-border-width: "1px"
   ha-card-backdrop-filter: "blur(16px) saturate(1.4)"
   ha-dialog-surface-backdrop-filter: "blur(24px)"
@@ -52,6 +53,7 @@ Le Portemine:
       backdrop-filter: var(--ha-card-backdrop-filter);
       -webkit-backdrop-filter: var(--ha-card-backdrop-filter);
     }
+  ha-card-border-radius: "6px"
   ha-card-border-width: "1px"
   ha-card-backdrop-filter: "blur(18px) saturate(1.5)"
   ha-dialog-surface-backdrop-filter: "blur(24px)"

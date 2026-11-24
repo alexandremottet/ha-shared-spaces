@@ -1,3 +1,4 @@
+import { t } from "ha-share-space-ui";
 import { LitElement, html, css, nothing } from "lit";
 import type { TemplateResult } from "lit";
 import { customElement, property, state } from "lit/decorators.js";
@@ -113,12 +114,16 @@ export class ShareSpaceDashboardsSettings extends LitElement {
     }
   }
 
+  private _title(d: HaDashboard): string {
+    return d.url_path === null && d.title === "Overview (default)" ? t("Overview (default)") : d.title;
+  }
+
   private _renderViews(d: HaDashboard): TemplateResult {
     const config = this._configs[key(d.url_path)];
-    if (config === undefined) return html`<div class="views muted">Loading…</div>`;
-    if (d.mode === "yaml") return html`<div class="views muted">YAML dashboard: set who sees each view in its YAML file.</div>`;
+    if (config === undefined) return html`<div class="views muted">${t("Loading…")}</div>`;
+    if (d.mode === "yaml") return html`<div class="views muted">${t("YAML dashboard: set who sees each view in its YAML file.")}</div>`;
     const views = (config?.views ?? []).map((v, i) => ({ v, i })).filter(({ v }) => !v.subview);
-    if (!views.length) return html`<div class="views muted">Auto-generated dashboard: take control of it in Home Assistant to choose who sees it.</div>`;
+    if (!views.length) return html`<div class="views muted">${t("Auto-generated dashboard: take control of it in Home Assistant to choose who sees it.")}</div>`;
     return html`<div class="views">
       ${views.map(({ v, i }) => {
         const everyone = !Array.isArray(v.visible) && v.visible !== false;
@@ -127,10 +132,10 @@ export class ShareSpaceDashboardsSettings extends LitElement {
         const pick = (values: string[]) =>
           void this._setVisible(d, i, (values.includes(EVERYONE) && !everyone) || !values.filter((v) => v !== EVERYONE).length ? undefined : values.filter((v) => v !== EVERYONE));
         return html`<div class="view">
-          <span class="name">${v.title ?? v.path ?? `View ${i + 1}`}</span>
+          <span class="name">${v.title ?? v.path ?? t("View {n}", { n: i + 1 })}</span>
           <share-space-multi-select
-            label=${`Who sees ${v.title ?? v.path ?? `view ${i + 1}`}`}
-            .options=${[{ value: EVERYONE, label: "Everyone" }, ...this._users.map((u) => ({ value: u.id, label: u.name }))]}
+            label=${t("Who sees {name}", { name: v.title ?? v.path ?? t("view {n}", { n: i + 1 }) })}
+            .options=${[{ value: EVERYONE, label: t("Everyone") }, ...this._users.map((u) => ({ value: u.id, label: u.name }))]}
             .selected=${everyone ? [EVERYONE] : allowed}
             ?disabled=${this._busy}
             @selection-change=${(e: CustomEvent<string[]>) => pick(e.detail)}
@@ -142,14 +147,14 @@ export class ShareSpaceDashboardsSettings extends LitElement {
 
   protected render(): TemplateResult {
     return html`<section class="card">
-      <h4>Dashboards</h4>
-      <p class="muted">Build a dashboard in Home Assistant, then pick it to show it as a tab here. Choose who sees each of its views.</p>
+      <h4>${t("Dashboards")}</h4>
+      <p class="muted">${t("Build a dashboard in Home Assistant, then pick it to show it as a tab here. Choose who sees each of its views.")}</p>
       <div class="field">
-        <span>Show as tabs</span>
+        <span>${t("Show as tabs")}</span>
         <share-space-multi-select
-          label="Dashboards shown as tabs"
-          placeholder="No dashboard"
-          .options=${this._available.map((d) => ({ value: key(d.url_path), label: d.title }))}
+          label=${t("Dashboards shown as tabs")}
+          placeholder=${t("No dashboard")}
+          .options=${this._available.map((d) => ({ value: key(d.url_path), label: this._title(d) }))}
           .selected=${this._selected.map((s) => key(s.url_path))}
           ?disabled=${this._busy}
           @selection-change=${(e: CustomEvent<string[]>) => void this._setShown(e.detail)}
@@ -158,7 +163,7 @@ export class ShareSpaceDashboardsSettings extends LitElement {
       <div class="rows">
         ${this._available
           .filter((d) => this._selected.some((s) => s.url_path === d.url_path))
-          .map((d) => html`<div class="row"><span class="name">${d.title}</span>${this._renderViews(d)}</div>`)}
+          .map((d) => html`<div class="row"><span class="name">${this._title(d)}</span>${this._renderViews(d)}</div>`)}
       </div>
       ${this._error ? html`<p class="error">${this._error}</p>` : nothing}
     </section>`;

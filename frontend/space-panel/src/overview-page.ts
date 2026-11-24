@@ -1,7 +1,7 @@
 import { LitElement, html, css, nothing } from "lit";
 import type { PropertyValues, TemplateResult } from "lit";
 import { customElement, property, state } from "lit/decorators.js";
-import { haCardSurface } from "ha-share-space-ui";
+import { haCardSurface, t } from "ha-share-space-ui";
 import { EVERYONE_AREA, findMyPerson, errorMessage, listDetectedAreas, listZones } from "ha-share-space-ui/ha";
 import type { DetectedArea, HeatingZone } from "ha-share-space-ui/ha";
 import type { HomeAssistant } from "ha-share-space-ui/ha";
@@ -205,7 +205,7 @@ export class ShareSpaceOverview extends LitElement {
         ? html`<share-space-ha-card
             class="graph"
             .hass=${hass}
-            .config=${{ type: "sensor", entity: sensor, graph: "line", detail: 1, hours_to_show: 24, name: "Temperature" }}
+            .config=${{ type: "sensor", entity: sensor, graph: "line", detail: 1, hours_to_show: 24, name: t("Temperature") }}
           ></share-space-ha-card>`
         : nothing}
     </div>`;
@@ -230,7 +230,7 @@ export class ShareSpaceOverview extends LitElement {
     return html`
       <div class="panel">
         <div class="head">
-          <h3>My planning</h3>
+          <h3>${t("My planning")}</h3>
           <div class="place">${this._workArea}</div>
         </div>
         <div class="top ${mine.length ? "" : "single"}">
@@ -240,14 +240,14 @@ export class ShareSpaceOverview extends LitElement {
       </div>
       ${others.length
         ? html`<section class="panel">
-            <h3>${mine.length ? "Other areas" : "Heating"}</h3>
+            <h3>${mine.length ? t("Other areas") : t("Heating")}</h3>
             <div class="zones">${others.map((vm) => this._zone(hass, vm))}</div>
           </section>`
         : nothing}
       <section class="panel">
         <share-space-overview-planning .hass=${hass} .initial=${area} .detected=${this._detected.map((d) => d.area_id)}></share-space-overview-planning>
       </section>
-      ${zones.length ? nothing : html`<div class="muted">No heated area yet.</div>`}
+      ${zones.length ? nothing : html`<div class="muted">${t("No heated area yet.")}</div>`}
       ${this._error ? html`<div class="error">${this._error}</div>` : nothing}
     `;
   }

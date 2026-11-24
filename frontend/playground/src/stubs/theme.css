@@ -18,7 +18,7 @@ html[data-theme="default"] {
   --secondary-background-color: #e5e5e5;
   --card-background-color: #ffffff;
   --ha-card-background: var(--card-background-color);
-  --ha-card-border-radius: 12px;
+  --ha-card-border-radius: 4px;
   --ha-card-border-width: 1px;
   --ha-card-box-shadow: none;
   --ha-card-backdrop-filter: none;

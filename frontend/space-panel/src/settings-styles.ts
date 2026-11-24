@@ -34,7 +34,7 @@ const base = css`
   button {
     min-height: 36px;
     padding: 0 10px;
-    border-radius: 8px;
+    border-radius: 4px;
     border: 1px solid var(--divider-color);
     background: var(--card-background-color);
     color: var(--primary-text-color);

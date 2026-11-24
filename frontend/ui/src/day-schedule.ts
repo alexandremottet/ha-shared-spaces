@@ -7,7 +7,7 @@ import "./hour-period";
 import type { PeriodChangedDetail } from "./hour-period";
 import "./time-axis";
 import "./period-times";
-import { periodsText } from "./period-text";
+import { dayName, periodsText } from "./period-text";
 import type { TimesPlacement } from "./period-text";
 import { mergeAdjacentPeriods } from "./merge-periods";
 
@@ -204,7 +204,7 @@ export class DaySchedule extends LitElement {
 
     return html`
       <div class="row">
-        <span class="label">${this.day}</span>
+        <span class="label">${dayName(this.day)}</span>
         <div class="lane">
         <div
           class="track"

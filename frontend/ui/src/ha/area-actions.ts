@@ -1,5 +1,6 @@
 import type { HomeAssistant } from "./hass";
 import type { AreaActions, PlanningAction } from "./ws";
+import { t } from "../i18n";
 
 type Config = Record<string, unknown>;
 
@@ -60,7 +61,7 @@ export function readAreaActions(config: Config): Pick<AreaActions, "on_actions" 
 /** Writes new on/off actions into an existing automation, leaving the rest as HA holds it. */
 export function patchAreaActions(config: Config, on: PlanningAction[], off: PlanningAction[]): Config {
   const options = chooseOf(config);
-  if (!options) throw new Error("This automation was changed in Home Assistant: edit its actions there.");
+  if (!options) throw new Error(t("This automation was changed in Home Assistant: edit its actions there."));
   const choose = [...options];
   for (const [side, sequence] of [["on", on], ["off", off]] as const) {
     const i = choose.findIndex((x) => isObj(x) && sideOf(x) === side);

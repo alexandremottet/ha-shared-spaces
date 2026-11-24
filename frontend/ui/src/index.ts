@@ -1,3 +1,6 @@
+export * from "./i18n";
+import "./i18n-fr";
+import "./rules/i18n-fr";
 export * from "./hour-period";
 export * from "./day-schedule";
 export * from "./period-edit-controller";

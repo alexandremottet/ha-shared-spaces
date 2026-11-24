@@ -1,3 +1,4 @@
+import { setLanguage } from "../i18n";
 export interface HassEntity {
   entity_id: string;
   state: string;
@@ -23,8 +24,12 @@ export interface HomeAssistant {
   themes?: Record<string, unknown> & { themes?: Record<string, { modes?: unknown }>; default_theme?: string };
   selectedTheme?: { theme?: string; dark?: boolean } | null;
   language?: string;
+  locale?: { language?: string };
   config?: { location_name?: string; unit_system?: { temperature?: string }; time_zone?: string };
 }
+
+/** Shows Share Space in the user's HA language (French when it is neither English nor French). */
+export const syncLanguage = (hass?: HomeAssistant | null): boolean => setLanguage(hass?.locale?.language ?? hass?.language);
 
 export const hassNow = (hass: HomeAssistant): number => hass.now?.() ?? Date.now();
 
