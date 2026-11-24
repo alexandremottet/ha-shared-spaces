@@ -558,6 +558,17 @@ export async function getDefaultPanel(hass: HomeAssistant): Promise<string | und
   return user.default_panel ?? system.default_panel;
 }
 
+/** Whether HA opens on Share Space for everyone who did not choose otherwise (HA's own system default). */
+export async function opensShareSpaceForEveryone(hass: HomeAssistant): Promise<boolean> {
+  return (await getCoreData(hass, "system")).default_panel === SHARE_SPACE_PANEL;
+}
+
+/** Admin only: sets or clears HA's system default panel; each person's own choice still wins. */
+export async function setOpensShareSpaceForEveryone(hass: HomeAssistant, on: boolean): Promise<void> {
+  const { default_panel: _, ...core } = await getCoreData(hass, "system");
+  await hass.callWS<void>({ type: "frontend/set_system_data", key: "core", value: on ? { ...core, default_panel: SHARE_SPACE_PANEL } : core });
+}
+
 export async function setMyDefaultPanel(hass: HomeAssistant, panel: string): Promise<void> {
   const core = await getCoreData(hass, "user");
   await hass.callWS<void>({ type: "frontend/set_user_data", key: "core", value: { ...core, default_panel: panel } });

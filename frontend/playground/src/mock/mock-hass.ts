@@ -796,7 +796,9 @@ export class MockHassController {
     this._dirty = true;
   }
 
-  private _currentUser() {
+private _systemData: Record<string, unknown> = {};
+
+    private _currentUser() {
     return this._state.persons.find((p) => p.userId === this._state.currentUserId);
   }
 
@@ -853,6 +855,11 @@ export class MockHassController {
       if (me) me.userData = { ...me.userData, [String(m.key)]: m.value };
       return null;
     });
+    ws("frontend/get_system_data", null, (m) => ({ value: this._systemData[String(m.key)] ?? null }));
+    ws("frontend/set_system_data", null, (m) => {
+      this._systemData = { ...this._systemData, [String(m.key)]: m.value };
+      return null;
+    }, true);
     ws("share_space/get_person_area", "planning", (m) => ({ area: st().personAreas[String(m.person)] ?? null }));
     ws("share_space/get_area_schedule", "planning", (m) => ({ schedule: this._schedule(String(m.area)) }));
     ws("share_space/get_area_calendars", "planning", (m) => ({ persons: this.areaCalendars(String(m.area)) }));

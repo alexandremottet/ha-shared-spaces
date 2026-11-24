@@ -10,11 +10,12 @@ const ROLE_LABEL: Record<SpaceRole, string> = {
   technical_admin: "Technical admin",
 };
 
-// Settings page: role, admin switches, outdoor sensor; emits `technical-change` / `full-ha-change` (boolean), `outdoor-change` (entity id or null).
+// Settings page: role, admin switches, outdoor sensor; emits `technical-change` / `full-ha-change` / `everyone-change` (boolean), `outdoor-change` (entity id or null).
 @customElement("share-space-settings")
 export class ShareSpaceSettings extends LitElement {
   @property() role: SpaceRole = "user";
   @property({ type: Boolean }) fullHa = false;
+  @property({ type: Boolean }) everyone = false;
   @property() outdoorEntity: string | null = null;
   @property({ attribute: false }) outdoorOptions: Array<{ id: string; name: string }> = [];
 
@@ -108,7 +109,17 @@ export class ShareSpaceSettings extends LitElement {
             />
             Full Home Assistant interface
           </label>
-          <p class="muted">Off: Home Assistant opens on Share Space after login. On: its usual interface, with a Back button here.</p>`
+          <p class="muted">Off: Home Assistant opens on Share Space after login. On: its usual interface, with a Back button here.</p>
+          <label class="switch">
+            <input
+              type="checkbox"
+              .checked=${this.everyone}
+              @change=${(e: Event) =>
+                this.dispatchEvent(new CustomEvent("everyone-change", { detail: (e.target as HTMLInputElement).checked }))}
+            />
+            Open Share Space after login for everyone
+          </label>
+          <p class="muted">Home Assistant's own default page for all users. Someone who picked another page in their Home Assistant profile keeps it.</p>`
         : nothing}
       </section>
       ${this.role !== "user" ? html`<slot name="zones"></slot><slot name="dashboards"></slot>${this._renderHeating()}<slot name="users"></slot>` : nothing}

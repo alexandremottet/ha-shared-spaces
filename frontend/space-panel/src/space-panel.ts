@@ -17,6 +17,8 @@ import {
   getHeatingSettings,
   saveHeatingSettings,
   setMyDefaultPanel,
+  opensShareSpaceForEveryone,
+  setOpensShareSpaceForEveryone,
   SHARE_SPACE_PANEL,
   errorMessage,
 } from "ha-share-space-ui/ha";
@@ -84,6 +86,7 @@ export class ShareSpaceSpace extends LitElement {
   @state() private _tab = "overview";
   // Admins only: null until known; false = Share Space is their home page.
   @state() private _fullHa: boolean | null = null;
+  @state() private _everyone = false;
   @state() private _outdoor: string | null = null;
   @state() private _dashboards: SpaceDashboard[] = [];
 @state() private _prefs: SharePrefs | null = null;
@@ -145,6 +148,7 @@ private _prefsFor = "";
       } catch {
         this._fullHa = true;
       }
+      this._everyone = await opensShareSpaceForEveryone(this.hass).catch(() => false);
       this._outdoor = await getHeatingSettings(this.hass)
         .then((s) => s.outdoor_entity)
         .catch(() => null);
@@ -181,6 +185,17 @@ private _prefsFor = "";
       await setMyDefaultPanel(this.hass, fullHa ? "lovelace" : SHARE_SPACE_PANEL);
     } catch {
       this._fullHa = prev;
+    }
+  }
+
+  private async _setEveryone(on: boolean): Promise<void> {
+    if (!this.hass) return;
+    this._everyone = on;
+    try {
+      await setOpensShareSpaceForEveryone(this.hass, on);
+      this._fullHa = (await getDefaultPanel(this.hass)) !== SHARE_SPACE_PANEL;
+    } catch {
+      this._everyone = !on;
     }
   }
 
@@ -827,11 +842,13 @@ private _prefsFor = "";
         ? html`<share-space-settings
             .role=${this._role}
             .fullHa=${!!this._fullHa}
+            .everyone=${this._everyone}
             .outdoorEntity=${this._outdoor}
             .outdoorOptions=${this._outdoorOptions}
             @outdoor-change=${(e: CustomEvent<string | null>) => void this._setOutdoor(e.detail)}
             @technical-change=${(e: CustomEvent<boolean>) => void this._setTechnical(e.detail)}
             @full-ha-change=${(e: CustomEvent<boolean>) => void this._setFullHa(e.detail)}
+            @everyone-change=${(e: CustomEvent<boolean>) => void this._setEveryone(e.detail)}
           >
             ${this._isAdmin
               ? html`<share-space-zones-settings slot="zones" .hass=${this.hass}></share-space-zones-settings>
