@@ -29,6 +29,7 @@ import {
 } from "ha-share-space-ui/ha";
 import type { AreaInfo, HeatingZone, HomeAssistant, SharedStrategy, StrategyAutomation, StrategyUse, ZoneRules } from "ha-share-space-ui/ha";
 import "./rules-tab";
+import "./existing-heating";
 
 const messageOf = (err: unknown): string => {
   if ((err as { code?: string })?.code === "name_taken") return "Another shared strategy already has this name.";
@@ -360,6 +361,7 @@ export class ShareSpaceRulesPage extends LitElement {
     const zoneOn = this._zoneOn;
     const users = Object.fromEntries((this._shared ?? []).map((s) => [s.id, strategyUsers(this._uses, s.id)]));
     const switching = (this._choice || null) !== zoneOn && !!(this._rules || this._choice);
+    const target = zone && this._area ? { area: this._area, entities: [zone.climate_entity, ...(zone.heaters ?? []), ...(zone.heater_switch ? [zone.heater_switch] : [])] } : null;
     return html`<share-space-rules-tab
       .zones=${this._zones}
       .zone=${this._zone}
@@ -400,7 +402,8 @@ export class ShareSpaceRulesPage extends LitElement {
       @strategy-rename=${(e: CustomEvent<{ id: string; name: string }>) => this._rename(e.detail.id, e.detail.name)}
       @strategy-delete=${(e: CustomEvent<string>) => this._deleteShared(e.detail)}
       @make-copy=${() => this._makeCopy()}
-    ></share-space-rules-tab>`;
+    ></share-space-rules-tab>
+      <share-space-existing-heating .hass=${hass} .target=${target} .rulesActive=${!!active}></share-space-existing-heating>`;
   }
 }
 

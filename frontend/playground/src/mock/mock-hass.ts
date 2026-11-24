@@ -1,6 +1,6 @@
 import { RULES_BLUEPRINT_PATH, WEEK_DAYS, evaluateRules, nextOff, rulesAutomationConfig, sensorReadings, nextOn, occupiedAt, previousOff, wallTime, windowMatches } from "ha-share-space-ui";
 import type { Calendar, RuleStrategy, Schedule, ScheduleRanges } from "ha-share-space-ui";
-import type { AreaActions, Floorplan, HassEntity, HomeAssistant } from "ha-share-space-ui/ha";
+import type { AreaActions, Floorplan, HassEntity, HomeAssistant, SchedulerItem } from "ha-share-space-ui/ha";
 import { MockClock } from "./clock";
 import { HeatingZoneSim, templateSyntaxError } from "./heating";
 import type { ClimateInfo, ZoneConfig } from "./heating";
@@ -77,6 +77,9 @@ export class MockHassController {
   // Settings outdoor sensor (rules alias "outdoor"); the demo has one.
   private _outdoorEntity: string | null = OUTDOOR_SENSOR;
   private _autoLast = new Map<string, string>();
+  // Heating already in HA before Share Space: Schedule helpers and Scheduler component items.
+  private _scheduleHelpers: Array<Record<string, unknown> & { id: string; name: string }> = [];
+  private _schedulerItems: SchedulerItem[] = [];
   private _planningVersion = 0;
   private _dirty = true;
   private _listeners = new Set<(hass: HomeAssistant) => void>();
@@ -242,6 +245,52 @@ export class MockHassController {
     });
   }
 
+  // Demo: heating the Workshop already gets from HA (an automation, a Schedule helper, a Scheduler item).
+  private _seedExistingHeating(): void {
+    const workdays = ["mon", "tue", "wed", "thu", "fri"];
+    const add = (id: string, config: StrategyAutomationRec["config"]) =>
+      this._automations.set(id, { entityId: this._freeAutomationEntity(`automation.${slugify(config.alias)}`), config, enabled: true, lastTriggered: null });
+    add("lunch_preheat", {
+      alias: "Lunch preheat",
+      description: "",
+      triggers: [{ trigger: "time", at: "11:30:00", weekday: workdays }],
+      conditions: [{ condition: "or", conditions: [{ condition: "state", entity_id: "climate.open_space", attribute: "preset_mode", state: "comfort" }] }],
+      actions: [
+        { action: "climate.set_preset_mode", target: { entity_id: "climate.workshop" }, data: { preset_mode: "comfort" } },
+        { delay: { hours: 1, minutes: 40, seconds: 0 } },
+        { action: "climate.set_preset_mode", target: { entity_id: "climate.workshop" }, data: { preset_mode: "eco" } },
+      ],
+    });
+    this._scheduleHelpers = [
+      {
+        id: "workshop_hours",
+        name: "Workshop hours",
+        ...Object.fromEntries(["monday", "tuesday", "wednesday", "thursday"].map((d) => [d, [{ from: "08:00:00", to: "17:00:00" }]])),
+        friday: [{ from: "08:00:00", to: "12:00:00" }],
+      },
+    ];
+    add("workshop_hours_heat", {
+      alias: "Workshop hours heat",
+      description: "",
+      triggers: [{ trigger: "state", entity_id: "schedule.workshop_hours", to: "on" }],
+      conditions: [],
+      actions: [{ action: "climate.set_temperature", target: { area_id: "workshop" }, data: { temperature: 19 } }],
+    });
+    this._schedulerItems = [
+      {
+        schedule_id: "a1b2c3",
+        entity_id: "switch.schedule_a1b2c3",
+        name: "Workshop weekend",
+        weekdays: ["weekend"],
+        enabled: true,
+        timeslots: [
+          { start: "09:00:00", actions: [{ service: "climate.set_temperature", entity_id: "climate.workshop", service_data: { temperature: 16 } }] },
+          { start: "18:00:00", actions: [{ service: "climate.set_hvac_mode", entity_id: "climate.workshop", service_data: { hvac_mode: "off" } }] },
+        ],
+      },
+    ];
+  }
+
   simulateThermostatChange(climateEntity: string, temperature: number): void {
     this._callService("climate", "set_temperature", { entity_id: climateEntity, temperature });
   }
@@ -317,6 +366,7 @@ export class MockHassController {
     // Like the integration's first load: seed the starter shared strategies.
     for (const st of STARTERS) this._strategies.set(st.id, { ...clone(st), previous: null });
     if (this._options.demoRules) this._seedDemoRules();
+    if (this._options.demoRules) this._seedExistingHeating();
     for (const area of new Set(Object.values(this._state.personAreas))) this._knownAreas.add(area);
   }
 
@@ -870,6 +920,44 @@ export class MockHassController {
       true
     );
 
+    // HA search: automations that name the area, one of its entities, or the entity asked for.
+    ws("search/related", null, (m) => {
+      const area = m.item_type === "area" ? String(m.item_id) : null;
+      const entity = m.item_type === "entity" ? String(m.item_id) : null;
+      const inArea = [...this._zones.values()].filter((z) => z.config.area_id === area).map((z) => z.config.climate_entity);
+      const automation = [...this._automations.values()]
+        .filter((a) => {
+          const text = JSON.stringify(a.config);
+          return (area && (text.includes(`"${area}"`) || inArea.some((e) => text.includes(e)))) || (entity && text.includes(entity));
+        })
+        .map((a) => a.entityId);
+      return { automation };
+    });
+    ws("schedule/list", null, () => clone(this._scheduleHelpers));
+    ws(
+      "schedule/update",
+      null,
+      (m) => {
+        const i = this._scheduleHelpers.findIndex((h) => h.id === m.schedule_id);
+        if (i < 0) throw HA_ERROR("not_found", "Schedule not found");
+        const { type: _type, id: _id, schedule_id: _sid, ...fields } = m;
+        this._scheduleHelpers[i] = { ...this._scheduleHelpers[i], ...(fields as Record<string, unknown>) };
+        return clone(this._scheduleHelpers[i]);
+      },
+      true
+    );
+    ws("scheduler", null, () => clone(this._schedulerItems));
+    svc(
+      "scheduler.edit",
+      null,
+      (d) => {
+        const item = this._schedulerItems.find((x) => x.entity_id === d.entity_id);
+        if (!item) throw HA_ERROR("service_validation_error", `Entity ${String(d.entity_id)} not found`);
+        if (d.weekdays) item.weekdays = d.weekdays as string[];
+        if (d.timeslots) item.timeslots = clone(d.timeslots) as SchedulerItem["timeslots"];
+      },
+      true
+    );
     ws("share_space_heating/get_settings", "heating", () => ({ outdoor_entity: this._outdoorEntity, ignored_areas: [] }));
     ws("share_space_heating/manage_area", "heating", () => ({}), true);
     ws(
