@@ -55,7 +55,7 @@ export class ShareSpaceHeatingCard extends ShareSpaceCardBase<CardConfig> {
       .banner {
         margin: 0 16px 12px;
         padding: 8px 12px;
-        border-radius: var(--ha-card-border-radius, 12px);
+        border-radius: var(--ha-card-border-radius, 6px);
         border: 1px solid var(--primary-color);
         font-size: 0.9em;
       }
@@ -70,12 +70,29 @@ export class ShareSpaceHeatingCard extends ShareSpaceCardBase<CardConfig> {
         color: var(--primary-text-color);
         background: transparent;
         border: 1px solid var(--divider-color);
-        border-radius: 20px;
+        border-radius: 4px;
       }
       .tools button.active {
         background: var(--primary-color);
         color: var(--text-primary-color, #fff);
         border-color: transparent;
+      }
+      ha-card {
+        transition: box-shadow 0.6s;
+      }
+      ha-card.heating {
+        box-shadow: 0 0 18px -2px color-mix(in srgb, var(--state-climate-heat-color, #ff8100) 55%, transparent);
+        animation: glow 3s ease-in-out infinite;
+      }
+      @keyframes glow {
+        50% {
+          box-shadow: 0 0 26px 0 color-mix(in srgb, var(--state-climate-heat-color, #ff8100) 70%, transparent);
+        }
+      }
+      @media (prefers-reduced-motion: reduce) {
+        ha-card.heating {
+          animation: none;
+        }
       }
       share-space-strategy-editor {
         margin-top: 12px;
@@ -157,8 +174,9 @@ export class ShareSpaceHeatingCard extends ShareSpaceCardBase<CardConfig> {
     }
     const zone = vm.serviceEntityId;
     const name = cfg.name ?? vm.name;
+    const heating = vm.hvacAction === "heating";
     return html`
-      <ha-card>
+      <ha-card class=${heating ? "heating" : ""}>
         <div class="header">${name}</div>
         <share-space-heating-control
           .currentTemperature=${vm.currentTemperature}
@@ -173,6 +191,7 @@ export class ShareSpaceHeatingCard extends ShareSpaceCardBase<CardConfig> {
           .reason=${vm.activeRule}
           .durations=${cfg.durations ?? [1, 2, 3, 6]}
           .presets=${vm.presets}
+          .heating=${heating}
           @override-requested=${(e: CustomEvent<{ temperature: number; hours: number }>) =>
             zone && this._run(() => setOverride(hass, zone, e.detail.temperature, e.detail.hours))}
           @override-extended=${(e: CustomEvent<{ hours: number }>) =>

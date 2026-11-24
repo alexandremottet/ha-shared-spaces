@@ -34,7 +34,7 @@ export class ShareSpaceThemePicker extends LitElement {
     select {
       min-height: 36px;
       padding: 0 8px;
-      border-radius: 18px;
+      border-radius: 4px;
       border: 1px solid var(--divider-color);
       background: var(--card-background-color);
       color: var(--primary-text-color);

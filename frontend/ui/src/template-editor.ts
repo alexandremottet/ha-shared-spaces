@@ -50,13 +50,13 @@ export class ShareSpaceTemplateEditor extends LitElement {
       color: var(--primary-text-color);
       background: var(--card-background-color, transparent);
       border: 1px solid var(--divider-color);
-      border-radius: 8px;
+      border-radius: 4px;
       padding: 8px;
     }
     ha-code-editor {
       display: block;
       border: 1px solid var(--divider-color);
-      border-radius: 8px;
+      border-radius: 4px;
     }
     .row {
       display: flex;
@@ -72,7 +72,7 @@ export class ShareSpaceTemplateEditor extends LitElement {
       font: inherit;
       color: var(--primary-text-color);
       border: 1px solid var(--divider-color);
-      border-radius: 22px;
+      border-radius: 4px;
       background: transparent;
       padding: 0 16px;
       cursor: pointer;
@@ -96,7 +96,7 @@ export class ShareSpaceTemplateEditor extends LitElement {
     .live {
       margin: 8px 0;
       padding: 8px 12px;
-      border-radius: 8px;
+      border-radius: 4px;
       background: var(--secondary-background-color);
       min-height: 20px;
     }
@@ -126,7 +126,7 @@ export class ShareSpaceTemplateEditor extends LitElement {
       align-items: flex-start;
       height: auto;
       padding: 8px 16px;
-      border-radius: 12px;
+      border-radius: 4px;
       text-align: left;
     }
     .snip code {

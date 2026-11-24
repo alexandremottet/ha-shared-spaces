@@ -8,7 +8,7 @@ export const selectStyles = css`
     min-height: 36px;
     max-width: 100%;
     padding: 0 30px 0 10px;
-    border-radius: 8px;
+    border-radius: 4px;
     border: 1px solid var(--divider-color);
     color: var(--primary-text-color);
     font: inherit;

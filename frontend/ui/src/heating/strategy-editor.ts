@@ -57,12 +57,12 @@ export class ShareSpaceStrategyEditor extends LitElement {
         color: var(--primary-text-color);
         background: transparent;
         border: 1px solid var(--divider-color);
-        border-radius: 20px;
+        border-radius: 4px;
         padding: 0 14px;
         cursor: pointer;
       }
       select {
-        border-radius: 8px;
+        border-radius: 4px;
         background: var(--card-background-color, #fff);
       }
       button.primary {
@@ -100,7 +100,7 @@ export class ShareSpaceStrategyEditor extends LitElement {
         min-height: 40px;
         padding: 0 14px;
         border: 1px solid var(--divider-color);
-        border-radius: 20px;
+        border-radius: 4px;
         color: var(--primary-text-color);
       }
     `,

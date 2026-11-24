@@ -27,6 +27,7 @@ export function renderHeatingControl(
     .overrideUntil=${vm.overrideUntil}
     .presence=${vm.presence}
     .presets=${vm.presets}
+    .heating=${vm.hvacAction === "heating"}
     @override-requested=${(e: CustomEvent<{ temperature: number; hours: number }>) =>
       zone && run(() => setOverride(hass, zone, e.detail.temperature, e.detail.hours))}
     @override-extended=${(e: CustomEvent<{ hours: number }>) => zone && run(() => extendOverride(hass, zone, e.detail.hours))}

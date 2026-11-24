@@ -164,13 +164,13 @@ export class ShareSpaceAreaTriggerPopover extends LitElement {
         color: var(--primary-text-color);
         background: transparent;
         border: 1px solid var(--divider-color);
-        border-radius: 22px;
+        border-radius: 4px;
         padding: 0 16px;
         cursor: pointer;
       }
       select,
       input[type="number"] {
-        border-radius: 8px;
+        border-radius: 4px;
         background: var(--card-background-color, #fff);
         cursor: auto;
       }
@@ -196,7 +196,7 @@ export class ShareSpaceAreaTriggerPopover extends LitElement {
         gap: 4px;
         min-height: 36px;
         padding: 0 4px 0 12px;
-        border-radius: 18px;
+        border-radius: 4px;
         background: var(--divider-color);
         color: var(--primary-text-color);
       }
@@ -205,14 +205,14 @@ export class ShareSpaceAreaTriggerPopover extends LitElement {
         min-width: 32px;
         padding: 0;
         border: none;
-        border-radius: 16px;
+        border-radius: 4px;
       }
       .form {
         display: flex;
         flex-direction: column;
         gap: 8px;
         padding: 8px;
-        border-radius: 8px;
+        border-radius: 4px;
         border: 1px solid var(--divider-color);
       }
       .items {
@@ -226,7 +226,7 @@ export class ShareSpaceAreaTriggerPopover extends LitElement {
         justify-content: space-between;
         gap: 8px;
         padding: 6px 10px;
-        border-radius: 8px;
+        border-radius: 4px;
         border: 1px solid var(--divider-color);
       }
       .use {

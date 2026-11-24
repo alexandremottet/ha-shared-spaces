@@ -89,7 +89,7 @@ export class ShareSpaceRulesSummary extends LitElement {
     .badge {
       font-size: 0.8em;
       padding: 3px 10px;
-      border-radius: 12px;
+      border-radius: 4px;
       background: var(--secondary-background-color);
       white-space: nowrap;
     }

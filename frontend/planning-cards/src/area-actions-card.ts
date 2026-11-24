@@ -73,7 +73,7 @@ export class ShareSpaceAreaActionsCard extends ShareSpaceCardBase<CardConfig> {
       .wrap { padding: 16px; display: flex; flex-direction: column; gap: 16px; }
       .head { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
       .title { font-size: 1.2em; font-weight: 500; flex: 1; min-width: 0; color: var(--primary-text-color); }
-      .badge { padding: 2px 10px; border-radius: 12px; font-size: 0.85em; background: var(--divider-color); color: var(--primary-text-color); }
+      .badge { padding: 2px 10px; border-radius: 4px; font-size: 0.85em; background: var(--divider-color); color: var(--primary-text-color); }
       .badge.on { background: var(--success-color, var(--primary-color)); color: var(--text-primary-color, #fff); }
       .row { display: flex; align-items: center; gap: 8px; color: var(--primary-text-color); }
       .section h3 { margin: 0 0 8px; font-size: 1em; font-weight: 500; color: var(--primary-text-color); }
@@ -81,7 +81,7 @@ export class ShareSpaceAreaActionsCard extends ShareSpaceCardBase<CardConfig> {
       .err { color: var(--error-color); font-size: 0.9em; }
       .muted { color: var(--secondary-text-color); }
       .buttons { display: flex; gap: 8px; flex-wrap: wrap; }
-      button { cursor: pointer; padding: 8px 16px; border-radius: 18px; border: 1px solid var(--divider-color); background: transparent; color: var(--primary-text-color); font: inherit; }
+      button { cursor: pointer; padding: 8px 16px; border-radius: 4px; border: 1px solid var(--divider-color); background: transparent; color: var(--primary-text-color); font: inherit; }
       button.primary { background: var(--primary-color); color: var(--text-primary-color, #fff); border-color: transparent; }
       button:disabled { opacity: 0.5; cursor: default; }
       ul { margin: 0; padding-left: 20px; color: var(--primary-text-color); }

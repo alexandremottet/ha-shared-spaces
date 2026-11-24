@@ -634,7 +634,7 @@ private _prefsFor = "";
     .btn {
       min-height: 44px;
       padding: 0 18px;
-      border-radius: 22px;
+      border-radius: 4px;
       border: none;
       cursor: pointer;
       font: inherit;
@@ -714,7 +714,7 @@ private _prefsFor = "";
       position: absolute;
       transform: translate(-50%, -50%);
       pointer-events: none;
-      border-radius: 14px;
+      border-radius: 4px;
       padding: 4px 10px;
       font-size: 0.9em;
       white-space: nowrap;
@@ -736,7 +736,7 @@ private _prefsFor = "";
       width: min(380px, calc(100vw - 24px));
       max-height: calc(100vh - 24px);
       overflow: auto;
-      border-radius: var(--ha-card-border-radius, 12px);
+      border-radius: var(--ha-card-border-radius, 6px);
       background: var(--card-background-color);
       box-shadow: 0 6px 24px rgba(0, 0, 0, 0.35);
     }
@@ -800,7 +800,7 @@ private _prefsFor = "";
       overflow: auto;
       box-sizing: border-box;
       padding: 16px;
-      border-radius: var(--ha-card-border-radius, 12px);
+      border-radius: var(--ha-card-border-radius, 6px);
       background: var(--card-background-color);
       box-shadow: 0 6px 24px rgba(0, 0, 0, 0.35);
       display: flex;
@@ -824,7 +824,7 @@ private _prefsFor = "";
       color: var(--primary-text-color);
       background: var(--secondary-background-color);
       border: 1px solid var(--divider-color);
-      border-radius: 8px;
+      border-radius: 4px;
     }
     textarea {
       min-height: 120px;

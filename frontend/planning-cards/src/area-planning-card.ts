@@ -47,7 +47,7 @@ export class ShareSpaceAreaPlanningCard extends LitElement {
         align-items: center;
         gap: 8px;
         padding: 8px 16px;
-        border-radius: 20px;
+        border-radius: 4px;
         margin-bottom: 12px;
         font-weight: 600;
         background: var(--divider-color);
@@ -74,7 +74,7 @@ export class ShareSpaceAreaPlanningCard extends LitElement {
       .links button {
         min-height: 44px;
         padding: 0 16px;
-        border-radius: 22px;
+        border-radius: 4px;
         border: 1px solid var(--divider-color);
         background: transparent;
         color: var(--primary-text-color);

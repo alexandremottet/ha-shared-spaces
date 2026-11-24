@@ -31,7 +31,7 @@ export class ShareSpaceMyPlanningCard extends ShareSpaceScheduleView {
         min-height: 44px;
         margin-bottom: 12px;
         padding: 0 8px;
-        border-radius: 8px;
+        border-radius: 4px;
         border: 1px solid var(--divider-color);
         background: transparent;
         color: var(--primary-text-color);

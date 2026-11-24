@@ -24,7 +24,7 @@ class HaCardStub extends HTMLElement {
           position: relative;
           background: var(--ha-card-background, var(--card-background-color, #fff));
           color: var(--primary-text-color);
-          border-radius: var(--ha-card-border-radius, 12px);
+          border-radius: var(--ha-card-border-radius, 6px);
           border: var(--ha-card-border-width, 1px) solid var(--ha-card-border-color, var(--divider-color, #e0e0e0));
           box-shadow: var(--ha-card-box-shadow, none);
           backdrop-filter: var(--ha-card-backdrop-filter, none);
@@ -58,7 +58,7 @@ class HaSwitchStub extends HTMLElement {
       this,
       `<style>
         :host { display: inline-flex; vertical-align: middle; }
-        input { appearance: none; width: 36px; height: 20px; border-radius: 10px; margin: 0; cursor: pointer;
+        input { appearance: none; width: 36px; height: 20px; border-radius: 4px; margin: 0; cursor: pointer;
           background: var(--switch-unchecked-track-color, var(--disabled-text-color, #bdbdbd)); position: relative; transition: background .15s; }
         input::after { content: ""; position: absolute; top: 2px; left: 2px; width: 16px; height: 16px; border-radius: 50%;
           background: var(--switch-unchecked-color, #fff); transition: transform .15s; }
@@ -105,7 +105,7 @@ class HaButtonStub extends HTMLElement {
       this,
       `<style>
         :host { display: inline-block; }
-        button { font: inherit; cursor: pointer; padding: 8px 16px; border-radius: 18px; border: 1px solid transparent;
+        button { font: inherit; cursor: pointer; padding: 8px 16px; border-radius: 4px; border: 1px solid transparent;
           background: transparent; color: var(--primary-color); font-weight: 500; }
         button:hover { background: color-mix(in srgb, var(--primary-color) 12%, transparent); }
         :host([variant="brand"]) button, :host([appearance="filled"]) button { background: var(--primary-color); color: var(--text-primary-color, #fff); }
@@ -129,7 +129,7 @@ class HaDialogStub extends HTMLElement {
         .scrim { position: absolute; inset: 0; background: var(--mdc-dialog-scrim-color, rgba(0,0,0,.5)); }
         .surface { position: relative; min-width: 280px; max-width: min(560px, 92vw); max-height: 86vh; overflow: auto;
           background: var(--mdc-theme-surface, var(--card-background-color, #fff)); color: var(--primary-text-color);
-          border-radius: var(--ha-dialog-border-radius, 24px); padding: 24px;
+          border-radius: var(--ha-dialog-border-radius, 6px); padding: 24px;
           backdrop-filter: var(--ha-dialog-surface-backdrop-filter, none); -webkit-backdrop-filter: var(--ha-dialog-surface-backdrop-filter, none);
           box-shadow: 0 8px 32px rgba(0,0,0,.3); }
         h2 { margin: 0 0 16px; font-size: 1.4em; font-weight: 400; }

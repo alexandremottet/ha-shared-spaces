@@ -8,7 +8,7 @@ export const buttonStyles = css`
     font: inherit;
     color: var(--primary-text-color);
     border: 1px solid var(--divider-color);
-    border-radius: 20px;
+    border-radius: 4px;
     background: transparent;
     padding: 0 16px;
     cursor: pointer;

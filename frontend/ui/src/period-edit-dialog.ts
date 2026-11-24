@@ -19,7 +19,7 @@ export class PeriodEditDialog extends LitElement {
   static styles = css`
     dialog {
       border: none;
-      border-radius: var(--period-edit-dialog-radius, 8px);
+      border-radius: var(--period-edit-dialog-radius, 4px);
       padding: var(--period-edit-dialog-padding, 16px);
       backdrop-filter: var(--ha-dialog-surface-backdrop-filter, none);
       min-width: var(--period-edit-dialog-min-width, 260px);

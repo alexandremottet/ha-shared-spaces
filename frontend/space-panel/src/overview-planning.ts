@@ -67,7 +67,7 @@ export class ShareSpaceOverviewPlanning extends LitElement {
       text-align: center;
       font-weight: 500;
       color: var(--primary-text-color);
-      border-radius: 8px;
+      border-radius: 4px;
       background: color-mix(in srgb, var(--card-background-color, #fff) 60%, transparent);
       backdrop-filter: blur(4px);
       -webkit-backdrop-filter: blur(4px);

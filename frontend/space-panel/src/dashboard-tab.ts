@@ -39,7 +39,7 @@ export class ShareSpaceDashboard extends LitElement {
     .btn {
       min-height: 44px;
       padding: 0 18px;
-      border-radius: 22px;
+      border-radius: 4px;
       border: none;
       cursor: pointer;
       font: inherit;

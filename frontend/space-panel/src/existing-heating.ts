@@ -62,7 +62,7 @@ export class ShareSpaceExistingHeating extends LitElement {
     .badge {
       font-size: 0.75em;
       padding: 2px 8px;
-      border-radius: 10px;
+      border-radius: 4px;
       background: var(--secondary-background-color);
     }
     .mapping {

@@ -44,7 +44,7 @@ export class ShareSpaceWorkAreaCard extends LitElement {
         min-width: 0;
         min-height: 40px;
         padding: 0 12px;
-        border-radius: 20px;
+        border-radius: 4px;
         border: 1px solid var(--divider-color);
         background: var(--card-background-color);
         color: var(--primary-text-color);

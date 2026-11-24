@@ -4,7 +4,7 @@ import { css } from "lit";
 export const haCardSurface = css`
   background: var(--ha-card-background, var(--card-background-color, #fff));
   border: var(--ha-card-border-width, 1px) solid var(--ha-card-border-color, var(--divider-color));
-  border-radius: var(--ha-card-border-radius, 12px);
+  border-radius: var(--ha-card-border-radius, 6px);
   box-shadow: var(--ha-card-box-shadow, none);
   backdrop-filter: var(--ha-card-backdrop-filter, none);
   -webkit-backdrop-filter: var(--ha-card-backdrop-filter, none);
@@ -23,13 +23,13 @@ export const ruleStyles = css`
     font: inherit;
     color: var(--primary-text-color);
     border: 1px solid var(--divider-color);
-    border-radius: 8px;
+    border-radius: 4px;
     background: var(--card-background-color, #fff);
     padding: 0 12px;
   }
   button {
     background: transparent;
-    border-radius: 22px;
+    border-radius: 4px;
     cursor: pointer;
     min-width: 44px;
   }
@@ -70,7 +70,7 @@ export const ruleStyles = css`
     border-color: var(--error-color);
   }
   .chip {
-    border-radius: 22px;
+    border-radius: 4px;
   }
   label.inline {
     display: inline-flex;
@@ -110,7 +110,7 @@ export const chainStyles = css`
     flex: 0 1 auto;
     padding: 6px;
     border: 1px solid color-mix(in srgb, var(--chain-cond) 35%, transparent);
-    border-radius: 14px;
+    border-radius: 4px;
     background: color-mix(in srgb, var(--chain-cond) 6%, transparent);
   }
   .link {
@@ -127,7 +127,7 @@ export const chainStyles = css`
     min-width: 120px;
     max-width: min(260px, 100%);
     border: 1px solid var(--ha-card-border-color, var(--divider-color));
-    border-radius: 10px;
+    border-radius: 4px;
     overflow: hidden;
     background: var(--ha-card-background, var(--card-background-color, #fff));
     transition: box-shadow 0.12s, border-color 0.12s;
@@ -198,7 +198,7 @@ export const chainStyles = css`
     border-color: var(--error-color);
   }
   .wrap {
-    border-radius: 14px;
+    border-radius: 4px;
     transition: background 0.12s, box-shadow 0.12s;
   }
   :host([highlighted]) .wrap {
@@ -210,7 +210,7 @@ export const chainStyles = css`
     min-height: 44px;
     padding: 0 12px;
     border: 2px dashed var(--chain-link);
-    border-radius: 8px;
+    border-radius: 4px;
     color: var(--primary-color);
     font-size: 0.75em;
     font-weight: 700;
@@ -226,7 +226,7 @@ export const chainStyles = css`
     margin: 14px 0 6px;
     padding: 12px;
     border: 2px solid var(--kind);
-    border-radius: 12px;
+    border-radius: 4px;
     background: color-mix(in srgb, var(--kind) 8%, var(--ha-card-background, var(--card-background-color, #fff)));
     display: flex;
     flex-direction: column;

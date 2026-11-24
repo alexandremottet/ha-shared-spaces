@@ -52,7 +52,7 @@ export class ShareSpaceZonesSettings extends LitElement {
         align-items: center;
         gap: 4px;
         padding: 2px 4px 2px 10px;
-        border-radius: 16px;
+        border-radius: 4px;
         background: var(--secondary-background-color);
       }
       .chip button {

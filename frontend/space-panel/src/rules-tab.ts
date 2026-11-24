@@ -92,14 +92,14 @@ export class ShareSpaceRulesTab extends LitElement {
       font: inherit;
       color: var(--primary-text-color);
       border: 1px solid var(--divider-color);
-      border-radius: 22px;
+      border-radius: 4px;
       background: transparent;
       padding: 0 16px;
       cursor: pointer;
     }
     select,
     input {
-      border-radius: 8px;
+      border-radius: 4px;
       background: var(--card-background-color, #fff);
     }
     button.primary {
@@ -117,7 +117,7 @@ export class ShareSpaceRulesTab extends LitElement {
     .banner {
       ${haCardSurface}
       border-left: 4px solid var(--warning-color, #ffa600);
-      border-radius: 8px;
+      border-radius: 4px;
       padding: 8px 12px;
       margin: 8px 0;
     }
@@ -161,7 +161,7 @@ export class ShareSpaceRulesTab extends LitElement {
       align-items: center;
       min-height: 28px;
       padding: 0 12px;
-      border-radius: 14px;
+      border-radius: 4px;
       border: 1px solid var(--divider-color);
       font-size: 0.85em;
       white-space: nowrap;
@@ -199,7 +199,7 @@ export class ShareSpaceRulesTab extends LitElement {
     }
     .menu button {
       border: none;
-      border-radius: 8px;
+      border-radius: 4px;
       text-align: left;
       padding: 8px 12px;
       display: block;

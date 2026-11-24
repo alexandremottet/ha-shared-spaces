@@ -37,7 +37,7 @@ export class ShareSpaceRuleList extends LitElement {
         min-height: 44px;
         padding: 0 12px;
         border: 2px dashed color-mix(in srgb, var(--primary-color) 55%, transparent);
-        border-radius: 8px;
+        border-radius: 4px;
         color: var(--primary-color);
         font-size: 0.75em;
         font-weight: 700;

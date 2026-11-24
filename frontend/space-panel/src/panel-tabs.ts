@@ -83,7 +83,7 @@ export class ShareSpacePanelTabs extends LitElement {
       flex-direction: column;
       gap: 4px;
       padding: 6px;
-      border-radius: 16px;
+      border-radius: 4px;
       /* themes may give cards a see-through background: the menu must hide what is under it */
       background: var(--primary-background-color, #fff);
       background-image: linear-gradient(var(--card-background-color), var(--card-background-color));
@@ -122,7 +122,7 @@ export class ShareSpacePanelTabs extends LitElement {
       min-height: 40px;
       padding: 0 18px;
       border: none;
-      border-radius: 20px;
+      border-radius: 4px;
       cursor: pointer;
       font: inherit;
       font-weight: 500;
