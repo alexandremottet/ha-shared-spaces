@@ -49,6 +49,8 @@ export class ShareSpaceRuleList extends LitElement {
   @property({ attribute: false }) strategy: RuleStrategy = EMPTY;
   /** Label of the rule to highlight (from the preview). */
   @property() highlight: string | null = null;
+  /** Area names by id, for "Another area heated" conditions. */
+  @property({ attribute: false }) areaNames: Record<string, string> = {};
 
   private _errors(): RuleError[] {
     const r = validateStrategy(this.strategy);
@@ -87,6 +89,7 @@ export class ShareSpaceRuleList extends LitElement {
               @focusin=${() => this._hover(rule.label)}
               @focusout=${() => this._hover(null)}
               .rule=${rule}
+              .areaNames=${this.areaNames}
               .index=${i}
               .count=${s.rules.length}
               .errors=${scopeErrors(errors, `$.rules[${i}]`)}

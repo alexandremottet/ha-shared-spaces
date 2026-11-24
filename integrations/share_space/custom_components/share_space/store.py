@@ -7,9 +7,6 @@ from homeassistant.helpers.storage import Store
 from .const import (
     STORAGE_KEY_AREA_ACTIONS,
     STORAGE_VERSION_AREA_ACTIONS,
-    STORAGE_KEY_PERSON_AREAS,
-    STORAGE_KEY_PERSON_CALENDARS,
-    STORAGE_VERSION,
 )
 
 
@@ -52,25 +49,8 @@ class _KeyedStore:
         await self._store.async_save(self._data)
 
 
-class PersonCalendarStore(_KeyedStore):
-    """`{person_entity_id: calendar}`. Each person owns and edits exactly one calendar."""
-
-    def __init__(self, hass: HomeAssistant) -> None:
-        super().__init__(hass, STORAGE_VERSION, STORAGE_KEY_PERSON_CALENDARS)
-
-
-class PersonAreaStore(_KeyedStore):
-    """`{person_entity_id: area}`. Many persons may share the same area."""
-
-    def __init__(self, hass: HomeAssistant) -> None:
-        super().__init__(hass, STORAGE_VERSION, STORAGE_KEY_PERSON_AREAS)
-
-    def persons_in_area(self, area: str) -> list[str]:
-        return [person for person, assigned_area in self._data.items() if assigned_area == area]
-
-
 class AreaActionsStore(_KeyedStore):
-    """`{area_id: {on_actions, off_actions, enabled}}`."""
+    """Legacy `{area_id: {on_actions, off_actions, enabled}}`, run until the panel moves them into an HA automation."""
 
     def __init__(self, hass: HomeAssistant) -> None:
         super().__init__(hass, STORAGE_VERSION_AREA_ACTIONS, STORAGE_KEY_AREA_ACTIONS, _AreaActionsMigratingStore)
@@ -78,5 +58,9 @@ class AreaActionsStore(_KeyedStore):
     def get_actions(self, area: str) -> dict:
         return {"on_actions": [], "off_actions": [], "enabled": True} | (self._data.get(area) or {})
 
-    async def async_update(self, area: str, changes: dict) -> None:
-        await self.async_set(area, self.get_actions(area) | changes)
+    def has(self, area: str) -> bool:
+        return area in self._data
+
+    async def async_forget(self, area: str) -> None:
+        if self._data.pop(area, None) is not None:
+            await self._store.async_save(self._data)

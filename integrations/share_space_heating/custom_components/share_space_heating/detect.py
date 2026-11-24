@@ -1,17 +1,15 @@
-"""Heating an HA area already holds, and the zones Share Space sets up for it on its own."""
+"""Heating an HA area already holds."""
 from __future__ import annotations
 
-import logging
+import re
 
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers import area_registry as ar
+from homeassistant.helpers import device_registry as dr
+from homeassistant.helpers import entity_registry as er
 
 from .area import area_entities, entity_area, managed_devices, zone_climate
-from .const import CONF_AREA, DATA_SETTINGS, DOMAIN
-from .provision import ProvisionError, async_create_area_zone
-
-_LOGGER = logging.getLogger(__name__)
-DATA_AUTO_PENDING = "auto_zones_pending"
+from .const import CONF_AREA, DOMAIN
 
 
 def _ours(entity_id: str) -> bool:
@@ -27,6 +25,24 @@ def _taken(hass: HomeAssistant) -> set[str]:
         taken.add(devices["heater_switch"] or "")
         taken.add(zone_climate(hass, entry) or "")
     return taken
+
+
+# A plug only counts as a heater when it says so: a camera or printer plug must never be driven.
+_HEATING_WORDS = re.compile(r"radiat|heat|chauff|convect|(^|[\s._])rad($|[\s._\d])", re.I)
+
+
+def _heater_like(hass: HomeAssistant, entity_id: str) -> bool:
+    entry = er.async_get(hass).async_get(entity_id)
+    if entry is not None and entry.entity_category is not None:
+        return False  # child lock, LED, relay settings of a plug
+    state = hass.states.get(entity_id)
+    names = [entity_id, state.name if state else ""]
+    if entry is not None:
+        names += [entry.name or "", entry.original_name or ""]
+        device = dr.async_get(hass).async_get(entry.device_id) if entry.device_id else None
+        if device is not None:
+            names += [device.name_by_user or "", device.name or ""]
+    return any(_HEATING_WORDS.search(n) for n in names if n)
 
 
 def _members(hass: HomeAssistant, entity_id: str) -> list[str]:
@@ -54,7 +70,7 @@ def detect_area_heating(hass: HomeAssistant, area_id: str) -> dict | None:
     if climates:
         return {"climate_entity": climates[0]}
     in_area = lambda entity_id: entity_area(hass, entity_id) == area_id  # noqa: E731
-    switches = [s for s in hass.states.async_entity_ids("switch") if not _ours(s) and s not in taken]
+    switches = [s for s in hass.states.async_entity_ids("switch") if not _ours(s) and s not in taken and _heater_like(hass, s)]
     # a group switch drives the physical ones: keep it, drop its members
     groups = [s for s in switches if (m := _members(hass, s)) and (in_area(s) or any(in_area(x) for x in m))]
     grouped = {m for g in groups for m in _members(hass, g)}
@@ -65,35 +81,12 @@ def detect_area_heating(hass: HomeAssistant, area_id: str) -> dict | None:
     return {"heaters": heaters, "temperature_sensor": sensor}
 
 
-async def async_auto_zones(hass: HomeAssistant) -> None:
-    """Give every area HA already heats a zone, except areas the admin removed."""
-    settings = hass.data[DOMAIN][DATA_SETTINGS]
-    ignored = set(settings.ignored_areas)
+def detected_areas(hass: HomeAssistant) -> list[dict]:
+    """Areas without a zone whose heating HA already holds; nothing is created until the area gets a rule."""
     zoned = {entry.data.get(CONF_AREA) for entry in hass.config_entries.async_entries(DOMAIN)}
+    out = []
     for area in ar.async_get(hass).async_list_areas():
-        if area.id in zoned or area.id in ignored:
+        if area.id in zoned or (found := detect_area_heating(hass, area.id)) is None:
             continue
-        found = detect_area_heating(hass, area.id)
-        if found is None:
-            continue
-        try:
-            await async_create_area_zone(hass, area.id, auto=True, **found)
-        except ProvisionError as err:
-            _LOGGER.info("Could not set up heating for %s: %s", area.name, err)
-
-
-def async_schedule_auto_zones(hass: HomeAssistant) -> None:
-    """Run `async_auto_zones` once, however many registry events ask for it meanwhile."""
-    data = hass.data.get(DOMAIN)
-    if data is None or data.get(DATA_AUTO_PENDING):
-        return
-    data[DATA_AUTO_PENDING] = True
-
-    async def _run() -> None:
-        try:
-            await async_auto_zones(hass)
-        finally:
-            data[DATA_AUTO_PENDING] = False
-
-    hass.async_create_task(_run())
-
+        out.append({"area_id": area.id, "name": area.name, **found})
+    return sorted(out, key=lambda a: a["name"])

@@ -2,5 +2,6 @@ packages:
   - "frontend/*"
   - "integrations/*"
   - "themes/*"
+  - "e2e"
 allowBuilds:
   esbuild: true

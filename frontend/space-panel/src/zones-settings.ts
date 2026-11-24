@@ -1,8 +1,8 @@
 import { LitElement, html, css, nothing } from "lit";
 import type { TemplateResult } from "lit";
 import { customElement, property, state } from "lit/decorators.js";
-import { createAreaZone, deleteZone, entityAreaId, getHeatingSettings, listZones, manageArea, errorMessage } from "ha-share-space-ui/ha";
-import type { HeatingZone, HomeAssistant } from "ha-share-space-ui/ha";
+import { createAreaZone, deleteZone, entityAreaId, listDetectedAreas, listZones, errorMessage } from "ha-share-space-ui/ha";
+import type { DetectedArea, HeatingZone, HomeAssistant } from "ha-share-space-ui/ha";
 import { settingsStyles } from "./settings-styles";
 
 type Source = "heaters" | "thermostat";
@@ -25,7 +25,7 @@ interface Draft {
 export class ShareSpaceZonesSettings extends LitElement {
   @property({ attribute: false }) hass?: HomeAssistant;
   @state() private _zones: HeatingZone[] | null = null;
-  @state() private _ignored: string[] = [];
+  @state() private _detected: DetectedArea[] = [];
   @state() private _draft: Draft | null = null;
   @state() private _confirm: string | null = null;
   @state() private _busy = false;
@@ -75,9 +75,9 @@ export class ShareSpaceZonesSettings extends LitElement {
   private async _load(): Promise<void> {
     if (!this.hass) return;
     try {
-      const [zones, settings] = await Promise.all([listZones(this.hass), getHeatingSettings(this.hass)]);
+      const [zones, detected] = await Promise.all([listZones(this.hass), listDetectedAreas(this.hass).catch(() => [])]);
       this._zones = zones;
-      this._ignored = settings.ignored_areas ?? [];
+      this._detected = detected;
     } catch (err) {
       this._error = errorMessage(err);
     }
@@ -189,26 +189,29 @@ export class ShareSpaceZonesSettings extends LitElement {
     return html`<section class="card">
       <h4>Heating</h4>
       <p class="muted">
-        Share Space manages every area that has a thermostat, or heater switches and a temperature sensor, in Home Assistant. It leaves
-        the radiators alone until the area's first rule. Stop managing removes only what Share Space created, never your devices.
+        Share Space finds each area's thermostat, or heater switches and temperature sensor, in Home Assistant. Nothing is created or
+        changed until you save the area's first rule. Stop managing removes only what Share Space created, never your devices.
       </p>
       <div class="rows">
         ${areas.map((area) => {
           const here = zones.filter((z) => z.area_id === area.area_id);
           const zone = here[0];
           const editing = this._draft?.area === area.area_id;
-          const ignored = this._ignored.includes(area.area_id);
+          const found = this._detected.find((d) => d.area_id === area.area_id);
           return html`<div class="row">
             <span class="name">${area.name}</span>
             ${zone
               ? this._renderZone(zone)
               : editing
                 ? nothing
-                : ignored
-                  ? html`<span class="info muted">Not managed</span>
-                      <span class="actions">
-                        <button ?disabled=${this._busy} @click=${() => void this._run(() => manageArea(hass, area.area_id))}>Manage again</button>
-                      </span>`
+                : found
+                  ? html`<span class="info muted"
+                      >Found in Home Assistant:
+                      ${"climate_entity" in found
+                        ? `thermostat ${this._label(found.climate_entity)}`
+                        : `heaters ${found.heaters.map((h) => this._label(h)).join(", ")}, sensor ${this._label(found.temperature_sensor)}`}.
+                      Used once the area has a rule.</span
+                    >`
                   : html`<span class="info muted">No thermostat, or heaters and temperature sensor, in this area in Home Assistant</span>
                       <span class="actions">
                         <button

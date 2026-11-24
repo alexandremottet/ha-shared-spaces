@@ -14,7 +14,7 @@ CLIENT_ID = f"{BASE}/"
 REDIRECT_URI = f"{BASE}/?auth_callback=1"
 
 # Space Admin = HA admin; Technical Admin = HA admin with Share Space "technical tools" on.
-# Everyone lands on the Share Space panel, except the Technical Admin (full HA).
+# Everyone lands on the Share Space panel (the integration sets it on install), except the Technical Admin (full HA).
 OWNER = {"username": "dev", "password": "dev", "name": "Dev"}
 USERS = [
     {"username": "admin", "password": "admin", "name": "Admin", "group": "system-admin", "technical": True, "full_ha": True},
@@ -260,7 +260,6 @@ async def main() -> None:
         try:
             await seed_areas(ha, fresh)
             await seed_entries(ha)
-            await ha.call("frontend/set_system_data", key="core", value={"default_panel": HOME_PANEL})
             created = await seed_users(ha)
             for user in created:
                 if "area" in user:

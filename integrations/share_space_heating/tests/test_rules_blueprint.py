@@ -9,7 +9,7 @@ from homeassistant.exceptions import ServiceValidationError
 from homeassistant.setup import async_setup_component
 from pytest_homeassistant_custom_component.common import async_fire_time_changed, async_mock_service
 
-from .helpers import CLIMATE, SENSOR, _spy_base, WEEKDAYS, planning_states, setup_zone, zone_entry
+from .helpers import place_climate, CLIMATE, SENSOR, _spy_base, WEEKDAYS, planning_states, setup_zone, zone_entry
 
 FIXTURES = Path(__file__).parents[3] / "fixtures" / "heating"
 RULE_CASES = json.loads((FIXTURES / "rules_cases.json").read_text())
@@ -83,6 +83,11 @@ async def test_rules_blueprint_matches_fixture(hass, freezer, schedule, strategy
             hass.states.async_set(entity, str(temp))
     for entity, value in check.get("states", {}).items():
         hass.states.async_set(entity, value)
+    for area, climate in check.get("climates", {}).items():
+        entity_id = f"climate.{area}_thermostat"
+        attrs = {"preset_mode": climate["preset_mode"]} if "preset_mode" in climate else {}
+        hass.states.async_set(entity_id, climate["state"], attrs)
+        place_climate(hass, area, entity_id)
     await _run_rules(hass, strategy)
 
     state = hass.states.get(SENSOR)

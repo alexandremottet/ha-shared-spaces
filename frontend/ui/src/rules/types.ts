@@ -78,6 +78,12 @@ export interface StateCondition extends ConditionBase {
   is: string;
 }
 
+/** One of `areas` is heated: its thermostat is on and not on a low preset (eco, away, sleep...). */
+export interface HeatedCondition extends ConditionBase {
+  type: "heated";
+  areas: string[];
+}
+
 export type Condition =
   | OccupiedCondition
   | OccupiedWithinCondition
@@ -86,7 +92,8 @@ export type Condition =
   | TimeCondition
   | PlannedCondition
   | SensorCondition
-  | StateCondition;
+  | StateCondition
+  | HeatedCondition;
 
 export type ConditionType = Condition["type"];
 

@@ -1,9 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   automationAsHeating,
-  automationFromRules,
   schedulerAsHeating,
-  schedulerFromRules,
   type ScheduleHelper,
   type SchedulerItem,
 } from "./existing-heating";
@@ -56,43 +54,49 @@ describe("automationAsHeating", () => {
         when: [
           { type: "weekday", days: ["monday", "tuesday", "wednesday", "thursday", "friday"] },
           { type: "time", start: "11:30", end: "13:10" },
+          { type: "heated", areas: ["bureau_rue"] },
         ],
         then: { type: "comfort" },
       },
     ]);
-    expect(item.unmapped).toHaveLength(2);
-    expect(item.unmapped).toEqual([
-      "If any of: switch.radiateur_rue_1 is on · climate.rue preset_mode is comfort",
-      "Then climate.set_preset_mode climate.cuisine preset_mode eco",
+    expect(item.unmapped).toEqual([]);
+    expect(item.mapping).toEqual([
+      { ha: expect.stringMatching(/^When /), rules: "11:30–13:10 and mon, tue, wed, thu, fri" },
+      { ha: expect.stringMatching(/^If any of: /), rules: "bureau rue heated" },
+      { ha: expect.stringMatching(/^Then /), rules: "then Comfort" },
+      { ha: "Then wait 1h40", rules: "the window ends at 13:10" },
+      { ha: expect.stringMatching(/^Then /), rules: "after the window, the area's other rules apply" },
     ]);
     expect(item.haPath).toBe("/config/automation/edit/1763116012338");
+  });
+
+  it("keeps what it cannot express as lines not copied", () => {
+    const odd = { ...pauseDej, conditions: [{ condition: "sun", after: "sunset" }] };
+    const item = automationAsHeating(hass, "automation.pause_dej", odd, cuisine)!;
+    expect(item.compatible).toBe(false);
+    expect(item.unmapped).toEqual(["If sun"]);
+    expect(automationAsHeating(hass, "automation.pause_dej", pauseDej, cuisine)!.compatible).toBe(true);
+  });
+
+  it("shows heating it cannot read as rules at all, read only", () => {
+    const nested = {
+      id: "9",
+      alias: "Night",
+      triggers: [{ trigger: "sun", event: "sunset" }],
+      actions: [{ choose: [{ conditions: [], sequence: [{ action: "climate.set_hvac_mode", target: { entity_id: "climate.rue" }, data: { hvac_mode: "auto" } }] }] }],
+    };
+    const item = automationAsHeating(hass, "automation.pause_dej", nested, rue)!;
+    expect(item.rules).toEqual([]);
+    expect(item.compatible).toBe(false);
+    expect(item.unmapped[0]).toBe("When sun");
+    expect(automationAsHeating(hass, "automation.pause_dej", nested, cuisine)).toBeNull();
   });
 
   it("is not heating of an area it does not act on", () => {
     expect(automationAsHeating(hass, "automation.pause_dej", pauseDej, rue)).toBeNull();
   });
 
-  it("writes edits back into the same automation, leaving the rest untouched", () => {
-    const item = automationAsHeating(hass, "automation.pause_dej", pauseDej, cuisine)!;
-    const rule = item.rules[0];
-    const { config, schedule } = automationFromRules(item, [
-      { ...rule, when: [{ type: "weekday", days: ["monday", "friday"] }, { type: "time", start: "12:00", end: "13:00" }], then: { type: "temperature", value: 20 } },
-    ]);
-    expect(schedule).toBeNull();
-    expect(config.triggers).toEqual([{ trigger: "time", at: "12:00:00", weekday: ["mon", "fri"] }]);
-    expect(config.conditions).toEqual(pauseDej.conditions);
-    const actions = config.actions as unknown[];
-    expect(actions[0]).toEqual({ action: "climate.set_temperature", target: { entity_id: "climate.cuisine" }, data: { temperature: 20 } });
-    expect(actions[1]).toEqual({ delay: { hours: 1, minutes: 0, seconds: 0 } });
-    expect(actions[2]).toEqual(pauseDej.actions[2]);
-  });
-
-  it("round-trips unchanged rules to the same config", () => {
-    const item = automationAsHeating(hass, "automation.pause_dej", pauseDej, cuisine)!;
-    expect(automationFromRules(item, item.rules).config).toEqual(pauseDej);
-  });
-
-  it("expands a Schedule helper into its windows and writes them back to the helper", () => {
+  it("expands a Schedule helper into its windows", () => {
     const helper: ScheduleHelper = {
       id: "bureau",
       name: "Bureau",
@@ -112,16 +116,6 @@ describe("automationAsHeating", () => {
       [{ type: "weekday", days: ["saturday"] }, { type: "time", start: "10:00", end: "12:00" }],
     ]);
     expect(item.rules[0].when[2]).toEqual({ type: "state", entity: "input_boolean.vacances", is: "off" });
-    const edited = item.rules.map((r, i) => (i === 0 ? { ...r, when: [r.when[0], { type: "time" as const, start: "07:30", end: "18:00" }, r.when[2]] } : r));
-    const { schedule } = automationFromRules(item, edited);
-    expect(schedule?.monday).toEqual([{ from: "07:30:00", to: "18:00:00" }]);
-    expect(schedule?.saturday).toEqual([{ from: "10:00:00", to: "12:00:00" }]);
-    expect(schedule?.sunday).toEqual([]);
-  });
-
-  it("refuses conditions an automation edit cannot hold", () => {
-    const item = automationAsHeating(hass, "automation.pause_dej", pauseDej, cuisine)!;
-    expect(() => automationFromRules(item, [{ ...item.rules[0], when: [{ type: "occupied" }] }])).toThrow(/cannot hold/);
   });
 
   it("skips Share Space's own rules automations", () => {
@@ -151,17 +145,22 @@ describe("schedulerAsHeating", () => {
     expect(schedulerAsHeating(hass, item, cuisine)).toBeNull();
   });
 
-  it("writes times, days and actions back as scheduler.edit data", () => {
-    const h = schedulerAsHeating(hass, item, rue)!;
-    const rules = h.rules.map((r, i) =>
-      i === 0 ? { ...r, when: [{ type: "weekday" as const, days: ["monday" as const] }, { type: "time" as const, start: "08:00", end: "18:00" }], then: { type: "temperature" as const, value: 21 } } : { ...r, when: [{ type: "weekday" as const, days: ["monday" as const] }, r.when[1]] },
-    );
-    const data = schedulerFromRules(h, rules);
-    expect(data.entity_id).toBe("switch.schedule_ab12");
-    expect(data.weekdays).toEqual(["mon"]);
-    const slots = data.timeslots as SchedulerItem["timeslots"];
-    expect(slots[0].start).toBe("08:00:00");
-    expect(slots[0].actions[0]).toEqual({ service: "climate.set_temperature", entity_id: "climate.rue", service_data: { temperature: 21 } });
-    expect(slots[1]).toEqual(item.timeslots[1]);
+  it("keeps a sleep preset as sleep, shown in the rule's name", () => {
+    const slot = (start: string, stop: string, preset_mode: string) => ({
+      start,
+      stop,
+      conditions: [],
+      actions: [{ service: "climate.set_preset_mode", entity_id: "climate.rue", service_data: { preset_mode } }],
+    });
+    const planning = {
+      schedule_id: "00c54c",
+      name: "Planning Bureau Rue",
+      weekdays: ["mon", "tue", "wed", "fri", "thu"],
+      enabled: true,
+      timeslots: [slot("00:00:00", "08:00:00", "sleep"), slot("08:00:00", "19:00:00", "eco"), slot("21:30:00", "00:00:00", "sleep")],
+    } as unknown as SchedulerItem;
+    const h = schedulerAsHeating(hass, planning, rue)!;
+    expect(h.rules.map((r) => r.label)).toEqual(["Planning Bureau Rue 00:00 (sleep)", "Planning Bureau Rue 08:00", "Planning Bureau Rue 21:30 (sleep)"]);
+    expect(h.rules[2].when[1]).toEqual({ type: "time", start: "21:30", end: "24:00" });
   });
 });

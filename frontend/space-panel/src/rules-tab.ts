@@ -23,6 +23,8 @@ export class ShareSpaceRulesTab extends LitElement {
   @property({ attribute: false }) temps?: PresetTemps;
   @property({ attribute: false }) readings?: SensorReadings;
   @property({ attribute: false }) states?: EntityStates;
+  /** Other areas by id, offered by "Another area heated". */
+  @property({ attribute: false }) areaNames: Record<string, string> = {};
   @property({ type: Number }) now = Date.now();
   @property() tz = "UTC";
   @property({ type: Boolean }) loading = false;
@@ -38,6 +40,8 @@ export class ShareSpaceRulesTab extends LitElement {
   @property({ type: Boolean }) missingShared = false;
   @property({ attribute: false }) users: Record<string, string[]> = {};
   @property({ type: Boolean }) switching = false;
+  /** HA automations or Scheduler items heating this area, turned off when these rules are saved. */
+  @property({ attribute: false }) turnsOff: string[] = [];
   @state() private _confirmNew = false;
   @state() private _naming: "share" | "rename" | null = null;
   @state() private _name = "";
@@ -497,6 +501,7 @@ export class ShareSpaceRulesTab extends LitElement {
         <div class="rules-col">
           <share-space-rule-list
             .strategy=${draft}
+            .areaNames=${this.areaNames}
             .highlight=${this._hl}
             @rule-hover=${(e: CustomEvent<{ label: string | null }>) => (this._hl = e.detail.label)}
             @strategy-change=${(e: CustomEvent<{ strategy: RuleStrategy }>) => {
@@ -512,6 +517,9 @@ export class ShareSpaceRulesTab extends LitElement {
         <button ?disabled=${this.busy || (!dirty && !!this.saved && !this.startingNew && !this.switching)} @click=${() => this._emit("discard")}>Discard</button>
         ${dirty && this.saved ? html`<span class="muted">Unsaved changes</span>` : nothing}
       </div>
+      ${canSave && this.turnsOff.length
+        ? html`<p class="muted" role="note">Saving turns off in Home Assistant: ${this.turnsOff.join(", ")}. These rules become the only heating for this area.</p>`
+        : nothing}
     `;
   }
 

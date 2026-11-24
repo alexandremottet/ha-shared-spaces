@@ -1,5 +1,6 @@
 import { RULES_BLUEPRINT_PATH, WEEK_DAYS, evaluateRules, nextOff, rulesAutomationConfig, sensorReadings, nextOn, occupiedAt, previousOff, wallTime, windowMatches } from "ha-share-space-ui";
 import type { Calendar, RuleStrategy, Schedule, ScheduleRanges } from "ha-share-space-ui";
+import { areaActionsAutomationId, areaActionsConfig, readAreaActions } from "ha-share-space-ui/ha";
 import type { AreaActions, Floorplan, HassEntity, HomeAssistant, SchedulerItem } from "ha-share-space-ui/ha";
 import { MockClock } from "./clock";
 import { HeatingZoneSim, templateSyntaxError } from "./heating";
@@ -39,7 +40,6 @@ export interface MockState {
   areas: Array<{ area_id: string; name: string }>;
   calendars: Record<string, Partial<Calendar>>;
   personAreas: Record<string, string>;
-  areaActions: Record<string, AreaActions>;
   forcedPresence: Record<string, boolean>;
   currentUserId: string;
   actionsLog: ActionLogEntry[];
@@ -261,6 +261,13 @@ export class MockHassController {
         { action: "climate.set_preset_mode", target: { entity_id: "climate.workshop" }, data: { preset_mode: "eco" } },
       ],
     });
+    add("workshop_sunset", {
+      alias: "Workshop at sunset",
+      description: "",
+      triggers: [{ trigger: "sun", event: "sunset" }],
+      conditions: [],
+      actions: [{ choose: [{ conditions: [], sequence: [{ action: "climate.set_hvac_mode", target: { entity_id: "climate.workshop" }, data: { hvac_mode: "auto" } }] }] }],
+    });
     this._scheduleHelpers = [
       {
         id: "workshop_hours",
@@ -349,7 +356,6 @@ export class MockHassController {
       areas: clone(seed.areas),
       calendars: clone(seed.calendars),
       personAreas: { ...seed.personAreas },
-      areaActions: clone(seed.areaActions),
       forcedPresence: {},
       currentUserId: this._options.userId ?? persons[0]?.userId ?? "",
       actionsLog: [],
@@ -365,6 +371,17 @@ export class MockHassController {
     this._setOutdoorEntity(DEFAULT_OUTDOOR);
     // Like the integration's first load: seed the starter shared strategies.
     for (const st of STARTERS) this._strategies.set(st.id, { ...clone(st), previous: null });
+    // Like HA: occupied/empty actions are automations triggered by the area's occupancy sensor.
+    for (const [area, a] of Object.entries(this._seed.areaActions)) {
+      const name = this._state.areas.find((x) => x.area_id === area)?.name ?? area;
+      const config = areaActionsConfig(area, name, a.on_actions, a.off_actions) as StrategyAutomationRec["config"];
+      this._automations.set(areaActionsAutomationId(area), {
+        entityId: this._freeAutomationEntity(`automation.${slugify(String(config.alias))}`),
+        config,
+        enabled: a.enabled,
+        lastTriggered: null,
+      });
+    }
     if (this._options.demoRules) this._seedDemoRules();
     if (this._options.demoRules) this._seedExistingHeating();
     for (const area of new Set(Object.values(this._state.personAreas))) this._knownAreas.add(area);
@@ -641,11 +658,13 @@ export class MockHassController {
   }
 
   private _actionsOf(area: string): AreaActions {
-    return { ...{ on_actions: [], off_actions: [], enabled: true }, ...this._state.areaActions[area] } as AreaActions;
+    const rec = this._automations.get(areaActionsAutomationId(area));
+    const read = rec ? readAreaActions(rec.config) : null;
+    return { on_actions: read?.on_actions ?? [], off_actions: read?.off_actions ?? [], enabled: rec?.enabled ?? false };
   }
 
-  private _runActions(area: string, state: "on" | "off", source: "transition" | "manual"): void {
-    const actions = this._actionsOf(area)[state === "on" ? "on_actions" : "off_actions"] as Array<Record<string, any>>;
+  private _runActions(area: string, state: "on" | "off", source: "transition" | "manual", sequence?: unknown[]): void {
+    const actions = (sequence ?? this._actionsOf(area)[state === "on" ? "on_actions" : "off_actions"]) as Array<Record<string, any>>;
     const steps: ActionLogEntry["steps"] = [];
     for (const a of actions) {
       const service = String(a.action ?? a.service ?? "");
@@ -777,7 +796,9 @@ export class MockHassController {
     this._dirty = true;
   }
 
-  private _currentUser() {
+private _systemData: Record<string, unknown> = {};
+
+    private _currentUser() {
     return this._state.persons.find((p) => p.userId === this._state.currentUserId);
   }
 
@@ -834,10 +855,33 @@ export class MockHassController {
       if (me) me.userData = { ...me.userData, [String(m.key)]: m.value };
       return null;
     });
+    ws("frontend/get_system_data", null, (m) => ({ value: this._systemData[String(m.key)] ?? null }));
+    ws("frontend/set_system_data", null, (m) => {
+      this._systemData = { ...this._systemData, [String(m.key)]: m.value };
+      return null;
+    }, true);
     ws("share_space/get_person_area", "planning", (m) => ({ area: st().personAreas[String(m.person)] ?? null }));
     ws("share_space/get_area_schedule", "planning", (m) => ({ schedule: this._schedule(String(m.area)) }));
     ws("share_space/get_area_calendars", "planning", (m) => ({ persons: this.areaCalendars(String(m.area)) }));
-    ws("share_space/get_area_actions", "planning", (m) => this._actionsOf(String(m.area)));
+    // Nothing kept by Share Space itself: actions are HA automations.
+    ws("share_space/get_area_actions", "planning", () => null);
+    ws("share_space/forget_area_actions", "planning", () => ({}), true);
+    ws("automation/config", null, (m) => {
+      const rec = [...this._automations.values()].find((a) => a.entityId === m.entity_id);
+      if (!rec) throw HA_ERROR("not_found", "Entity not found");
+      return { config: clone(rec.config) };
+    });
+    ws(
+      "execute_script",
+      null,
+      (m) => {
+        const vars = (m.variables ?? {}) as { area?: string; state?: string };
+        this._runActions(String(vars.area ?? ""), vars.state === "off" ? "off" : "on", "manual", m.sequence as unknown[]);
+        this._settle(false);
+        return { context: { id: "mock" }, response: null };
+      },
+      true
+    );
     ws("share_space/list_areas", "planning", () =>
       [...new Set(Object.values(st().personAreas))].sort().map((area_id) => ({
         area_id,
@@ -946,7 +990,11 @@ export class MockHassController {
       },
       true
     );
-    ws("scheduler", null, () => clone(this._schedulerItems));
+    // Scheduler items are on/off through their own switch entity, as in HA.
+    for (const item of this._schedulerItems) {
+      if (item.entity_id && !this._entities.get(item.entity_id)) this._setEntity(item.entity_id, item.enabled ? "on" : "off", { friendly_name: item.name });
+    }
+    ws("scheduler", null, () => clone(this._schedulerItems).map((i) => ({ ...i, enabled: this._entities.get(i.entity_id ?? "")?.state !== "off" })));
     svc(
       "scheduler.edit",
       null,
@@ -958,8 +1006,8 @@ export class MockHassController {
       },
       true
     );
-    ws("share_space_heating/get_settings", "heating", () => ({ outdoor_entity: this._outdoorEntity, ignored_areas: [] }));
-    ws("share_space_heating/manage_area", "heating", () => ({}), true);
+    ws("share_space_heating/get_settings", "heating", () => ({ outdoor_entity: this._outdoorEntity }));
+    ws("share_space_heating/detected_areas", "heating", () => []);
     ws(
       "share_space_heating/save_settings",
       "heating",
@@ -1049,19 +1097,6 @@ export class MockHassController {
       this._planningVersion++;
       this.emitEvent("share_space_person_area_assigned", { person, area: d.area });
     });
-    svc("share_space.set_area_actions", "planning", (d) => {
-      const area = String(d.area);
-      const changes: Partial<AreaActions> = {};
-      if ("on_actions" in d) changes.on_actions = clone(d.on_actions) as AreaActions["on_actions"];
-      if ("off_actions" in d) changes.off_actions = clone(d.off_actions) as AreaActions["off_actions"];
-      if ("enabled" in d) changes.enabled = Boolean(d.enabled);
-      st().areaActions = { ...st().areaActions, [area]: { ...this._actionsOf(area), ...changes } };
-    }, true);
-    svc("share_space.run_area_actions", "planning", (d) => {
-      const state = d.state === "off" ? "off" : "on";
-      this._runActions(String(d.area), state, "manual");
-    }, true);
-
     svc("share_space_heating.set_override", "heating", (d) => {
       const zone = this._zoneByEntity(d.entity_id);
       zone.setOverride(Number(d.temperature), d.hours === undefined ? undefined : Number(d.hours));

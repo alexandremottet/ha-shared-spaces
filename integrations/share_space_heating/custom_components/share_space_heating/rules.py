@@ -10,6 +10,7 @@ from homeassistant.const import STATE_ON, STATE_UNAVAILABLE, STATE_UNKNOWN
 from homeassistant.core import HomeAssistant
 from homeassistant.util import dt as dt_util
 
+from .area import area_entities, zone_area, zone_climate
 from .const import DATA_SETTINGS, DOMAIN, OUTDOOR_ALIAS
 
 WEEKDAYS = ("monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday")
@@ -25,6 +26,7 @@ class Facts:
     schedule: dict
     read: Callable[[str], float | None]
     state: Callable[[str], str | None] = lambda _entity_id: None
+    heated: Callable[[str], bool] = lambda _area: False
 
 
 @dataclass(frozen=True)
@@ -95,6 +97,8 @@ def _holds(c: dict, f: Facts) -> bool:
         return r < float(c["than"]) if c["op"] == "below" else r > float(c["than"])
     if kind == "state":
         return f.state(c["entity"]) == str(c["is"])
+    if kind == "heated":
+        return any(f.heated(a) for a in c["areas"])
     day = WEEKDAYS[f.now.weekday()]
     if kind == "weekday":
         return day in c["days"]
@@ -152,6 +156,25 @@ def entity_state(hass: HomeAssistant, entity_id: str) -> str | None:
     return state.state if state else None
 
 
+# Presets that keep an area cool: eco and the like are not "heated".
+LOW_PRESETS = ("eco", "away", "sleep", "frost", "frost_protection", "hors_gel")
+
+
+def area_heated(hass: HomeAssistant, area: str) -> bool:
+    """The area's heating is set to warm it now: its thermostat is on and not on a low preset.
+
+    The heater relay is not used: a thermostat switches it off once the room is warm.
+    """
+    climates = [zone_climate(hass, e) for e in hass.config_entries.async_entries(DOMAIN) if zone_area(e) == area]
+    climates += area_entities(hass, area, "climate")
+    for entity_id in filter(None, climates):
+        state = hass.states.get(entity_id)
+        if state is None or state.state in ("off", STATE_UNAVAILABLE, STATE_UNKNOWN):
+            continue
+        return str(state.attributes.get("preset_mode") or "").lower() not in LOW_PRESETS
+    return False
+
+
 def _timestamp(hass: HomeAssistant, entity_id: str) -> float | None:
     parsed = dt_util.parse_datetime(hass.states.get(entity_id).state)
     return parsed.timestamp() if parsed else None
@@ -174,4 +197,5 @@ def planning_facts(hass: HomeAssistant, area: str) -> Facts | None:
         schedule=main.attributes.get("schedule") or {},
         read=lambda entity_id: sensor_reading(hass, entity_id),
         state=lambda entity_id: entity_state(hass, entity_id),
+        heated=lambda other: area_heated(hass, other),
     )

@@ -2,13 +2,15 @@ import { LitElement, html, css, nothing } from "lit";
 import type { PropertyValues, TemplateResult } from "lit";
 import { customElement, property, state } from "lit/decorators.js";
 import { haCardSurface } from "ha-share-space-ui";
-import { findMyPerson, errorMessage } from "ha-share-space-ui/ha";
+import { findMyPerson, errorMessage, listDetectedAreas } from "ha-share-space-ui/ha";
+import type { DetectedArea } from "ha-share-space-ui/ha";
 import type { HomeAssistant } from "ha-share-space-ui/ha";
 import { zoneViewModel } from "ha-share-space-heating-card/view-model";
 import type { ZoneViewModel } from "ha-share-space-heating-card/view-model";
 import "ha-share-space-planning-cards/my-planning-card";
 import "ha-share-space-planning-cards/work-area-card";
 import { HEATING_SENSOR_PREFIX, renderHeatingControl } from "./heating";
+import "./overview-planning";
 
 type CardEl = HTMLElement & { hass?: HomeAssistant; setConfig(config: Record<string, unknown>): void };
 
@@ -43,6 +45,10 @@ function myArea(hass: HomeAssistant): string | null {
 export class ShareSpaceOverview extends LitElement {
   @property({ attribute: false }) hass?: HomeAssistant;
   @state() private _error = "";
+  /** Heating found in HA areas that have no Share Space zone yet: shown with their own thermostat. */
+  @state() private _detected: DetectedArea[] = [];
+  private _detectedFor: string | null = null;
+  private _retryAt = 0;
 
   private _planning = card("share-space-my-planning-card");
   private _workArea = card("share-space-work-area-card");
@@ -120,6 +126,17 @@ export class ShareSpaceOverview extends LitElement {
     if (changed.has("hass") && this.hass) {
       this._planning.hass = this.hass;
       this._workArea.hass = this.hass;
+      const zones = Object.keys(this.hass.states).filter((id) => id.startsWith(HEATING_SENSOR_PREFIX)).sort().join();
+      if (zones !== this._detectedFor && Date.now() >= this._retryAt) {
+        this._detectedFor = zones;
+        void listDetectedAreas(this.hass)
+          .then((d) => (this._detected = d))
+          .catch(() => {
+            // asked too early (integration still loading), or no heating integration: try again later
+            this._detectedFor = null;
+            this._retryAt = Date.now() + 30_000;
+          });
+      }
     }
   }
 
@@ -144,6 +161,12 @@ export class ShareSpaceOverview extends LitElement {
       .sort()
       .map((id) => zoneViewModel(hass, id))
       .filter((vm): vm is ZoneViewModel => vm !== null);
+    // before an area has Share Space rules, its HA thermostat is shown and set directly (no zone, nothing created)
+    for (const d of this._detected) {
+      const climate = "climate_entity" in d ? d.climate_entity : null;
+      const vm = climate ? zoneViewModel(hass, climate) : null;
+      if (vm && !zones.some((z) => z.climateEntity === climate)) zones.push({ ...vm, name: d.name });
+    }
     const area = myArea(hass);
     const mine = area ? zones.filter((vm) => entityArea(hass, vm.climateEntity) === area) : [];
     const others = zones.filter((vm) => !mine.includes(vm));
@@ -165,6 +188,9 @@ export class ShareSpaceOverview extends LitElement {
             <div class="zones">${others.map((vm) => this._zone(hass, vm))}</div>
           </section>`
         : nothing}
+      <section class="panel">
+        <share-space-overview-planning .hass=${hass} .initial=${area} .detected=${this._detected.map((d) => d.area_id)}></share-space-overview-planning>
+      </section>
       ${zones.length ? nothing : html`<div class="muted">No heated area yet.</div>`}
       ${this._error ? html`<div class="error">${this._error}</div>` : nothing}
     `;

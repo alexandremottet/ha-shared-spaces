@@ -31,7 +31,7 @@ _LOGGER = logging.getLogger(__name__)
 
 
 async def async_run_area_actions(hass: HomeAssistant, data: dict, area: str, state: str) -> None:
-    """Run the area's on/off action list; errors are logged, never raised."""
+    """Run the actions Share Space still keeps for an area until the panel moves them into an HA automation."""
     config = data[DATA_AREA_ACTIONS_STORE].get_actions(area)
     actions = config["on_actions" if state == "on" else "off_actions"]
     if not actions:
@@ -94,7 +94,8 @@ class AreaOccupancySensor(BinarySensorEntity):
         self.async_write_ha_state()
         if previous is not None and previous != self._attr_is_on:
             state = "on" if self._attr_is_on else "off"
-            if self._data[DATA_AREA_ACTIONS_STORE].get_actions(self._area_id)["enabled"]:
+            legacy = self._data[DATA_AREA_ACTIONS_STORE]
+            if legacy.has(self._area_id) and legacy.get_actions(self._area_id)["enabled"]:
                 self._entry.async_create_background_task(
                     self.hass,
                     async_run_area_actions(self.hass, self._data, self._area_id, state),

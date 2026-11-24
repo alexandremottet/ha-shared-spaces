@@ -75,6 +75,11 @@ export class DaySchedule extends LitElement {
       cursor: crosshair;
       background: var(--hour-period-absent-color, #b0bec5);
     }
+    @media (pointer: coarse) {
+      .track {
+        height: var(--day-schedule-track-height, 40px);
+      }
+    }
   `;
 
   private _minutesFromEvent(event: PointerEvent, track: HTMLElement): number {

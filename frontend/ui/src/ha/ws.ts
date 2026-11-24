@@ -7,6 +7,8 @@ import { detachedConfig, managedState, rulesAutomationConfig } from "../rules/au
 import type { ManagedState, RulesSource } from "../rules/automation";
 import { validateStrategy } from "../rules/validate";
 
+export { getAreaActions, runAreaActions, setAreaActions } from "./area-actions";
+
 export type PlanningAction = Record<string, unknown>;
 
 export interface AreaActions {
@@ -45,6 +47,8 @@ export interface HeatingZone {
   heater_switch?: string | null;
   temperature_sensor?: string | null;
   managed?: boolean;
+  /** Not created yet: what HA holds, created with the area's first rule. */
+  pending?: AreaZoneInput;
 }
 
 export interface HeatingZoneAttributes {
@@ -113,6 +117,10 @@ export function isBackendMissing(err: unknown): boolean {
 export const getCalendar = async (hass: HomeAssistant, person: string): Promise<Calendar> =>
   (await hass.callWS<{ calendar: Calendar }>({ type: "share_space/get_calendar", person })).calendar;
 
+/** The HA Schedule helper holding a person's planning, once they have one. */
+export const getPlanningEntity = async (hass: HomeAssistant, person: string): Promise<string | null> =>
+  (await hass.callWS<{ schedule_entity?: string | null }>({ type: "share_space/get_calendar", person })).schedule_entity ?? null;
+
 export const getPersonArea = async (hass: HomeAssistant, person: string): Promise<string | null> =>
   (await hass.callWS<{ area: string | null }>({ type: "share_space/get_person_area", person })).area;
 
@@ -122,9 +130,6 @@ export const getAreaSchedule = async (hass: HomeAssistant, area: string): Promis
 export const getAreaCalendars = async (hass: HomeAssistant, area: string): Promise<Record<string, Calendar>> =>
   (await hass.callWS<{ persons: Record<string, Calendar> }>({ type: "share_space/get_area_calendars", area })).persons;
 
-export const getAreaActions = (hass: HomeAssistant, area: string) =>
-  hass.callWS<AreaActions>({ type: "share_space/get_area_actions", area });
-
 export const listAreas = (hass: HomeAssistant) =>
   hass.callWS<AreaInfo[]>({ type: "share_space/list_areas" });
 
@@ -133,12 +138,6 @@ export const setCalendar = (hass: HomeAssistant, person: string, calendar: Calen
 
 export const assignPersonArea = (hass: HomeAssistant, person: string, area: string) =>
   hass.callService("share_space", "assign_person_area", { person, area });
-
-export const setAreaActions = (hass: HomeAssistant, area: string, partial: Partial<AreaActions>) =>
-  hass.callService("share_space", "set_area_actions", { area, ...partial });
-
-export const runAreaActions = (hass: HomeAssistant, area: string, state: "on" | "off") =>
-  hass.callService("share_space", "run_area_actions", { area, state });
 
 export const listZones = (hass: HomeAssistant) =>
   hass.callWS<HeatingZone[]>({ type: "share_space_heating/list_zones" });
@@ -415,8 +414,6 @@ export const nameTaken = (shared: Array<{ id: string; name: string }>, name: str
 
 export interface HeatingSettings {
   outdoor_entity: string | null;
-  /** Areas whose heating the admin removed: not set up again on their own. */
-  ignored_areas?: string[];
 }
 
 export const getHeatingSettings = (hass: HomeAssistant) =>
@@ -426,9 +423,32 @@ export const getHeatingSettings = (hass: HomeAssistant) =>
 export const saveHeatingSettings = (hass: HomeAssistant, settings: HeatingSettings) =>
   hass.callWS<HeatingSettings>({ type: "share_space_heating/save_settings", outdoor_entity: settings.outdoor_entity });
 
-/** Undo a removal: Share Space sets the area's heating up again from what HA holds. */
-export const manageArea = (hass: HomeAssistant, areaId: string) =>
-  hass.callWS<Record<string, never>>({ type: "share_space_heating/manage_area", area_id: areaId });
+/** Heating HA already holds in an area without a zone; Share Space creates the zone with the area's first rule. */
+export type DetectedArea = AreaZoneInput & { name: string };
+
+export const listDetectedAreas = (hass: HomeAssistant) =>
+  hass.callWS<DetectedArea[]>({ type: "share_space_heating/detected_areas" });
+
+export const PENDING_ZONE_PREFIX = "pending:";
+
+/** A zone not created yet, standing for heating found in HA, until the area's first rule is saved. */
+export function detectedZone(d: DetectedArea): HeatingZone {
+  const { name, ...input } = d;
+  return {
+    entry_id: "",
+    name,
+    entity_id: `${PENDING_ZONE_PREFIX}${d.area_id}`,
+    climate_entity: "climate_entity" in d ? d.climate_entity : "",
+    presence_entity: null,
+    mode: "manual_only",
+    target: 0,
+    override_until: null,
+    area_id: d.area_id,
+    heaters: "heaters" in d ? d.heaters : null,
+    temperature_sensor: "temperature_sensor" in d ? d.temperature_sensor : null,
+    pending: input,
+  };
+}
 
 export const listStrategies = (hass: HomeAssistant) =>
   hass.callWS<SharedStrategy[]>({ type: "share_space_heating/list_strategies" });
@@ -538,6 +558,17 @@ export async function getDefaultPanel(hass: HomeAssistant): Promise<string | und
   return user.default_panel ?? system.default_panel;
 }
 
+/** Whether HA opens on Share Space for everyone who did not choose otherwise (HA's own system default). */
+export async function opensShareSpaceForEveryone(hass: HomeAssistant): Promise<boolean> {
+  return (await getCoreData(hass, "system")).default_panel === SHARE_SPACE_PANEL;
+}
+
+/** Admin only: sets or clears HA's system default panel; each person's own choice still wins. */
+export async function setOpensShareSpaceForEveryone(hass: HomeAssistant, on: boolean): Promise<void> {
+  const { default_panel: _, ...core } = await getCoreData(hass, "system");
+  await hass.callWS<void>({ type: "frontend/set_system_data", key: "core", value: on ? { ...core, default_panel: SHARE_SPACE_PANEL } : core });
+}
+
 export async function setMyDefaultPanel(hass: HomeAssistant, panel: string): Promise<void> {
   const core = await getCoreData(hass, "user");
   await hass.callWS<void>({ type: "frontend/set_user_data", key: "core", value: { ...core, default_panel: panel } });
@@ -593,6 +624,21 @@ export const saveLovelaceConfig = (hass: HomeAssistant, urlPath: string | null, 
 
 export const getLovelaceConfig = (hass: HomeAssistant, urlPath: string | null): Promise<LovelaceConfig> =>
   hass.callWS<LovelaceConfig>({ type: "lovelace/config", url_path: urlPath });
+
+/**
+ * Path of the first dashboard view holding a card of `cardType` (e.g. the Scheduler card, where Scheduler items
+ * are edited in HA); null when no dashboard shows one.
+ */
+export async function findCardView(hass: HomeAssistant, cardType: string): Promise<string | null> {
+  const dashboards = [{ url_path: null as string | null }, ...(await listHaDashboards(hass).catch(() => []))];
+  for (const d of dashboards) {
+    const config = await getLovelaceConfig(hass, d.url_path).catch(() => null);
+    const views = config?.views ?? [];
+    const i = views.findIndex((v) => JSON.stringify(v).includes(`"${cardType}"`));
+    if (i >= 0) return `/${d.url_path ?? "lovelace"}/${views[i].path ?? i}`;
+  }
+  return null;
+}
 
 // Views shown to this user, following HA's per-view visibility.
 export const visibleViews = (config: LovelaceConfig | null, userId: string | undefined): LovelaceView[] =>

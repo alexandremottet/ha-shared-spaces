@@ -26,6 +26,7 @@ the same result in TS and in HA.
 | `planned` | `windows: [{start, end}]` (`start < end`), `match`: `all`/`any` | `share_space.query_occupancy` for today: an ON slot starts in every / some window |
 | `sensor` | `entity`, `op`: `below`/`above`, `than` | numeric reading `< than` / `> than`; no reading → does not hold (before `negate`) |
 | `state` | `entity` (any HA entity, not `outdoor`), `is`: string | entity state equals `is`; missing entity → does not hold (before `negate`). Use HA helpers for cross-area logic, e.g. a binary_sensor group of other areas' `binary_sensor.share_space_<area>`. The preview uses the current state for the whole week |
+| `heated` | `areas`: HA area ids (at least one) | one of the areas is heated: its Share Space zone's thermostat (else the first thermostat HA places in it) is on (not `off`/unavailable) and its `preset_mode` is not a low one (`eco`, `away`, `sleep`, `frost`, `frost_protection`, `hors_gel`). The heater relay is not read: a thermostat turns it off once the room is warm. The preview uses the current thermostats for the whole week |
 
 | Action | Result (`set_base_target`) |
 |---|---|
@@ -72,5 +73,5 @@ zone at its next minute trigger.
 ```
 [{ name, tz, schedule: {<weekday>: [["HH:MM","HH:MM"]...]}, strategy: {...},
    temps?: {comfort, eco},                               // zone presets, default {21, 17}
-   checks: [{ now: ISO with offset, readings?: {<entity>: number}, states?: {<entity>: string}, expected: {target, preset?} | {off: true}, reason }] }]
+   checks: [{ now: ISO with offset, readings?: {<entity>: number}, states?: {<entity>: string}, climates?: {<area>: {state, preset_mode?}}, expected: {target, preset?} | {off: true}, reason }] }]
 ```

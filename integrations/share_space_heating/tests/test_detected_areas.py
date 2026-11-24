@@ -1,5 +1,4 @@
-"""Areas HA already heats get their zone without a setup step, and it stays hands-off until its first rule."""
-import pytest
+"""Heating HA already holds is found, but nothing is created or changed until the area gets a rule."""
 from homeassistant.helpers import area_registry as ar
 from homeassistant.helpers import entity_registry as er
 from homeassistant.setup import async_setup_component
@@ -10,8 +9,6 @@ from custom_components.share_space_heating.detect import detect_area_heating
 
 from .helpers import place_climate
 from .test_shared_strategies import _ws
-
-pytestmark = pytest.mark.auto_zones
 
 
 def _zones(hass):
@@ -36,27 +33,37 @@ async def _start(hass):
     await hass.async_block_till_done()
 
 
-async def test_area_thermostat_gets_a_hands_off_zone(hass):
+async def test_installing_changes_nothing(hass, hass_ws_client):
     hass.states.async_set("climate.rue", "heat", {"temperature": 19.0})
     calls = async_mock_service(hass, "climate", "set_temperature")
     area = place_climate(hass, "Bureau Rue", "climate.rue")
-    hass.states.async_set("binary_sensor.share_space_" + area.id, "off")
     await _start(hass)
+    assert hass.config_entries.async_entries(DOMAIN) == []
+    assert hass.config_entries.async_entries("generic_thermostat") == []
+    assert calls == []
+    found = (await _ws(hass, hass_ws_client, "detected_areas"))["result"]
+    assert found == [{"area_id": area.id, "name": "Bureau Rue", "climate_entity": "climate.rue"}]
 
-    entry = hass.config_entries.async_entries(DOMAIN)[0]
-    assert entry.title == "Bureau Rue" and entry.data["auto"] is True
+
+async def test_zone_from_detected_heating_is_hands_off_until_its_first_rule(hass, hass_ws_client):
+    hass.states.async_set("climate.rue", "heat", {"temperature": 19.0})
+    calls = async_mock_service(hass, "climate", "set_temperature")
+    area = place_climate(hass, "Bureau Rue", "climate.rue")
+    await _start(hass)
+    found = (await _ws(hass, hass_ws_client, "detected_areas"))["result"][0]
+    assert (await _ws(hass, hass_ws_client, "create_area_zone", area_id=area.id, climate_entity=found["climate_entity"]))["success"]
+    await hass.async_block_till_done()
     zone = next(iter(_zones(hass).values()))
-    assert zone.climate_entity == "climate.rue"
     assert zone.mode == MODE_MANUAL_ONLY
     assert calls == []
-
+    assert (await _ws(hass, hass_ws_client, "detected_areas"))["result"] == []
     await zone.async_set_base_target(preset="eco", reason="Empty")
     await hass.async_block_till_done()
     assert zone.mode == MODE_AUTOMATION
     assert [c.data["temperature"] for c in calls] == [17.0]
 
 
-async def test_group_switch_and_area_sensor_build_the_thermostat(hass):
+async def test_group_switch_and_area_sensor_are_found(hass, hass_ws_client):
     await _start(hass)
     hass.states.async_set("switch.rad_1", "off")
     hass.states.async_set("switch.rad_2", "off")
@@ -68,12 +75,8 @@ async def test_group_switch_and_area_sensor_build_the_thermostat(hass):
         _place(hass, entity_id, area.id)
     assert detect_area_heating(hass, area.id) == {"heaters": ["switch.radiateurs"], "temperature_sensor": "sensor.rue_temp"}
     await hass.async_block_till_done()
-
-    entries = hass.config_entries.async_entries(DOMAIN)
-    assert len(entries) == 1 and entries[0].data["auto"] is True
-    thermostat = hass.config_entries.async_entries("generic_thermostat")[0]
-    assert thermostat.options["heater"] == "switch.radiateurs"
-    assert thermostat.options["target_sensor"] == "sensor.rue_temp"
+    assert hass.config_entries.async_entries(DOMAIN) == []
+    assert hass.config_entries.async_entries("generic_thermostat") == []
 
 
 async def test_area_temperature_setting_wins(hass):
@@ -91,22 +94,18 @@ async def test_area_temperature_setting_wins(hass):
     assert detect_area_heating(hass, area.id)["temperature_sensor"] == "sensor.wall"
 
 
-async def test_removed_zone_is_not_set_up_again_until_managed(hass, hass_ws_client):
-    hass.states.async_set("climate.rue", "heat", {"temperature": 19.0})
-    area = place_climate(hass, "Bureau Rue", "climate.rue")
+async def test_only_heater_plugs_count_not_their_settings_or_other_plugs(hass):
     await _start(hass)
-    entry = hass.config_entries.async_entries(DOMAIN)[0]
-
-    assert (await _ws(hass, hass_ws_client, "delete_zone", entry_id=entry.entry_id))["success"]
-    await hass.async_block_till_done()
-    er.async_get(hass).async_update_entity("climate.rue", name="Rue")
-    await hass.async_block_till_done()
-    assert hass.config_entries.async_entries(DOMAIN) == []
-    settings = (await _ws(hass, hass_ws_client, "get_settings"))["result"]
-    assert settings["ignored_areas"] == [area.id]
-
-    assert (await _ws(hass, hass_ws_client, "manage_area", area_id=area.id))["success"]
-    await hass.async_block_till_done()
-    assert len(hass.config_entries.async_entries(DOMAIN)) == 1
-    assert (await _ws(hass, hass_ws_client, "get_settings"))["result"]["ignored_areas"] == []
+    area = ar.async_get(hass).async_create("Pièce Impression")
+    hass.states.async_set("sensor.impression_temp", "18", {"device_class": "temperature"})
+    hass.states.async_set("switch.cameras_imprimantes_prusa_switch", "on")
+    hass.states.async_set("switch.radiateur_impression_child_lock", "off")
+    for entity_id in ("sensor.impression_temp", "switch.cameras_imprimantes_prusa_switch"):
+        _place(hass, entity_id, area.id)
+    lock = er.async_get(hass).async_get_or_create("switch", "test", "lock", suggested_object_id="radiateur_impression_child_lock")
+    er.async_get(hass).async_update_entity(lock.entity_id, area_id=area.id, entity_category=er.EntityCategory.CONFIG)
+    assert detect_area_heating(hass, area.id) is None
+    hass.states.async_set("switch.radiateur_impression", "off")
+    _place(hass, "switch.radiateur_impression", area.id)
+    assert detect_area_heating(hass, area.id) == {"heaters": ["switch.radiateur_impression"], "temperature_sensor": "sensor.impression_temp"}
 
