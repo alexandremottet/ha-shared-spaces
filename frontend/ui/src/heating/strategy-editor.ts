@@ -15,6 +15,7 @@ import {
   useZoneStrategy,
 } from "../ha/ws";
 import type { HeatingZone, SharedStrategy, ZoneRules } from "../ha/ws";
+import { t } from "../i18n";
 import { haTheme } from "../ha/theme";
 import type { RuleStrategy } from "../rules/types";
 import { entityStates, sensorReadings } from "../rules/value";
@@ -191,7 +192,7 @@ export class ShareSpaceStrategyEditor extends LitElement {
     return this._act(async () => {
       await saveZoneRules(this.hass!, { entity_id: this.zone, name: this._zoneName }, this._areaId, { strategy: s.id, name: s.name }, id);
       await useZoneStrategy(() => this.hass!, this._zoneRef, id);
-      return "Saved";
+      return t("Saved");
     });
   }
 
@@ -200,7 +201,7 @@ export class ShareSpaceStrategyEditor extends LitElement {
     return this._act(async () => {
       if (on) await useZoneStrategy(() => this.hass!, this._zoneRef, id);
       else await stopZoneStrategies(this.hass!, this.zone);
-      return on ? "Enabled" : "Disabled";
+      return on ? t("Enabled") : t("Disabled");
     });
   }
 
@@ -223,7 +224,7 @@ export class ShareSpaceStrategyEditor extends LitElement {
     const rules = this._rules;
     const schedule = this._areaId ? planningSchedule(hass, this._areaId) : null;
     if (!rules) return nothing;
-    if (!schedule) return html`<div class="muted">No planning for this area, preview unavailable.</div>`;
+    if (!schedule) return html`<div class="muted">${t("No planning for this area, preview unavailable.")}</div>`;
     const tz = hassTimeZone(hass);
     const now = hassNow(hass);
     const w = wallTime(now, tz);
@@ -242,14 +243,14 @@ export class ShareSpaceStrategyEditor extends LitElement {
 
   protected render() {
     if (!this.hass || !this.zone) return nothing;
-    const link = html`<a class="link" href=${PANEL_PATH} @click=${(e: Event) => this._go(e)}>Edit in panel</a>`;
+    const link = html`<a class="link" href=${PANEL_PATH} @click=${(e: Event) => this._go(e)}>${t("Edit in panel")}</a>`;
     const auto = findZoneStrategies(this.hass, this.zone).find((a) => a.id === this._id);
     if (!this._isAdmin) {
       const on = findZoneStrategies(this.hass, this.zone).find((a) => a.enabled);
-      return html`<div class="wrap">${on ? html`<div>Active: <strong>${on.name.split(" · ").pop()}</strong></div>` : html`<div class="muted">No strategy on this zone.</div>`}</div>`;
+      return html`<div class="wrap">${on ? html`<div>${t("Active:")} <strong>${on.name.split(" · ").pop()}</strong></div>` : html`<div class="muted">${t("No strategy on this zone.")}</div>`}</div>`;
     }
     if (this._current && this._current.state !== "managed") {
-      return html`<div class="wrap"><div class="muted">This zone's automation was changed outside Share Space.</div><div class="row">${link}</div></div>`;
+      return html`<div class="wrap"><div class="muted">${t("This zone's automation was changed outside Share Space.")}</div><div class="row">${link}</div></div>`;
     }
     const areaName = this.hass.areas?.[this._areaId]?.name ?? this._areaId;
     const savedChoice = this._current?.strategy ?? (this._custom ? CUSTOM : "");
@@ -259,23 +260,23 @@ export class ShareSpaceStrategyEditor extends LitElement {
     const conflict = !!this._zoneInfo?.area_conflict;
     return html`<div class="wrap">
       <div class="row">
-        <label>Strategy<select .value=${this._choice} ?disabled=${this._busy} @change=${(e: Event) => (this._choice = (e.target as HTMLSelectElement).value)}>
-          ${this._custom ? html`<option value=${CUSTOM} ?selected=${this._choice === CUSTOM}>Custom (edit in panel)</option>` : nothing}
+        <label>${t("Strategy")}<select .value=${this._choice} ?disabled=${this._busy} @change=${(e: Event) => (this._choice = (e.target as HTMLSelectElement).value)}>
+          ${this._custom ? html`<option value=${CUSTOM} ?selected=${this._choice === CUSTOM}>${t("Custom (edit in panel)")}</option>` : nothing}
           ${this._shared.map((x) => html`<option value=${x.id} ?selected=${x.id === this._choice}>${x.name}</option>`)}
         </select></label>
-        ${this._areaId ? html`<span class="muted">Area: <strong>${areaName}</strong></span>` : nothing}
+        ${this._areaId ? html`<span class="muted">${t("Area:")} <strong>${areaName}</strong></span>` : nothing}
       </div>
       ${noArea
-        ? html`<div class="err">This thermostat has no area. Assign <strong>${this._zoneInfo!.climate_entity}</strong> to an area in Home Assistant (Settings → Entities).</div>`
+        ? html`<div class="err">${t("This thermostat has no area. Assign {entity} to an area in Home Assistant (Settings → Entities).", { entity: this._zoneInfo!.climate_entity })}</div>`
         : nothing}
-      ${conflict ? html`<div class="err">Another heating zone is in ${areaName}. Keep one thermostat per area in Home Assistant.</div>` : nothing}
+      ${conflict ? html`<div class="err">${t("Another heating zone is in {area}. Keep one thermostat per area in Home Assistant.", { area: areaName })}</div>` : nothing}
       ${this._renderPreview()}
       <div class="row">
-        ${shared ? html`<button class="primary" ?disabled=${this._busy || !this._areaId || conflict || (unchanged && !!auto?.enabled)} @click=${() => this._save()}>Save</button>` : nothing}
-        ${auto && this._choice === savedChoice ? html`<button ?disabled=${this._busy} @click=${() => this._toggle(!auto.enabled)}>${auto.enabled ? "Disable" : "Enable"}</button>` : nothing}
+        ${shared ? html`<button class="primary" ?disabled=${this._busy || !this._areaId || conflict || (unchanged && !!auto?.enabled)} @click=${() => this._save()}>${t("Save")}</button>` : nothing}
+        ${auto && this._choice === savedChoice ? html`<button ?disabled=${this._busy} @click=${() => this._toggle(!auto.enabled)}>${auto.enabled ? t("Disable") : t("Enable")}</button>` : nothing}
         ${link}
       </div>
-      ${auto ? html`<div class="muted">${auto.enabled ? "Active" : "Disabled"} · ${auto.name}</div>` : nothing}
+      ${auto ? html`<div class="muted">${auto.enabled ? t("Active") : t("Disabled")} · ${auto.name}</div>` : nothing}
       ${this._error ? html`<div class="err">${this._error}</div>` : nothing}
       ${this._notice ? html`<div class="ok">${this._notice}</div>` : nothing}
     </div>`;

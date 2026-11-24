@@ -1,4 +1,5 @@
 import type { Calendar, WeekDay } from "../types";
+import { t } from "../i18n";
 import type { HomeAssistant } from "./hass";
 import type { SharePrefs } from "./roles";
 import type { ScheduleRanges } from "../heating/strategy-sim";
@@ -387,9 +388,9 @@ export async function loadZoneStrategy(hass: HomeAssistant, zoneEntity: string):
   const active = findZoneStrategies(hass, zoneEntity).find((a) => a.enabled);
   const r = active ? await loadRulesAutomation(hass, zoneEntity, active.id) : null;
   if (!r) return null;
-  if (!r.strategy) return { ...r, name: "Custom rules", effective: r.rules };
+  if (!r.strategy) return { ...r, name: t("Custom rules"), effective: r.rules };
   const s = ((await listStrategies(hass).catch(() => null)) ?? []).find((x) => x.id === r.strategy);
-  return { ...r, name: s?.name ?? "Missing shared strategy", effective: s?.rules ?? null };
+  return { ...r, name: s?.name ?? t("Missing shared strategy"), effective: s?.rules ?? null };
 }
 
 export const saveZoneRules = (

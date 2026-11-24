@@ -6,7 +6,7 @@ import { getCalendar, getPersonArea, setCalendar, waitForHaPeriodEditDialog } fr
 import type { CalendarChangedDetail } from "ha-share-space-ui";
 import { selectStyles } from "./select-styles";
 import type { HomeAssistant } from "ha-share-space-ui/ha";
-import { haCardSurface } from "ha-share-space-ui";
+import { haCardSurface, t } from "ha-share-space-ui";
 
 interface PersonPlanning {
   id: string;
@@ -107,7 +107,7 @@ export class ShareSpacePeoplePlanning extends LitElement {
       this._people = people.sort((a, b) => a.name.localeCompare(b.name));
       this._error = "";
     } catch (e) {
-      this._error = e instanceof Error ? e.message : "Could not load the plannings.";
+      this._error = e instanceof Error ? e.message : t("Could not load the plannings.");
     }
   }
 
@@ -119,18 +119,18 @@ export class ShareSpacePeoplePlanning extends LitElement {
       await setCalendar(hass, id, calendar);
       this._error = "";
     } catch (e) {
-      this._error = e instanceof Error ? e.message : "Could not save the planning.";
+      this._error = e instanceof Error ? e.message : t("Could not save the planning.");
     }
   }
 
   private _editor(): TemplateResult {
     const person = this._people?.find((p) => p.id === this._editing);
     return html`<section class="card edit">
-      <h3>Edit someone's planning</h3>
+      <h3>${t("Edit someone's planning")}</h3>
       <label
-        >Person
-        <select aria-label="Person" @change=${(e: Event) => (this._editing = (e.target as HTMLSelectElement).value)}>
-          <option value="" ?selected=${!this._editing}>Choose a person</option>
+        >${t("Person")}
+        <select aria-label=${t("Person")} @change=${(e: Event) => (this._editing = (e.target as HTMLSelectElement).value)}>
+          <option value="" ?selected=${!this._editing}>${t("Choose a person")}</option>
           ${(this._people ?? []).map((p) => html`<option value=${p.id} ?selected=${p.id === this._editing}>${p.name}</option>`)}
         </select></label
       >
@@ -138,7 +138,7 @@ export class ShareSpacePeoplePlanning extends LitElement {
         ? html`<week-schedule .calendar=${person.calendar as Calendar} @calendar-changed=${(e: CustomEvent<CalendarChangedDetail>) => void this._save(person.id, e.detail.calendar)}>
             ${this._dialogReady ? html`<ha-period-edit-dialog slot="dialog"></ha-period-edit-dialog>` : nothing}
           </week-schedule>`
-        : html`<div class="muted">Saved as soon as you change it, in that person's own Schedule helper.</div>`}
+        : html`<div class="muted">${t("Saved as soon as you change it, in that person's own Schedule helper.")}</div>`}
     </section>`;
   }
 
@@ -162,17 +162,17 @@ export class ShareSpacePeoplePlanning extends LitElement {
       label: p.name,
       calendar: p.calendar as Calendar,
     }));
-    return html`${this._editor()}<section class="card"><h3>Everyone's planning</h3>
-      <div class="muted">The whole week, then each person's own planning, which the area plannings merge.</div>
+    return html`${this._editor()}<section class="card"><h3>${t("Everyone's planning")}</h3>
+      <div class="muted">${t("The whole week, then each person's own planning, which the area plannings merge.")}</div>
       ${this._error ? html`<div class="muted" role="alert">${this._error}</div>` : nothing}
-      ${this._people === null && !this._error ? html`<div class="muted">Loading…</div>` : nothing}
-      ${this._people?.length === 0 ? html`<div class="muted">No person in Home Assistant yet.</div>` : nothing}
+      ${this._people === null && !this._error ? html`<div class="muted">${t("Loading…")}</div>` : nothing}
+      ${this._people?.length === 0 ? html`<div class="muted">${t("No person in Home Assistant yet.")}</div>` : nothing}
       <div class="who">
         ${(this._people ?? []).map(
-          (p) => html`<span><strong>${p.name}</strong> ${p.area ? (hass.areas?.[p.area]?.name ?? p.area) : "No area"} · ${this._hours(p.schedule)} h a week</span>`,
+          (p) => html`<span><strong>${p.name}</strong> ${p.area ? (hass.areas?.[p.area]?.name ?? p.area) : t("No area")} · ${t("{hours} h a week", { hours: this._hours(p.schedule) })}</span>`,
         )}
       </div>
-      ${people.length ? html`<area-roster-view class="list" view-mode="lanes" .people=${people} totalLabel="Everyone"></area-roster-view>` : nothing}
+      ${people.length ? html`<area-roster-view class="list" view-mode="lanes" .people=${people} totalLabel=${t("Everyone")}></area-roster-view>` : nothing}
     </section>`;
   }
 }

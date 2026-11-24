@@ -1,7 +1,7 @@
 import { LitElement, css, html, nothing } from "lit";
 import type { PropertyValues, TemplateResult } from "lit";
 import { customElement, property, state } from "lit/decorators.js";
-import { haCardSurface } from "ha-share-space-ui";
+import { haCardSurface, t } from "ha-share-space-ui";
 import { loadExistingHeating, loadZoneRules } from "ha-share-space-ui/ha";
 import type { ExistingHeating, HeatingZone, HomeAssistant, SharedStrategy, ZoneRules } from "ha-share-space-ui/ha";
 
@@ -132,12 +132,12 @@ export class ShareSpaceRulesSummary extends LitElement {
     const r = row.rules;
     if (r?.state === "managed") {
       const shared = r.strategy ? this.shared?.find((s) => s.id === r.strategy) : undefined;
-      const text = r.strategy ? `Shared strategy: ${shared?.name ?? "missing"}` : `Custom, ${r.rules?.rules.length ?? 0} rule${r.rules?.rules.length === 1 ? "" : "s"}`;
-      return { text, badge: r.enabled ? "Share Space" : "Share Space, off", on: r.enabled };
+      const text = r.strategy ? t("Shared strategy: {name}", { name: shared?.name ?? t("missing") }) : (r.rules?.rules.length === 1 ? t("Custom, 1 rule") : t("Custom, {n} rules", { n: r.rules?.rules.length ?? 0 }));
+      return { text, badge: r.enabled ? t("Share Space") : t("Share Space, off"), on: r.enabled };
     }
     const on = row.existing.filter((i) => this._on(i));
-    if (on.length) return { text: on.map((i) => i.name).join(", "), badge: "Home Assistant", on: true };
-    return { text: "No heating rules", badge: "", on: false };
+    if (on.length) return { text: on.map((i) => i.name).join(", "), badge: t("Home Assistant"), on: true };
+    return { text: t("No heating rules"), badge: "", on: false };
   }
 
   private _row(row: Row): TemplateResult {
@@ -154,11 +154,11 @@ export class ShareSpaceRulesSummary extends LitElement {
 
 
   protected render(): TemplateResult | typeof nothing {
-    if (this.zones && !this.zones.length) return html`<div class="muted">No heated area found in Home Assistant yet.</div>`;
-    if (!this._rows) return html`<div class="muted">Loading areas…</div>`;
+    if (this.zones && !this.zones.length) return html`<div class="muted">${t("No heated area found in Home Assistant yet.")}</div>`;
+    if (!this._rows) return html`<div class="muted">${t("Loading areas…")}</div>`;
     return html`<section class="panel">
-      <h3>Heating rules by area</h3>
-      <div class="intro muted">What heats each area today. Open one to see or edit its rules.</div>
+      <h3>${t("Heating rules by area")}</h3>
+      <div class="intro muted">${t("What heats each area today. Open one to see or edit its rules.")}</div>
       <div class="list">${this._rows.map((r) => this._row(r))}</div>
     </section>`;
   }

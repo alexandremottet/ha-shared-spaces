@@ -1,16 +1,12 @@
 import { LitElement, html, css, nothing } from "lit";
 import type { TemplateResult } from "lit";
 import { customElement, property } from "lit/decorators.js";
-import { haCardSurface } from "ha-share-space-ui";
+import { haCardSurface, t } from "ha-share-space-ui";
 import { selectStyles } from "./select-styles";
 import "./multi-select";
 import type { SpaceRole } from "ha-share-space-ui/ha";
 
-const ROLE_LABEL: Record<SpaceRole, string> = {
-  user: "User",
-  space_admin: "Space admin",
-  technical_admin: "Technical admin",
-};
+const roleLabel = (r: SpaceRole): string => ({ user: t("User"), space_admin: t("Space admin"), technical_admin: t("Technical admin") })[r];
 
 // Settings page: role, admin switches, outdoor sensor; emits `technical-change` / `full-ha-change` / `everyone-change` (boolean), `outdoor-change` (entity id or null).
 @customElement("share-space-settings")
@@ -65,16 +61,16 @@ export class ShareSpaceSettings extends LitElement {
     const current = this.outdoorEntity ?? "";
     const known = this.outdoorOptions.some((o) => o.id === current);
     return html`<section class="card">
-      <h4>Outdoor temperature</h4>
+      <h4>${t("Outdoor temperature")}</h4>
       <label class="field">
-        Sensor
+        ${t("Sensor")}
         <share-space-multi-select
           single
-          label="Outdoor temperature sensor"
-          placeholder="None"
+          label=${t("Outdoor temperature sensor")}
+          placeholder=${t("None")}
           .options=${[
-            { value: "", label: "None" },
-            ...(current && !known ? [{ value: current, label: `${current} (unavailable)` }] : []),
+            { value: "", label: t("None") },
+            ...(current && !known ? [{ value: current, label: t("{name} (unavailable)", { name: current }) }] : []),
             ...this.outdoorOptions.map((o) => ({ value: o.id, label: o.name })),
           ]}
           .selected=${[current]}
@@ -82,15 +78,15 @@ export class ShareSpaceSettings extends LitElement {
             this.dispatchEvent(new CustomEvent("outdoor-change", { detail: e.detail[0] || null }))}
         ></share-space-multi-select>
       </label>
-      <p class="muted">Rules that follow the outdoor temperature read this sensor (e.g. Old building's preheat). None: they use their default.</p>
+      <p class="muted">${t("Rules that follow the outdoor temperature read this sensor (e.g. Old building's preheat). None: they use their default.")}</p>
     </section>`;
   }
 
   protected render(): TemplateResult {
     return html`
-      <h3>Settings</h3>
+      <h3>${t("Settings")}</h3>
       <section class="card">
-      <p>Your role: <strong>${ROLE_LABEL[this.role]}</strong></p>
+      <p>${t("Your role:")} <strong>${roleLabel(this.role)}</strong></p>
       ${this.role !== "user"
         ? html`<label class="switch">
             <input
@@ -99,7 +95,7 @@ export class ShareSpaceSettings extends LitElement {
               @change=${(e: Event) =>
                 this.dispatchEvent(new CustomEvent("technical-change", { detail: (e.target as HTMLInputElement).checked }))}
             />
-            Technical tools
+            ${t("Technical tools")}
           </label>
           <label class="switch">
             <input
@@ -108,9 +104,9 @@ export class ShareSpaceSettings extends LitElement {
               @change=${(e: Event) =>
                 this.dispatchEvent(new CustomEvent("full-ha-change", { detail: (e.target as HTMLInputElement).checked }))}
             />
-            Full Home Assistant interface
+            ${t("Full Home Assistant interface")}
           </label>
-          <p class="muted">Off: Home Assistant opens on Share Space after login. On: its usual interface, with a Back button here.</p>
+          <p class="muted">${t("Off: Home Assistant opens on Share Space after login. On: its usual interface, with a Back button here.")}</p>
           <label class="switch">
             <input
               type="checkbox"
@@ -118,9 +114,9 @@ export class ShareSpaceSettings extends LitElement {
               @change=${(e: Event) =>
                 this.dispatchEvent(new CustomEvent("everyone-change", { detail: (e.target as HTMLInputElement).checked }))}
             />
-            Open Share Space after login for everyone
+            ${t("Open Share Space after login for everyone")}
           </label>
-          <p class="muted">Home Assistant's own default page for all users. Someone who picked another page in their Home Assistant profile keeps it.</p>`
+          <p class="muted">${t("Home Assistant's own default page for all users. Someone who picked another page in their Home Assistant profile keeps it.")}</p>`
         : nothing}
       </section>
       ${this.role !== "user" ? html`<slot name="zones"></slot><slot name="dashboards"></slot>${this._renderHeating()}<slot name="users"></slot>` : nothing}

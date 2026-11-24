@@ -1,5 +1,6 @@
 import { css, html, nothing } from "lit";
 import { customElement, property, state } from "lit/decorators.js";
+import { t } from "ha-share-space-ui";
 import {
   ShareSpaceCardBase,
   getAreaActions,
@@ -175,7 +176,7 @@ export class ShareSpaceAreaActionsCard extends ShareSpaceCardBase<CardConfig> {
     try {
       const parsed = JSON.parse(text);
       if (!Array.isArray(parsed)) {
-        throw new Error("Must be a JSON list of actions");
+        throw new Error(t("Must be a JSON list of actions"));
       }
       this._textError = { ...this._textError, [side]: "" };
       this._setActions(side, parsed);
@@ -226,7 +227,7 @@ export class ShareSpaceAreaActionsCard extends ShareSpaceCardBase<CardConfig> {
   }
 
   private _renderToggle() {
-    const label = html`<span>Enabled</span>`;
+    const label = html`<span>${t("Enabled")}</span>`;
     if (customElements.get("ha-switch")) {
       return html`<div class="row">${label}<ha-switch .checked=${this._enabled} @change=${(e: Event) => this._toggleEnabled((e.target as HTMLInputElement).checked)}></ha-switch></div>`;
     }
@@ -254,9 +255,9 @@ export class ShareSpaceAreaActionsCard extends ShareSpaceCardBase<CardConfig> {
 
   private _summary(list: PlanningAction[]) {
     if (!list.length) {
-      return html`<div class="muted">No actions</div>`;
+      return html`<div class="muted">${t("No actions")}</div>`;
     }
-    return html`<div class="muted">${list.length} action${list.length > 1 ? "s" : ""}</div>
+    return html`<div class="muted">${list.length > 1 ? t("{count} actions", { count: list.length }) : t("{count} action", { count: list.length })}</div>
       <ul>${list.map((a) => html`<li>${String(a.action ?? a.service ?? a.type ?? "action")}</li>`)}</ul>`;
   }
 
@@ -266,14 +267,14 @@ export class ShareSpaceAreaActionsCard extends ShareSpaceCardBase<CardConfig> {
     }
     const area = this._config?.area;
     if (!area) {
-      return html`<ha-card><div class="wrap muted">Select an area in the card settings.</div></ha-card>`;
+      return html`<ha-card><div class="wrap muted">${t("Select an area in the card settings.")}</div></ha-card>`;
     }
     const isAdmin = !!this.hass?.user?.is_admin;
     const sensor = this.hass?.states[`binary_sensor.share_space_${area}`];
-    const stateLabel = sensor ? (sensor.state === "on" ? "Occupied" : sensor.state === "off" ? "Empty" : sensor.state) : "Unknown";
+    const stateLabel = sensor ? (sensor.state === "on" ? t("Occupied") : sensor.state === "off" ? t("Empty") : sensor.state) : t("Unknown");
     const sections: Array<[Side, string]> = [
-      ["on", "When occupied (ON)"],
-      ["off", "When empty (OFF)"],
+      ["on", t("When occupied (ON)")],
+      ["off", t("When empty (OFF)")],
     ];
     return html`
       <ha-card>
@@ -284,19 +285,19 @@ export class ShareSpaceAreaActionsCard extends ShareSpaceCardBase<CardConfig> {
           </div>
           ${this._error ? html`<div class="err">${this._error}</div>` : nothing}
           ${!this._loaded
-            ? html`<div class="muted">Loading…</div>`
+            ? html`<div class="muted">${t("Loading…")}</div>`
             : isAdmin
               ? html`
                   ${this._renderToggle()}
                   ${sections.map(([side, label]) => html`<div class="section"><h3>${label}</h3>${this._renderEditor(side)}</div>`)}
                   <div class="buttons">
-                    <button class="primary" ?disabled=${!this._dirty || this._busy || !!this._textError.on || !!this._textError.off} @click=${() => this._save()}>Save</button>
-                    <button ?disabled=${this._busy || this._dirty} @click=${() => this._test("on")}>Test ON</button>
-                    <button ?disabled=${this._busy || this._dirty} @click=${() => this._test("off")}>Test OFF</button>
+                    <button class="primary" ?disabled=${!this._dirty || this._busy || !!this._textError.on || !!this._textError.off} @click=${() => this._save()}>${t("Save")}</button>
+                    <button ?disabled=${this._busy || this._dirty} @click=${() => this._test("on")}>${t("Test ON")}</button>
+                    <button ?disabled=${this._busy || this._dirty} @click=${() => this._test("off")}>${t("Test OFF")}</button>
                   </div>
                 `
               : html`
-                  <div class="muted">${this._enabled ? "Enabled" : "Disabled"}</div>
+                  <div class="muted">${this._enabled ? t("Enabled") : t("Disabled")}</div>
                   ${sections.map(([side, label]) => html`<div class="section"><h3>${label}</h3>${this._summary(side === "on" ? this._on : this._off)}</div>`)}
                 `}
         </div>

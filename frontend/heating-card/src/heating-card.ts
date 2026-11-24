@@ -15,7 +15,7 @@ import {
   planningSchedule,
   errorMessage,
 } from "ha-share-space-ui/ha";
-import { strategyTimeline } from "ha-share-space-ui";
+import { strategyTimeline, t } from "ha-share-space-ui";
 import type { StrategySegment } from "ha-share-space-ui";
 import type { ZoneStrategy } from "ha-share-space-ui/ha";
 import type { HomeAssistant, LovelaceConfigForm, LovelaceGridOptions } from "ha-share-space-ui/ha";
@@ -127,14 +127,14 @@ export class ShareSpaceHeatingCard extends ShareSpaceCardBase<CardConfig> {
     if (!next) return null;
     const sameDay = new Intl.DateTimeFormat("en-CA", { timeZone: tz }).format(next.start) === new Intl.DateTimeFormat("en-CA", { timeZone: tz }).format(now);
     const when = new Intl.DateTimeFormat([], { timeZone: tz, hour: "2-digit", minute: "2-digit", ...(sameDay ? {} : { weekday: "short" }) }).format(next.start);
-    const label = "off" in next.result ? "off" : `${next.result.target}°`;
-    return `next: ${label} at ${when}`;
+    const label = "off" in next.result ? t("off") : `${next.result.target}°`;
+    return t("next: {label} at {when}", { label, when });
   }
 
   private _renderBanner(hass: HomeAssistant, vm: NonNullable<ReturnType<typeof zoneViewModel>>) {
     if (vm.mode !== "automation") return nothing;
     const next = this._nextChange(hass);
-    return html`<div class="banner" role="status">Automation · ${vm.activeRule ?? "Active"} · ${vm.target}°${next ? html` · ${next}` : nothing}</div>`;
+    return html`<div class="banner" role="status">${t(next ? "Automation · {rule} · {target}° · {next}" : "Automation · {rule} · {target}°", { rule: vm.activeRule ?? t("Active"), target: vm.target, next: next ?? "" })}</div>`;
   }
 
   private async _run(fn: () => Promise<unknown>): Promise<void> {
@@ -152,7 +152,7 @@ export class ShareSpaceHeatingCard extends ShareSpaceCardBase<CardConfig> {
     if (!cfg || !hass) return nothing;
     const vm = zoneViewModel(hass, cfg.entity);
     if (!vm) {
-      return html`<ha-card><div class="error" style="padding:16px">Entity not found: ${cfg.entity}</div></ha-card>`;
+      return html`<ha-card><div class="error" style="padding:16px">${t("Entity not found: {entity}", { entity: cfg.entity })}</div></ha-card>`;
     }
     const zone = vm.serviceEntityId;
     const name = cfg.name ?? vm.name;
@@ -187,11 +187,11 @@ export class ShareSpaceHeatingCard extends ShareSpaceCardBase<CardConfig> {
             )}
         ></share-space-heating-control>
         ${this._renderBanner(hass, vm)}
-        ${vm.hvacAction && vm.hvacAction !== "off" ? html`<div class="status">${vm.hvacAction}</div>` : nothing}
+        ${vm.hvacAction && vm.hvacAction !== "off" ? html`<div class="status">${t(vm.hvacAction)}</div>` : nothing}
         ${this._error ? html`<div class="error">${this._error}</div>` : nothing}
         ${zone && hass.user?.is_admin
           ? html`<div class="tools">
-              <button class=${this._showStrategy ? "active" : ""} @click=${() => (this._showStrategy = !this._showStrategy)}>Strategy</button>
+              <button class=${this._showStrategy ? "active" : ""} @click=${() => (this._showStrategy = !this._showStrategy)}>${t("Strategy")}</button>
               ${this._showStrategy ? html`<share-space-strategy-editor .hass=${hass} .zone=${zone}></share-space-strategy-editor>` : nothing}
             </div>`
           : nothing}

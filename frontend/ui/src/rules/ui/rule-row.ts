@@ -2,6 +2,7 @@ import { LitElement, html, nothing } from "lit";
 import type { TemplateResult } from "lit";
 import { property, state } from "lit/decorators.js";
 import { safeCustomElement } from "../../define";
+import { t } from "../../i18n";
 import type { Action, Condition, Rule } from "../types";
 import type { RuleError } from "../validate";
 import { defaultCondition, describeAction, describeCondition, removeAt, replaceAt, scopeErrors } from "./edit";
@@ -73,11 +74,11 @@ export class ShareSpaceRuleRow extends LitElement {
     if (open === "head") {
       const labelErrors = scopeErrors(errors, ".label");
       return this._panel(html`<div class="row head-edit">
-          <input class="label ${labelErrors.length ? "invalid" : ""}" type="text" aria-label="Rule name" placeholder="Rule name" .value=${rule.label} @change=${(e: Event) => this._change({ ...rule, label: (e.target as HTMLInputElement).value })} />
+          <input class="label ${labelErrors.length ? "invalid" : ""}" type="text" aria-label=${t("Rule name")} placeholder=${t("Rule name")} .value=${rule.label} @change=${(e: Event) => this._change({ ...rule, label: (e.target as HTMLInputElement).value })} />
           ${this.fallback
             ? nothing
-            : html`<button aria-label="Move rule up" ?disabled=${index === 0} @click=${() => this._fire("rule-move", { from: index, to: index - 1 })}>↑</button>
-                <button aria-label="Move rule down" ?disabled=${index >= count - 1} @click=${() => this._fire("rule-move", { from: index, to: index + 1 })}>↓</button>`}
+            : html`<button aria-label=${t("Move rule up")} ?disabled=${index === 0} @click=${() => this._fire("rule-move", { from: index, to: index - 1 })}>↑</button>
+                <button aria-label=${t("Move rule down")} ?disabled=${index >= count - 1} @click=${() => this._fire("rule-move", { from: index, to: index + 1 })}>↓</button>`}
         </div>
         ${labelErrors.map((e) => html`<div class="err" role="alert">${e.message}</div>`)}`);
     }
@@ -153,10 +154,10 @@ export class ShareSpaceRuleRow extends LitElement {
   protected render() {
     const { rule, index } = this;
     const link = html`<span class="link" aria-hidden="true"></span>`;
-    const then = this._block({ node: "then", kind: "then", title: "Then", body: describeAction(rule.then), errPrefix: ".then", label: `Action: ${describeAction(rule.then)}` });
+    const then = this._block({ node: "then", kind: "then", title: t("Then"), body: describeAction(rule.then), errPrefix: ".then", label: t("Action: {value}", { value: describeAction(rule.then) }) });
     if (this.fallback) {
-      const head = this._block({ node: "head", kind: "rule", title: "Otherwise", body: rule.label, errPrefix: ".label", label: `Fallback name: ${rule.label}` });
-      return html`<div class="wrap" role="group" aria-label=${`Fallback: ${rule.label}`}>
+      const head = this._block({ node: "head", kind: "rule", title: t("Otherwise"), body: rule.label, errPrefix: ".label", label: t("Fallback name: {name}", { name: rule.label }) });
+      return html`<div class="wrap" role="group" aria-label=${t("Fallback: {name}", { name: rule.label })}>
         <div class="chain">${head}${link}${then}</div>
         ${this._editor()}
       </div>`;
@@ -164,18 +165,18 @@ export class ShareSpaceRuleRow extends LitElement {
     const head = this._block({
       node: "head",
       kind: "rule",
-      title: `Rule ${index + 1}`,
+      title: t("Rule {n}", { n: index + 1 }),
       body: rule.label,
       errPrefix: ".label",
-      label: `Rule ${index + 1} name: ${rule.label}`,
-      remove: { label: "Remove rule", run: () => this._fire("rule-remove") },
+      label: t("Rule {n} name: {name}", { n: index + 1, name: rule.label }),
+      remove: { label: t("Remove rule"), run: () => this._fire("rule-remove") },
     });
     const addCondition = () => {
       this._change({ ...rule, when: [...rule.when, defaultCondition("occupied")] });
       this._open = rule.when.length;
       this._fire("block-open");
     };
-    return html`<div class="wrap" role="group" aria-label=${`Rule ${index + 1}: ${rule.label}`}>
+    return html`<div class="wrap" role="group" aria-label=${t("Rule {n}: {name}", { n: index + 1, name: rule.label })}>
       <div class="chain">
         ${head}${link}
         <div class="conds">
@@ -183,18 +184,18 @@ export class ShareSpaceRuleRow extends LitElement {
             (c, i) => html`${this._block({
               node: i,
               kind: "cond",
-              title: i === 0 ? "If" : "And",
+              title: i === 0 ? t("If") : t("And"),
               body: describeCondition(c, this.areaNames),
               errPrefix: `.when[${i}]`,
-              label: `Condition ${i + 1}: ${describeCondition(c, this.areaNames)}`,
-              remove: { label: `Remove condition ${i + 1}`, run: () => this._removeCondition(i) },
+              label: t("Condition {n}: {value}", { n: i + 1, value: describeCondition(c, this.areaNames) }),
+              remove: { label: t("Remove condition {n}", { n: i + 1 }), run: () => this._removeCondition(i) },
             })}${this._open === i ? this._editor() : nothing}`,
           )}
-          <button class="slot" aria-label="Add condition" @click=${addCondition}>+ ${rule.when.length === 0 ? "If" : "And"}</button>
+          <button class="slot" aria-label=${t("Add condition")} @click=${addCondition}>+ ${rule.when.length === 0 ? t("If") : t("And")}</button>
         </div>
         ${link}${then}
       </div>
-      ${rule.when.length === 0 ? html`<div class="muted always">No condition: always applies</div>` : nothing}
+      ${rule.when.length === 0 ? html`<div class="muted always">${t("No condition: always applies")}</div>` : nothing}
       ${typeof this._open === "number" ? nothing : this._editor()}
     </div>`;
   }

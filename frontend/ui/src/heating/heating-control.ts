@@ -1,4 +1,5 @@
 import { safeCustomElement } from "../define";
+import { t } from "../i18n";
 import { LitElement, html, css, nothing } from "lit";
 import { property, state } from "lit/decorators.js";
 import type { PropertyValues } from "lit";
@@ -281,15 +282,15 @@ export class HeatingControl extends LitElement {
     }
     if (this.mode === "unmanaged") {
       return html`<div class="chips">
-        <button class="chip" @click=${this._confirmTarget}>Set ${this._fmt(this._pending)}</button>
-        <button class="chip cancel" @click=${() => (this._pending = null)}>Cancel</button>
+        <button class="chip" @click=${this._confirmTarget}>${t("Set {value}", { value: this._fmt(this._pending) })}</button>
+        <button class="chip cancel" @click=${() => (this._pending = null)}>${t("Cancel")}</button>
       </div>`;
     }
     return html`<div class="chips">
       ${this.durations.map(
-        (h) => html`<button class="chip ${h === this.defaultHours ? "default" : ""}" @click=${() => this._confirmHours(h)}>+${h}h</button>`
+        (h) => html`<button class="chip ${h === this.defaultHours ? "default" : ""}" @click=${() => this._confirmHours(h)}>${t("+{n}h", { n: h })}</button>`
       )}
-      <button class="chip cancel" @click=${() => (this._pending = null)}>Cancel</button>
+      <button class="chip cancel" @click=${() => (this._pending = null)}>${t("Cancel")}</button>
     </div>`;
   }
 
@@ -298,25 +299,25 @@ export class HeatingControl extends LitElement {
       case "override":
         return html`<div class="banner" role="status">
           <span
-            ><strong>Manual ${this._fmt(this.target)}</strong>${this.overrideUntil
-              ? html` until ${this._time(this.overrideUntil)}`
+            ><strong>${t("Manual {value}", { value: this._fmt(this.target) })}</strong>${this.overrideUntil
+              ? html` ${t("until {time}", { time: this._time(this.overrideUntil) })}`
               : nothing}</span
           >
           <span class="actions">
-            <button @click=${() => this._emit("override-extended", { hours: 1 })}>+1h</button>
-            <button @click=${() => this._emit("override-cleared")}>Resume schedule</button>
+            <button @click=${() => this._emit("override-extended", { hours: 1 })}>${t("+1h")}</button>
+            <button @click=${() => this._emit("override-cleared")}>${t("Resume schedule")}</button>
           </span>
         </div>`;
       case "schedule":
         return html`<div class="status">
-          Following schedule${this.presence === null ? nothing : html` · ${this.presence ? "Present" : "Away"}`}
+          ${t("Following schedule")}${this.presence === null ? nothing : html` · ${this.presence ? t("Present") : t("Away")}`}
         </div>`;
       case "automation":
-        return html`<div class="status">Automatic${this.reason ? html` · ${this.reason}` : nothing}</div>`;
+        return html`<div class="status">${t("Automatic")}${this.reason ? html` · ${this.reason}` : nothing}</div>`;
       case "manual_only":
-        return html`<div class="status">Manual</div>`;
+        return html`<div class="status">${t("Manual")}</div>`;
       default:
-        return html`<div class="hint">No auto-resume</div>`;
+        return html`<div class="hint">${t("No auto-resume")}</div>`;
     }
   }
 
@@ -325,13 +326,13 @@ export class HeatingControl extends LitElement {
       <div class="head">
         <span class="name">${this.name}</span>
         <span class="current"
-          >${this.currentTemperature === null ? "–" : this._fmt(this.currentTemperature)}<small>now</small></span
+          >${this.currentTemperature === null ? "–" : this._fmt(this.currentTemperature)}<small>${t("now")}</small></span
         >
       </div>
       <div class="setpoint">
         <button
           class="round"
-          aria-label="Decrease"
+          aria-label=${t("Decrease")}
           ?disabled=${this._shown <= this.min}
           @click=${() => this._bump(-1)}
         >
@@ -340,7 +341,7 @@ export class HeatingControl extends LitElement {
         <div class="value ${this._pending === null ? "" : "pending"}">${this._fmt(this._shown)}</div>
         <button
           class="round"
-          aria-label="Increase"
+          aria-label=${t("Increase")}
           ?disabled=${this._shown >= this.max}
           @click=${() => this._bump(1)}
         >
@@ -361,7 +362,7 @@ export class HeatingControl extends LitElement {
           </div>`
         : nothing}
       <div class="label">
-        ${this._pending === null ? "Target" : this._autoApplies ? `Keep for… (+${this.defaultHours}h applies automatically)` : "Keep for…"}
+        ${this._pending === null ? t("Target") : this._autoApplies ? t("Keep for… (+{n}h applies automatically)", { n: this.defaultHours }) : t("Keep for…")}
       </div>
       ${this._renderConfirm()} ${this._renderStatus()}
     </div>`;

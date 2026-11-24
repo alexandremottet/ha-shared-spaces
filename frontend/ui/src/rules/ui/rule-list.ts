@@ -1,6 +1,7 @@
 import { LitElement, css, html, nothing } from "lit";
 import { property } from "lit/decorators.js";
 import { safeCustomElement } from "../../define";
+import { t } from "../../i18n";
 import type { Rule, RuleStrategy } from "../types";
 import { validateStrategy } from "../validate";
 import type { RuleError } from "../validate";
@@ -8,7 +9,7 @@ import { blankRule, moveItem, removeAt, replaceAt, scopeErrors } from "./edit";
 import "./rule-row";
 import { ruleStyles } from "./styles";
 
-const EMPTY: RuleStrategy = { version: 1, rules: [], fallback: { label: "Otherwise", then: { type: "off" } } };
+const emptyStrategy = (): RuleStrategy => ({ version: 1, rules: [], fallback: { label: t("Otherwise"), then: { type: "off" } } });
 
 /** Rules as a vertical chain of block rows joined by ELSE IF (first match wins), ending with the fallback; emits the whole strategy on every edit, and `rule-hover` {label|null}. */
 @safeCustomElement("share-space-rule-list")
@@ -46,7 +47,7 @@ export class ShareSpaceRuleList extends LitElement {
     `,
   ];
 
-  @property({ attribute: false }) strategy: RuleStrategy = EMPTY;
+  @property({ attribute: false }) strategy: RuleStrategy = emptyStrategy();
   /** Label of the rule to highlight (from the preview). */
   @property() highlight: string | null = null;
   /** Area names by id, for "Another area heated" conditions. */
@@ -79,10 +80,10 @@ export class ShareSpaceRuleList extends LitElement {
     const errors = this._errors();
     const hover = (label: string) => ({ enter: () => this._hover(label), leave: () => this._hover(null) });
     const fb = hover(s.fallback.label);
-    return html`<div class="muted legend">First matching rule wins (top to bottom)</div>
+    return html`<div class="muted legend">${t("First matching rule wins (top to bottom)")}</div>
       <div class="flow" @block-open=${this._closeOthers}>
         ${s.rules.map(
-          (rule, i) => html`${i > 0 ? html`<div class="vlink" aria-hidden="true">ELSE IF</div>` : nothing}<share-space-rule-row
+          (rule, i) => html`${i > 0 ? html`<div class="vlink" aria-hidden="true">${t("ELSE IF")}</div>` : nothing}<share-space-rule-row
               ?highlighted=${this.highlight !== null && this.highlight === rule.label}
               @mouseenter=${() => this._hover(rule.label)}
               @mouseleave=${() => this._hover(null)}
@@ -107,9 +108,9 @@ export class ShareSpaceRuleList extends LitElement {
               }}
             ></share-space-rule-row>`,
         )}
-        ${s.rules.length ? html`<div class="vlink" aria-hidden="true">ELSE IF</div>` : nothing}
-        <div><button class="slot" aria-label="Add rule" @click=${() => this._setRules([...s.rules, blankRule()])}>+ Rule</button></div>
-        <div class="vlink" aria-hidden="true">ELSE</div>
+        ${s.rules.length ? html`<div class="vlink" aria-hidden="true">${t("ELSE IF")}</div>` : nothing}
+        <div><button class="slot" aria-label=${t("Add rule")} @click=${() => this._setRules([...s.rules, blankRule()])}>+ ${t("Rule")}</button></div>
+        <div class="vlink" aria-hidden="true">${t("ELSE")}</div>
         <share-space-rule-row
           fallback
           ?highlighted=${this.highlight !== null && this.highlight === s.fallback.label}

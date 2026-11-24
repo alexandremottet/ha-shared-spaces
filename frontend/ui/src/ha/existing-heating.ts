@@ -3,6 +3,7 @@ import { RULES_BLUEPRINT_PATH } from "../rules/automation";
 import { describeAction, describeCondition } from "../rules/ui/edit";
 import type { WeekDay } from "../types/calendar";
 import { entityAreaId } from "./area-heating";
+import { t } from "../i18n";
 import type { HomeAssistant } from "./hass";
 
 /** Heating logic that already lives in HA (an automation or a Scheduler item), shown read only and copied into rules on migration. */
@@ -47,8 +48,12 @@ const asArray = (v: unknown): unknown[] => (v == null ? [] : Array.isArray(v) ? 
 const isObj = (v: unknown): v is Obj => !!v && typeof v === "object" && !Array.isArray(v);
 const str = (v: unknown): string | null => (typeof v === "string" ? v : null);
 
-const hhmm = (t: string): string => t.slice(0, 5);
-const minutes = (t: string): number => Number(t.slice(0, 2)) * 60 + Number(t.slice(3, 5));
+const whenText = (v: unknown, hass?: HomeAssistant): string => t("When {what}", { what: describe(v, hass) });
+const ifText = (v: unknown, hass?: HomeAssistant): string => t("If {what}", { what: describe(v, hass) });
+const thenText = (v: unknown, hass?: HomeAssistant): string => t("Then {what}", { what: describe(v, hass) });
+
+const hhmm = (s: string): string => s.slice(0, 5);
+const minutes = (s: string): number => Number(s.slice(0, 2)) * 60 + Number(s.slice(3, 5));
 const fromMinutes = (m: number): string => {
   const x = ((m % 1440) + 1440) % 1440;
   return `${String(Math.floor(x / 60)).padStart(2, "0")}:${String(x % 60).padStart(2, "0")}`;
@@ -120,7 +125,7 @@ function heatingCallIn(hass: HomeAssistant, v: unknown, target: HeatingTarget): 
 /** Shown as it is in HA: Share Space cannot express it as rules. */
 function readOnlyAutomation(hass: HomeAssistant, entityId: string, config: Obj, triggers: unknown[], conditions: unknown[], actions: unknown[]): ExistingHeating {
   const id = String(config.id ?? hass.states[entityId]?.attributes.id ?? "");
-  const unmapped = [...triggers.map((t) => `When ${describe(t, hass)}`), ...conditions.map((c) => `If ${describe(c, hass)}`), ...actions.map((a) => `Then ${describe(a, hass)}`)];
+  const unmapped = [...triggers.map((x) => whenText(x, hass)), ...conditions.map((c) => ifText(c, hass)), ...actions.map((a) => thenText(a, hass))];
   return {
     kind: "automation",
     id,
@@ -163,7 +168,7 @@ const presetNote = (call: HeatingCall, action: Action): string => {
 
 const deviceName = (hass: HomeAssistant | undefined, id: unknown): string => {
   const d = hass?.devices?.[String(id)];
-  return d?.name_by_user || d?.name || `device ${String(id)}`;
+  return d?.name_by_user || d?.name || t("device {id}", { id: String(id) });
 };
 
 const entityName = (hass: HomeAssistant | undefined, id: string): string => String(hass?.states[id]?.attributes.friendly_name ?? id);
@@ -174,17 +179,17 @@ const describe = (v: unknown, hass?: HomeAssistant): string => {
   if (!isObj(v)) return String(v);
   if (Array.isArray(v.choose)) {
     const calls = (v.choose as unknown[]).flatMap((o) => (isObj(o) ? asArray(o.sequence) : [])).map(d);
-    return `choose: ${calls.join(" · ")}`;
+    return t("choose: {actions}", { actions: calls.join(" · ") });
   }
-  if (v.if !== undefined || v.then !== undefined) return `if/then: ${[...asArray(v.then), ...asArray(v.else)].map(d).join(" · ")}`;
+  if (v.if !== undefined || v.then !== undefined) return t("if/then: {actions}", { actions: [...asArray(v.then), ...asArray(v.else)].map(d).join(" · ") });
   if (Array.isArray(v.sequence)) return v.sequence.map(d).join(" · ");
   const nested = asArray(v.conditions);
   if ((v.condition === "or" || v.condition === "and") && nested.length) {
-    return `${v.condition === "or" ? "any of" : "all of"}: ${nested.map(d).join(" · ")}`;
+    return t(v.condition === "or" ? "any of: {items}" : "all of: {items}", { items: nested.map(d).join(" · ") });
   }
   if (v.delay !== undefined) {
     const s = durationSeconds(v.delay);
-    return s === null ? `wait ${JSON.stringify(v.delay)}` : `wait ${Math.floor(s / 3600)}h${String(Math.floor((s % 3600) / 60)).padStart(2, "0")}`;
+    return t("wait {duration}", { duration: s === null ? JSON.stringify(v.delay) : `${Math.floor(s / 3600)}h${String(Math.floor((s % 3600) / 60)).padStart(2, "0")}` });
   }
   if ((v.condition === "device" || v.trigger === "device" || v.platform === "device") && v.device_id) {
     return `${deviceName(hass, v.device_id)} ${String(v.type ?? "").replace(/_/g, " ")}`.trim();
@@ -198,7 +203,7 @@ const describe = (v: unknown, hass?: HomeAssistant): string => {
   const kind = str(v.trigger) ?? str(v.platform) ?? str(v.condition);
   const entity = asArray(v.entity_id).map((e) => entityName(hass, String(e))).join(", ");
   const attr = v.attribute ? ` ${String(v.attribute)}` : "";
-  const parts = [kind === "state" ? null : kind, entity + attr, v.state !== undefined ? `is ${asArray(v.state).join(" or ")}` : null, v.at ? `at ${String(v.at)}` : null];
+  const parts = [kind === "state" ? null : kind, entity + attr, v.state !== undefined ? t("is {state}", { state: asArray(v.state).join(` ${t("or")} `) }) : null, v.at ? t("at {time}", { time: String(v.at) }) : null];
   return parts.filter(Boolean).join(" ") || JSON.stringify(v);
 };
 
@@ -287,17 +292,17 @@ export function automationAsHeating(
   const condMap: (string | null)[] = conditions.map(() => null);
   const actMap: (string | null)[] = actions.map(() => null);
 
-  triggers.forEach((t, i) => {
-    if (!isObj(t)) return;
-    const kind = kindOf(t);
-    const scheduleEntity = asArray(t.entity_id).map(String).find((e) => e.startsWith("schedule."));
-    if (kind === "time" && typeof t.at === "string" && /^\d{2}:\d{2}/.test(t.at) && trigger === null) {
+  triggers.forEach((tg, i) => {
+    if (!isObj(tg)) return;
+    const kind = kindOf(tg);
+    const scheduleEntity = asArray(tg.entity_id).map(String).find((e) => e.startsWith("schedule."));
+    if (kind === "time" && typeof tg.at === "string" && /^\d{2}:\d{2}/.test(tg.at) && trigger === null) {
       trigger = i;
-      triggerDays = t.weekday ? haDays(t.weekday) : null;
-    } else if (kind === "state" && scheduleEntity && helpers[scheduleEntity] && String(t.to ?? "on") === "on" && !schedule) {
+      triggerDays = tg.weekday ? haDays(tg.weekday) : null;
+    } else if (kind === "state" && scheduleEntity && helpers[scheduleEntity] && String(tg.to ?? "on") === "on" && !schedule) {
       schedule = { entity: scheduleEntity, helper: helpers[scheduleEntity] };
       trigMap[i] = "";
-    } else unmapped.push(`When ${describe(t, hass)}`);
+    } else unmapped.push(whenText(tg, hass));
   });
 
   const stateConds: Condition[] = [];
@@ -308,7 +313,7 @@ export function automationAsHeating(
     if (kind === "time" && c.weekday && !c.after && !c.before && weekdayCondition === null) {
       weekdayCondition = i;
       triggerDays ??= haDays(c.weekday);
-      condMap[i] = triggerDays ? describeCondition({ type: "weekday", days: triggerDays }) : "every day";
+      condMap[i] = triggerDays ? describeCondition({ type: "weekday", days: triggerDays }) : t("every day");
     } else if (kind === "state" && entity?.startsWith("schedule.") && helpers[entity] && String(c.state) === "on" && !schedule) {
       schedule = { entity, helper: helpers[entity] };
       condMap[i] = "";
@@ -318,7 +323,7 @@ export function automationAsHeating(
     } else if (kind === "state" && entity && typeof c.state === "string" && !c.attribute && !c.for) {
       stateConds.push({ type: "state", entity, is: c.state });
       condMap[i] = describeCondition(stateConds[stateConds.length - 1], names);
-    } else unmapped.push(`If ${describe(c, hass)}`);
+    } else unmapped.push(ifText(c, hass));
   });
 
   const next = actions[action + 1];
@@ -328,7 +333,7 @@ export function automationAsHeating(
   const after = delay !== null ? callOf(actions[delay + 1]) : null;
   const end = after && hitsArea(hass, after, target) && actionOf(after) !== null ? delay! + 1 : null;
   actions.forEach((a, i) => {
-    if (i !== action && i !== delay && i !== end) unmapped.push(`Then ${describe(a, hass)}`);
+    if (i !== action && i !== delay && i !== end) unmapped.push(thenText(a, hass));
   });
 
   const then = actionOf(call)!;
@@ -342,27 +347,27 @@ export function automationAsHeating(
     for (const w of windows) {
       rules.push({ label, when: [...days(w.days), { type: "time", start: w.start, end: w.end }, ...stateConds], then });
     }
-    const text = `one rule per window of ${resolved.helper.name}: ${windows.map((w) => `${describeCondition({ type: "weekday", days: w.days })} ${w.start}–${w.end}`).join(" · ")}`;
+    const text = t("one rule per window of {name}: {windows}", { name: resolved.helper.name, windows: windows.map((w) => `${describeCondition({ type: "weekday", days: w.days })} ${w.start}–${w.end}`).join(" · ") });
     trigMap.forEach((v, i) => v === "" && (trigMap[i] = text));
     condMap.forEach((v, i) => v === "" && (condMap[i] = text));
   } else {
-    const t = trigger === null ? null : (triggers[trigger] as Obj);
-    if (t) {
-      const start = hhmm(String(t.at));
+    const trg = trigger === null ? null : (triggers[trigger] as Obj);
+    if (trg) {
+      const start = hhmm(String(trg.at));
       windowEnd = delaySeconds !== null ? fromMinutes(minutes(start) + Math.round(delaySeconds / 60)) : fromMinutes(minutes(start) + 1);
       when.push({ type: "time", start, end: windowEnd });
-      const d = t.weekday ? haDays(t.weekday) : null;
-      trigMap[trigger!] = `${start}–${windowEnd}${d && d.length < 7 ? ` and ${describeCondition({ type: "weekday", days: d })}` : ""}${delaySeconds === null ? " (a one-minute window: nothing ends it)" : ""}`;
+      const d = trg.weekday ? haDays(trg.weekday) : null;
+      trigMap[trigger!] = `${start}–${windowEnd}${d && d.length < 7 ? ` ${t("and {days}", { days: describeCondition({ type: "weekday", days: d }) })}` : ""}${delaySeconds === null ? ` ${t("(a one-minute window: nothing ends it)")}` : ""}`;
     }
     rules.push({ label, when: [...days(triggerDays), ...when, ...stateConds], then });
   }
-  actMap[action] = `then ${describeAction(then)}${presetNote(call, then)}`;
-  if (delay !== null) actMap[delay] = windowEnd ? `the window ends at ${windowEnd}` : "the window end";
-  if (end !== null) actMap[end] = "after the window, the area's other rules apply";
+  actMap[action] = t("then {action}", { action: `${describeAction(then)}${presetNote(call, then)}` });
+  if (delay !== null) actMap[delay] = windowEnd ? t("the window ends at {time}", { time: windowEnd }) : t("the window end");
+  if (end !== null) actMap[end] = t("after the window, the area's other rules apply");
   const mapping: MappedLine[] = [
-    ...triggers.map((t, i) => ({ ha: `When ${describe(t, hass)}`, rules: trigMap[i] })),
-    ...conditions.map((c, i) => ({ ha: `If ${describe(c, hass)}`, rules: condMap[i] })),
-    ...actions.map((a, i) => ({ ha: `Then ${describe(a, hass)}`, rules: actMap[i] })),
+    ...triggers.map((x, i) => ({ ha: whenText(x, hass), rules: trigMap[i] })),
+    ...conditions.map((c, i) => ({ ha: ifText(c, hass), rules: condMap[i] })),
+    ...actions.map((a, i) => ({ ha: thenText(a, hass), rules: actMap[i] })),
   ];
   const id = String(config.id ?? hass.states[entityId]?.attributes.id ?? "");
   return {
@@ -396,8 +401,8 @@ export function schedulerAsHeating(hass: HomeAssistant, item: SchedulerItem, tar
   const days = haDays(item.weekdays);
   const rules: Rule[] = [];
   const unmapped: string[] = [];
-  const starts = item.timeslots.map((t) => hhmm(t.start));
-  const mapping: MappedLine[] = [{ ha: `Days: ${asArray(item.weekdays).join(", ")}`, rules: days && days.length < 7 ? describeCondition({ type: "weekday", days }) : "every day" }];
+  const starts = item.timeslots.map((slot) => hhmm(slot.start));
+  const mapping: MappedLine[] = [{ ha: t("Days: {days}", { days: asArray(item.weekdays).join(", ") }), rules: days && days.length < 7 ? describeCondition({ type: "weekday", days }) : t("every day") }];
   item.timeslots.forEach((slot, i) => {
     const call = slot.actions.map(callOf).find((c) => c && hitsArea(hass, c, target));
     const action = call ? actionOf(call) : null;
@@ -418,9 +423,12 @@ export function schedulerAsHeating(hass: HomeAssistant, item: SchedulerItem, tar
       then: action,
     });
     const r = rules[rules.length - 1];
-    mapping.push({ ha, rules: `${describeCondition(r.when[r.when.length - 1])}, then ${describeAction(action)}${presetNote(call, action)}${slot.stop ? "" : " (until the next timeslot)"}` });
-    if (asArray(slot.conditions).length) mapping.push({ ha: `${hhmm(slot.start)}: only if ${asArray(slot.conditions).map((c) => describe(c, hass)).join(" · ")}`, rules: null });
-    if (asArray(slot.conditions).length) unmapped.push(`${hhmm(slot.start)}: only if ${asArray(slot.conditions).map((c) => describe(c, hass)).join(" · ")}`);
+    mapping.push({ ha, rules: `${describeCondition(r.when[r.when.length - 1])}, ${t("then {action}", { action: `${describeAction(action)}${presetNote(call, action)}` })}${slot.stop ? "" : ` ${t("(until the next timeslot)")}`}` });
+    if (asArray(slot.conditions).length) {
+      const only = t("{time}: only if {conditions}", { time: hhmm(slot.start), conditions: asArray(slot.conditions).map((c) => describe(c, hass)).join(" · ") });
+      mapping.push({ ha: only, rules: null });
+      unmapped.push(only);
+    }
   });
   if (!rules.length && !unmapped.length) return null;
   const entityId = item.entity_id ?? `switch.schedule_${item.schedule_id}`;
@@ -428,7 +436,7 @@ export function schedulerAsHeating(hass: HomeAssistant, item: SchedulerItem, tar
     kind: "scheduler",
     id: item.schedule_id,
     entityId,
-    name: item.name || `Schedule ${item.schedule_id}`,
+    name: item.name || t("Schedule {id}", { id: item.schedule_id }),
     enabled: item.enabled ?? hass.states[entityId]?.state !== "off",
     rules,
     unmapped,

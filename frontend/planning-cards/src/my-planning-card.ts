@@ -1,5 +1,5 @@
 import { html, css } from "lit";
-import { safeCustomElement } from "ha-share-space-ui";
+import { safeCustomElement, t } from "ha-share-space-ui";
 import {
   ShareSpaceScheduleView,
   haTheme,
@@ -68,17 +68,17 @@ export class ShareSpaceMyPlanningCard extends ShareSpaceScheduleView {
       return renderBackendMissing("Share Space");
     }
     if (!this._initialized) {
-      return message("Loading…");
+      return message(t("Loading…"));
     }
     if (!this._personEntityId) {
-      return message("No person is linked to your account.");
+      return message(t("No person is linked to your account."));
     }
     return html`
       <ha-card>
         ${this._config?.show_area_picker
           ? html`
-              <select aria-label="Area" @change=${this._onArea}>
-                <option value="" ?selected=${!this._area} disabled>My place</option>
+              <select aria-label=${t("Area")} @change=${this._onArea}>
+                <option value="" ?selected=${!this._area} disabled>${t("My place")}</option>
                 ${this._areas.map(
                   (a) => html`<option value=${a.area_id} ?selected=${a.area_id === this._area}>${a.name}</option>`
                 )}
@@ -86,7 +86,7 @@ export class ShareSpaceMyPlanningCard extends ShareSpaceScheduleView {
             `
           : null}
         ${this._calendar === null
-          ? html`<p class="placeholder">Loading…</p>`
+          ? html`<p class="placeholder">${t("Loading…")}</p>`
           : html`
               <week-schedule .calendar=${this._calendar} .times=${this._config?.times ?? "bar"} @calendar-changed=${this._onChanged}>
                 ${this._haDialogReady ? html`<ha-period-edit-dialog slot="dialog"></ha-period-edit-dialog>` : null}
@@ -106,7 +106,7 @@ export class ShareSpaceMyPlanningCard extends ShareSpaceScheduleView {
         { name: "show_area_picker", selector: { boolean: {} } },
         {
           name: "times",
-          selector: { select: { mode: "dropdown", options: [{ value: "bar", label: "On the blocks" }, { value: "below", label: "Under each day" }] } },
+          selector: { select: { mode: "dropdown", options: [{ value: "bar", label: t("On the blocks") }, { value: "below", label: t("Under each day") }] } },
         },
       ],
     };

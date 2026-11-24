@@ -1,6 +1,7 @@
 import { LitElement, html, css, nothing } from "lit";
 import type { PropertyValues, TemplateResult } from "lit";
 import { customElement, property, state } from "lit/decorators.js";
+import { t } from "ha-share-space-ui";
 import { getLovelaceConfig, loadCardHelpers, visibleViews } from "ha-share-space-ui/ha";
 import type { CardElement, HomeAssistant, LovelaceConfig, LovelaceView } from "ha-share-space-ui/ha";
 
@@ -137,15 +138,15 @@ export class ShareSpaceDashboard extends LitElement {
       host.replaceChildren(...els);
     } catch (err) {
       if (this._mountKey !== key) return;
-      this._error = err instanceof Error ? err.message : "Could not render dashboard";
+      this._error = err instanceof Error ? err.message : t("Could not render dashboard");
     }
   }
 
   protected render(): TemplateResult {
-    if (this._error) return html`<div class="msg ${this._error === AUTO_MSG ? "" : "error"}">${this._error}</div>`;
-    if (this._loading) return html`<div class="msg">Loading…</div>`;
+    if (this._error) return html`<div class="msg ${this._error === AUTO_MSG ? "" : "error"}">${this._error === AUTO_MSG ? t(AUTO_MSG) : this._error}</div>`;
+    if (this._loading) return html`<div class="msg">${t("Loading…")}</div>`;
     const views = this._views;
-    if (!views.length) return html`<div class="msg">${this._config?.strategy ? AUTO_MSG : this._config?.views?.length ? "No view of this dashboard is visible to you." : "This dashboard has no views."}</div>`;
+    if (!views.length) return html`<div class="msg">${this._config?.strategy ? t(AUTO_MSG) : this._config?.views?.length ? t("No view of this dashboard is visible to you.") : t("This dashboard has no views.")}</div>`;
     const view = views[Math.min(this._view, views.length - 1)];
     return html`
       ${views.length > 1
@@ -158,13 +159,13 @@ export class ShareSpaceDashboard extends LitElement {
                     this._view = i;
                   }}
                 >
-                  ${v.title ?? v.path ?? `View ${i + 1}`}
+                  ${v.title ?? v.path ?? t("View {n}", { n: i + 1 })}
                 </button>`,
             )}
           </div>`
         : nothing}
       ${view.strategy
-        ? html`<div class="msg">${AUTO_MSG}</div>`
+        ? html`<div class="msg">${t(AUTO_MSG)}</div>`
         : html`<div class="grid ${view.type === "panel" ? "panel" : ""}"></div>`}
     `;
   }

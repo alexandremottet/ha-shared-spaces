@@ -1,3 +1,4 @@
+import { t } from "ha-share-space-ui";
 import type { HomeAssistant, HeatingZoneAttributes } from "ha-share-space-ui/ha";
 
 export type HeatingMode = HeatingZoneAttributes["mode"] | "unmanaged";
@@ -76,9 +77,9 @@ export function zoneViewModel(hass: HomeAssistant, entityId: string): ZoneViewMo
     activeRule: zoneAttrs?.active_rule ?? null,
     presets: (
       [
-        ["Comfort", zoneAttrs?.comfort_temp],
-        ["Eco", zoneAttrs?.eco_temp],
-        ["Frost", zoneAttrs?.frost_temp],
+        [t("Comfort"), zoneAttrs?.comfort_temp],
+        [t("Eco"), zoneAttrs?.eco_temp],
+        [t("Frost"), zoneAttrs?.frost_temp],
       ] as const
     ).flatMap(([label, t]) => (num(t) === null ? [] : [{ label, temperature: num(t)! }])),
   };

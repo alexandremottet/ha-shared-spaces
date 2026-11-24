@@ -1,3 +1,4 @@
+import { t } from "../i18n";
 import { WEEK_DAYS } from "../types";
 import type { WeekDay } from "../types";
 import type { Condition, RuleStrategy } from "./types";
@@ -52,31 +53,31 @@ class Checker {
   }
 
   obj(v: unknown, path: string, allowed: string[]): v is Obj {
-    if (!isObj(v)) return this.err(path, "type", "must be an object");
-    for (const k of Object.keys(v)) if (!allowed.includes(k)) this.err(`${path}.${k}`, "unknown_field", `unknown field "${k}"`);
+    if (!isObj(v)) return this.err(path, "type", t("must be an object"));
+    for (const k of Object.keys(v)) if (!allowed.includes(k)) this.err(`${path}.${k}`, "unknown_field", t('unknown field "{field}"', { field: k }));
     return true;
   }
 
   has(o: Obj, key: string, path: string): boolean {
-    return key in o || this.err(`${path}.${key}`, "required", `"${key}" is required`);
+    return key in o || this.err(`${path}.${key}`, "required", t('"{key}" is required', { key }));
   }
 
   label(o: Obj, path: string): void {
     if (!this.has(o, "label", path)) return;
     const v = o.label;
-    if (typeof v !== "string") this.err(`${path}.label`, "type", "must be a string");
-    else if (!v.trim()) this.err(`${path}.label`, "empty", "must not be empty");
-    else if (v.length > LABEL_MAX) this.err(`${path}.label`, "range", `at most ${LABEL_MAX} characters`);
+    if (typeof v !== "string") this.err(`${path}.label`, "type", t("must be a string"));
+    else if (!v.trim()) this.err(`${path}.label`, "empty", t("must not be empty"));
+    else if (v.length > LABEL_MAX) this.err(`${path}.label`, "range", t("at most {max} characters", { max: LABEL_MAX }));
   }
 
   number(v: unknown, path: string, min: number, max = Infinity): void {
-    if (typeof v !== "number" || !Number.isFinite(v)) this.err(path, "type", "must be a number");
-    else if (v < min || v > max) this.err(path, "range", max === Infinity ? `must be >= ${min}` : `must be between ${min} and ${max}`);
+    if (typeof v !== "number" || !Number.isFinite(v)) this.err(path, "type", t("must be a number"));
+    else if (v < min || v > max) this.err(path, "range", max === Infinity ? t("must be >= {min}", { min }) : t("must be between {min} and {max}", { min, max }));
   }
 
   time(v: unknown, path: string, end = false): v is string {
-    if (typeof v !== "string" || !TIME_RE.test(v)) return this.err(path, "time_format", 'must be "HH:MM"');
-    if (v === "24:00" && !end) return this.err(path, "time_format", '"24:00" is only allowed as an end');
+    if (typeof v !== "string" || !TIME_RE.test(v)) return this.err(path, "time_format", t('must be "HH:MM"'));
+    if (v === "24:00" && !end) return this.err(path, "time_format", t('"24:00" is only allowed as an end'));
     return true;
   }
 
@@ -85,11 +86,11 @@ class Checker {
     const okEnd = this.has(o, "end", path) && this.time(o.end, `${path}.end`, true);
     if (!okStart || !okEnd) return;
     const [a, b] = [minutes(o.start as string), minutes(o.end as string)];
-    if (wrap ? a === b : a >= b) this.err(`${path}.end`, "time_order", wrap ? "start and end must differ" : "end must be after start");
+    if (wrap ? a === b : a >= b) this.err(`${path}.end`, "time_order", wrap ? t("start and end must differ") : t("end must be after start"));
   }
 
   action(v: unknown, path: string): void {
-    if (!isObj(v)) return void this.err(path, "type", "must be an object");
+    if (!isObj(v)) return void this.err(path, "type", t("must be an object"));
     const kind = v.type;
     if (kind === "temperature") {
       this.obj(v, path, ["type", "value"]);
@@ -97,19 +98,19 @@ class Checker {
     } else if (kind === "comfort" || kind === "eco" || kind === "off") {
       this.obj(v, path, ["type"]);
     } else if (this.has(v, "type", path)) {
-      this.err(`${path}.type`, "unknown_kind", `unknown action "${String(kind)}"`);
+      this.err(`${path}.type`, "unknown_kind", t('unknown action "{value}"', { value: String(kind) }));
     }
   }
 
   condition(v: unknown, path: string): void {
-    if (!isObj(v)) return void this.err(path, "type", "must be an object");
+    if (!isObj(v)) return void this.err(path, "type", t("must be an object"));
     const kind = v.type;
     if (typeof kind !== "string" || !(kind in FIELDS)) {
-      if (this.has(v, "type", path)) this.err(`${path}.type`, "unknown_kind", `unknown condition "${String(kind)}"`);
+      if (this.has(v, "type", path)) this.err(`${path}.type`, "unknown_kind", t('unknown condition "{value}"', { value: String(kind) }));
       return;
     }
     this.obj(v, path, ["type", "negate", ...FIELDS[kind], ...(kind === "planned" ? ["who"] : [])]);
-    if ("negate" in v && typeof v.negate !== "boolean") this.err(`${path}.negate`, "type", "must be a boolean");
+    if ("negate" in v && typeof v.negate !== "boolean") this.err(`${path}.negate`, "type", t("must be a boolean"));
     for (const f of FIELDS[kind]) if (!this.has(v, f, path)) return;
     switch (kind as Condition["type"]) {
       case "occupied_within":
@@ -122,23 +123,23 @@ class Checker {
         return this.window(v, path, true);
       case "sensor":
         this.entity(v.entity, `${path}.entity`);
-        if (v.op !== "below" && v.op !== "above") this.err(`${path}.op`, "unknown_kind", 'must be "below" or "above"');
+        if (v.op !== "below" && v.op !== "above") this.err(`${path}.op`, "unknown_kind", t('must be "below" or "above"'));
         return this.number(v.than, `${path}.than`, -Infinity);
       case "state":
-        if (v.entity === OUTDOOR) this.err(`${path}.entity`, "type", "must be an entity id");
+        if (v.entity === OUTDOOR) this.err(`${path}.entity`, "type", t("must be an entity id"));
         else this.entity(v.entity, `${path}.entity`);
-        if (typeof v.is !== "string") return void this.err(`${path}.is`, "type", "must be a string");
-        if (!v.is.trim()) this.err(`${path}.is`, "empty", "must not be empty");
+        if (typeof v.is !== "string") return void this.err(`${path}.is`, "type", t("must be a string"));
+        if (!v.is.trim()) this.err(`${path}.is`, "empty", t("must not be empty"));
         return;
       case "heated":
-        if (!Array.isArray(v.areas) || v.areas.some((a) => typeof a !== "string" || !a)) return void this.err(`${path}.areas`, "type", "must be a list of areas");
-        if (!v.areas.length) this.err(`${path}.areas`, "empty", "pick at least one area");
+        if (!Array.isArray(v.areas) || v.areas.some((a) => typeof a !== "string" || !a)) return void this.err(`${path}.areas`, "type", t("must be a list of areas"));
+        if (!v.areas.length) this.err(`${path}.areas`, "empty", t("pick at least one area"));
         return;
       case "planned":
-        if (v.match !== "all" && v.match !== "any") this.err(`${path}.match`, "unknown_kind", 'must be "all" or "any"');
-        if (v.who !== undefined && v.who !== "area" && v.who !== "anyone") this.err(`${path}.who`, "unknown_kind", 'must be "area" or "anyone"');
-        if (!Array.isArray(v.windows)) return void this.err(`${path}.windows`, "type", "must be a list");
-        if (!v.windows.length) this.err(`${path}.windows`, "empty", "needs at least one window");
+        if (v.match !== "all" && v.match !== "any") this.err(`${path}.match`, "unknown_kind", t('must be "all" or "any"'));
+        if (v.who !== undefined && v.who !== "area" && v.who !== "anyone") this.err(`${path}.who`, "unknown_kind", t('must be "area" or "anyone"'));
+        if (!Array.isArray(v.windows)) return void this.err(`${path}.windows`, "type", t("must be a list"));
+        if (!v.windows.length) this.err(`${path}.windows`, "empty", t("needs at least one window"));
         v.windows.forEach((w, i) => {
           const p = `${path}.windows[${i}]`;
           if (this.obj(w, p, ["start", "end"])) this.window(w, p, false);
@@ -148,20 +149,20 @@ class Checker {
 
   entity(v: unknown, path: string): void {
     if (v === OUTDOOR) return;
-    if (typeof v !== "string" || !ENTITY_RE.test(v)) this.err(path, "type", "must be an entity id");
+    if (typeof v !== "string" || !ENTITY_RE.test(v)) this.err(path, "type", t("must be an entity id"));
   }
 
   /** Fixed number in [min, max], or a sensor curve whose point values are in [min, max]. */
   value(v: unknown, path: string, min: number, max = Infinity): void {
     if (!isObj(v)) return this.number(v, path, min, max);
-    if (v.type !== "curve") return void this.err(`${path}.type`, "unknown_kind", `unknown value "${String(v.type)}"`);
+    if (v.type !== "curve") return void this.err(`${path}.type`, "unknown_kind", t('unknown value "{value}"', { value: String(v.type) }));
     this.obj(v, path, ["type", "entity", "default", "points"]);
     if (this.has(v, "entity", path)) this.entity(v.entity, `${path}.entity`);
     if (this.has(v, "default", path)) this.number(v.default, `${path}.default`, -Infinity);
     if (!this.has(v, "points", path)) return;
     const pts = v.points;
-    if (!Array.isArray(pts)) return void this.err(`${path}.points`, "type", "must be a list");
-    if (pts.length < 2 || pts.length > 5) this.err(`${path}.points`, "range", "needs 2 to 5 points");
+    if (!Array.isArray(pts)) return void this.err(`${path}.points`, "type", t("must be a list"));
+    if (pts.length < 2 || pts.length > 5) this.err(`${path}.points`, "range", t("needs 2 to 5 points"));
     let prev: number | null = null;
     pts.forEach((p, i) => {
       const pp = `${path}.points[${i}]`;
@@ -169,19 +170,19 @@ class Checker {
       if (this.has(p, "at", pp)) this.number(p.at, `${pp}.at`, -Infinity);
       if (this.has(p, "value", pp)) this.number(p.value, `${pp}.value`, min, max);
       if (typeof p.at === "number" && Number.isFinite(p.at)) {
-        if (prev !== null && p.at <= prev) this.err(`${pp}.at`, "time_order", "must be above the previous point");
+        if (prev !== null && p.at <= prev) this.err(`${pp}.at`, "time_order", t("must be above the previous point"));
         prev = p.at;
       }
     });
   }
 
   days(v: unknown, path: string): void {
-    if (!Array.isArray(v)) return void this.err(path, "type", "must be a list");
-    if (!v.length) this.err(path, "empty", "needs at least one day");
+    if (!Array.isArray(v)) return void this.err(path, "type", t("must be a list"));
+    if (!v.length) this.err(path, "empty", t("needs at least one day"));
     const seen = new Set<unknown>();
     v.forEach((d, i) => {
-      if (!WEEK_DAYS.includes(d as WeekDay)) this.err(`${path}[${i}]`, "unknown_kind", `unknown day "${String(d)}"`);
-      else if (seen.has(d)) this.err(`${path}[${i}]`, "duplicate", `"${d}" listed twice`);
+      if (!WEEK_DAYS.includes(d as WeekDay)) this.err(`${path}[${i}]`, "unknown_kind", t('unknown day "{value}"', { value: String(d) }));
+      else if (seen.has(d)) this.err(`${path}[${i}]`, "duplicate", t('"{day}" listed twice', { day: String(d) }));
       seen.add(d);
     });
   }
@@ -191,16 +192,16 @@ class Checker {
 export function validateStrategy(json: unknown): ValidationResult {
   const c = new Checker();
   if (c.obj(json, "$", ["version", "rules", "fallback"])) {
-    if (c.has(json, "version", "$") && json.version !== 1) c.err("$.version", "unknown_kind", "unsupported version");
+    if (c.has(json, "version", "$") && json.version !== 1) c.err("$.version", "unknown_kind", t("unsupported version"));
     if (c.has(json, "rules", "$")) {
-      if (!Array.isArray(json.rules)) c.err("$.rules", "type", "must be a list");
+      if (!Array.isArray(json.rules)) c.err("$.rules", "type", t("must be a list"));
       else
         json.rules.forEach((r, i) => {
           const p = `$.rules[${i}]`;
           if (!c.obj(r, p, ["label", "when", "then"])) return;
           c.label(r, p);
           if (c.has(r, "when", p)) {
-            if (!Array.isArray(r.when)) c.err(`${p}.when`, "type", "must be a list");
+            if (!Array.isArray(r.when)) c.err(`${p}.when`, "type", t("must be a list"));
             else r.when.forEach((cond, j) => c.condition(cond, `${p}.when[${j}]`));
           }
           if (c.has(r, "then", p)) c.action(r.then, `${p}.then`);

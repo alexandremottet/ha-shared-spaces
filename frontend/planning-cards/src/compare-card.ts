@@ -3,8 +3,9 @@ import { customElement, property, state } from "lit/decorators.js";
 import type { PropertyValues } from "lit";
 import "ha-share-space-ui";
 import type { Calendar, WeekDay } from "ha-share-space-ui";
-import { WEEK_DAYS } from "ha-share-space-ui";
+import { WEEK_DAYS, t } from "ha-share-space-ui";
 import {
+  syncLanguage,
   haTheme,
   registerCustomCard,
   renderBackendMissing,
@@ -63,6 +64,7 @@ export class ShareSpaceCompareCard extends LitElement {
   }
 
   protected willUpdate(_changed: PropertyValues): void {
+    syncLanguage(this.hass);
     if (this.hass && this._config && !this._started) {
       this._started = true;
       this._load();
@@ -95,13 +97,13 @@ export class ShareSpaceCompareCard extends LitElement {
       return renderBackendMissing("Share Space");
     }
     if (this._noPerson) {
-      return message("No person is linked to your account.");
+      return message(t("No person is linked to your account."));
     }
     if (this._noArea) {
-      return message("Pick where you work first.");
+      return message(t("Pick where you work first."));
     }
     if (!this._mine || !this._space) {
-      return message("Loading…");
+      return message(t("Loading…"));
     }
     return html`
       <ha-card>
@@ -113,7 +115,7 @@ export class ShareSpaceCompareCard extends LitElement {
               .color=${SPACE_COLOR}
             ></person-lane-track>
             <person-lane-track
-              .label=${"Me"}
+              .label=${t("Me")}
               .periods=${this._mine![day] ?? []}
               .color=${ME_COLOR}
             ></person-lane-track>

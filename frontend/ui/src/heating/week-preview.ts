@@ -1,6 +1,7 @@
 import { LitElement, css, html, nothing } from "lit";
 import { property } from "lit/decorators.js";
 import { safeCustomElement } from "../define";
+import { t } from "../i18n";
 import { WEEK_DAYS } from "../types";
 import type { ScheduleRanges, StrategySegment } from "./strategy-sim";
 import { fromWall, wallTime } from "./tz";
@@ -39,7 +40,8 @@ export function previewBands(segments: StrategySegment[], planned: Span[]): Band
   return out;
 }
 
-const KIND_LABELS: Record<BandKind, string> = { planned: "Planned", preheat: "Preheat", setback: "Setback", off: "Off" };
+const KINDS: BandKind[] = ["planned", "preheat", "setback", "off"];
+const kindLabel = (k: BandKind): string => ({ planned: t("Planned"), preheat: t("Preheat"), setback: t("Setback"), off: t("Off") })[k];
 
 /** Planned (occupied) spans of each shown day, from the area's weekly schedule. */
 export function plannedSpans(schedule: ScheduleRanges, days: number[], tz: string): Span[] {
@@ -191,7 +193,7 @@ export class ShareSpaceWeekPreview extends LitElement {
     const dayFmt = new Intl.DateTimeFormat([], { timeZone: tz, weekday: "short", day: "numeric" });
     const hm = new Intl.DateTimeFormat([], { timeZone: tz, hour: "numeric", minute: "2-digit", hourCycle: "h23" });
     const bands = previewBands(segments, this.planned);
-    return html`<div class="preview" aria-label="Next ${days.length - 1} days">
+    return html`<div class="preview" aria-label=${t("Next {n} days", { n: days.length - 1 })}>
       ${days.slice(0, -1).map((ds, i) => {
         const de = days[i + 1];
         const span = de - ds;
@@ -202,8 +204,8 @@ export class ShareSpaceWeekPreview extends LitElement {
               const a = Math.max(s.start, ds);
               const b = Math.min(s.end, de);
               const r = s.segment.result;
-              const label = "off" in r ? "off" : `${r.target}°`;
-              const tip = `${KIND_LABELS[s.kind]} · ${s.segment.reason} · ${label} · ${fmt.format(s.start)} – ${fmt.format(s.end)}`;
+              const label = "off" in r ? t("off") : `${r.target}°`;
+              const tip = `${kindLabel(s.kind)} · ${s.segment.reason} · ${label} · ${fmt.format(s.start)} – ${fmt.format(s.end)}`;
               const dim = this.highlight !== null && this.highlight !== s.segment.reason;
               // a bar running on from the day before or into the next one has no edge here to label
               const times =
@@ -213,10 +215,10 @@ export class ShareSpaceWeekPreview extends LitElement {
               return html`<div class="seg ${s.kind} ${dim ? "dim" : ""}" style="left:${((a - ds) / span) * 100}%;width:${((b - a) / span) * 100}%" title=${tip} tabindex="0" role="img" aria-label=${tip}
                 @mouseenter=${() => this._hover(s.segment.reason)} @mouseleave=${() => this._hover(null)} @focus=${() => this._hover(s.segment.reason)} @blur=${() => this._hover(null)}>${times}</div>`;
             })}
-          ${now >= ds && now < de ? html`<div class="now" style="left:${((now - ds) / span) * 100}%" title="Now"></div>` : nothing}
+          ${now >= ds && now < de ? html`<div class="now" style="left:${((now - ds) / span) * 100}%" title=${t("Now")}></div>` : nothing}
         </div></div>`;
       })}
-      <div class="legend">${(Object.keys(KIND_LABELS) as BandKind[]).map((k) => html`<span><i class=${k}></i>${KIND_LABELS[k]}</span>`)}</div>
+      <div class="legend">${KINDS.map((k) => html`<span><i class=${k}></i>${kindLabel(k)}</span>`)}</div>
     </div>`;
   }
 }

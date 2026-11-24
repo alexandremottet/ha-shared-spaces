@@ -1,6 +1,7 @@
 import { LitElement, css, html } from "lit";
 import type { TemplateResult } from "lit";
 import { customElement, property, query, state } from "lit/decorators.js";
+import { t } from "ha-share-space-ui";
 
 export interface MultiOption {
   value: string;
@@ -11,7 +12,7 @@ export interface MultiOption {
 @customElement("share-space-multi-select")
 export class ShareSpaceMultiSelect extends LitElement {
   @property() label = "";
-  @property() placeholder = "None";
+  @property() placeholder = "";
   @property({ attribute: false }) options: MultiOption[] = [];
   @property({ attribute: false }) selected: string[] = [];
   @property({ type: Boolean }) disabled = false;
@@ -155,7 +156,7 @@ export class ShareSpaceMultiSelect extends LitElement {
         @click=${() => (this._open = !this._open)}
         @keydown=${(e: KeyboardEvent) => e.key === "Escape" && (this._open = false)}
       >
-        ${names.length ? names.join(", ") : this.placeholder}
+        ${names.length ? names.join(", ") : this.placeholder || t("None")}
       </button>
       ${this._open
         ? html`<div class="menu" popover="manual" role="group" aria-label=${this.label} @keydown=${(e: KeyboardEvent) => e.key === "Escape" && (this._open = false)}>

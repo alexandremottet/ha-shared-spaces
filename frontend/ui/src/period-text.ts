@@ -1,4 +1,17 @@
-import type { TimeOfDay, TimeRange } from "./types";
+import { t } from "./i18n";
+import type { TimeOfDay, TimeRange, WeekDay } from "./types";
+
+const DAY_NAMES: Record<WeekDay, () => string> = {
+  monday: () => t("Monday"),
+  tuesday: () => t("Tuesday"),
+  wednesday: () => t("Wednesday"),
+  thursday: () => t("Thursday"),
+  friday: () => t("Friday"),
+  saturday: () => t("Saturday"),
+  sunday: () => t("Sunday"),
+};
+
+export const dayName = (day: WeekDay): string => DAY_NAMES[day]?.() ?? day;
 
 const short = (t: TimeOfDay): string => t.replace(/^0(\d)/, "$1");
 

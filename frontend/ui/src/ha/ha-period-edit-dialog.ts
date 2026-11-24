@@ -1,6 +1,7 @@
 import { safeCustomElement } from "../define";
 import { LitElement, html, css } from "lit";
 import { query } from "lit/decorators.js";
+import { t } from "../i18n";
 import { PeriodEditController } from "../period-edit-controller";
 import type { TimeOfDay, TimeRange, WeekDay } from "../types";
 import "./ha-time-field";
@@ -62,14 +63,14 @@ export class HaPeriodEditDialog extends LitElement {
 
   protected render() {
     return html`
-      <ha-dialog header-title="Edit period">
-        <div class="field">${this._renderTimeField("Start", this._controller.start, (value) => this._controller.setStart(value))}</div>
-        <div class="field">${this._renderTimeField("End", this._controller.end, (value) => this._controller.setEnd(value))}</div>
+      <ha-dialog header-title=${t("Edit period")}>
+        <div class="field">${this._renderTimeField(t("Start"), this._controller.start, (value) => this._controller.setStart(value))}</div>
+        <div class="field">${this._renderTimeField(t("End"), this._controller.end, (value) => this._controller.setEnd(value))}</div>
         <div slot="footer" class="footer">
-          <ha-button variant="danger" @click=${this._onDelete}>Delete</ha-button>
+          <ha-button variant="danger" @click=${this._onDelete}>${t("Delete")}</ha-button>
           <span>
-            <ha-button @click=${this._close}>Cancel</ha-button>
-            <ha-button variant="brand" @click=${this._onSave}>Save</ha-button>
+            <ha-button @click=${this._close}>${t("Cancel")}</ha-button>
+            <ha-button variant="brand" @click=${this._onSave}>${t("Save")}</ha-button>
           </span>
         </div>
       </ha-dialog>

@@ -2,6 +2,7 @@ import { safeCustomElement } from "./define";
 import { LitElement, html, css } from "lit";
 import { query } from "lit/decorators.js";
 import type { TimeRange, WeekDay } from "./types";
+import { t } from "./i18n";
 import { PeriodEditController } from "./period-edit-controller";
 
 export type { PeriodDeletedDetail, PeriodSavedDetail } from "./period-edit-controller";
@@ -73,7 +74,7 @@ export class PeriodEditDialog extends LitElement {
       <dialog>
         <div class="row">
           <label>
-            Start
+            ${t("Start")}
             <input
               type="time"
               .value=${this._controller.start}
@@ -83,7 +84,7 @@ export class PeriodEditDialog extends LitElement {
         </div>
         <div class="row">
           <label>
-            End
+            ${t("End")}
             <input
               type="time"
               .value=${this._controller.end}
@@ -92,10 +93,10 @@ export class PeriodEditDialog extends LitElement {
           </label>
         </div>
         <div class="actions">
-          <button class="delete" @click=${this._onDelete}>Delete</button>
+          <button class="delete" @click=${this._onDelete}>${t("Delete")}</button>
           <span>
-            <button @click=${this._close}>Cancel</button>
-            <button @click=${this._onSave}>Save</button>
+            <button @click=${this._close}>${t("Cancel")}</button>
+            <button @click=${this._onSave}>${t("Save")}</button>
           </span>
         </div>
       </dialog>
