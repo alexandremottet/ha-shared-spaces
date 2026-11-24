@@ -1,7 +1,7 @@
 import { LitElement, html, css, nothing } from "lit";
 import type { TemplateResult } from "lit";
 import { customElement, property, state } from "lit/decorators.js";
-import { createAreaZone, deleteZone, listZones } from "ha-share-space-ui/ha";
+import { createAreaZone, deleteZone, listZones, errorMessage } from "ha-share-space-ui/ha";
 import type { HeatingZone, HomeAssistant } from "ha-share-space-ui/ha";
 import { settingsStyles } from "./settings-styles";
 
@@ -19,9 +19,8 @@ interface Draft {
   thermostat: string;
 }
 
-const errorText = (err: unknown) => (err instanceof Error ? err.message : String((err as { message?: string })?.message ?? err));
 
-// Settings > Zones: one heating zone per area, built from heaters + a sensor or an existing thermostat.
+// Settings > Heating: one heating per area, built from heaters + a sensor or an existing thermostat.
 @customElement("share-space-zones-settings")
 export class ShareSpaceZonesSettings extends LitElement {
   @property({ attribute: false }) hass?: HomeAssistant;
@@ -77,7 +76,7 @@ export class ShareSpaceZonesSettings extends LitElement {
     try {
       this._zones = await listZones(this.hass);
     } catch (err) {
-      this._error = errorText(err);
+      this._error = errorMessage(err);
     }
   }
 
@@ -88,7 +87,7 @@ export class ShareSpaceZonesSettings extends LitElement {
       await fn();
       await this._load();
     } catch (err) {
-      this._error = errorText(err);
+      this._error = errorMessage(err);
     } finally {
       this._busy = false;
     }
@@ -189,11 +188,12 @@ export class ShareSpaceZonesSettings extends LitElement {
     const zones = this._zones ?? [];
     const orphans = zones.filter((z) => !z.area_id || !hass.areas?.[z.area_id]);
     return html`<section class="card">
-      <h4>Heating zones</h4>
-      <p class="muted">One zone per area. Removing a zone also removes the thermostat Share Space created for it, never your devices.</p>
+      <h4>Heating</h4>
+      <p class="muted">One heating per area, matched by the area Home Assistant gives the thermostat. Removing it also removes the thermostat Share Space created, never your devices.</p>
       <div class="rows">
         ${areas.map((area) => {
-          const zone = zones.find((z) => z.area_id === area.area_id);
+          const here = zones.filter((z) => z.area_id === area.area_id);
+          const zone = here[0];
           const editing = this._draft?.area === area.area_id;
           return html`<div class="row">
             <span class="name">${area.name}</span>
@@ -206,9 +206,18 @@ export class ShareSpaceZonesSettings extends LitElement {
                       <button ?disabled=${this._zones === null} @click=${() => (this._draft = { area: area.area_id, source: "heaters", heaters: [], sensor: "", thermostat: "" })}>Add heating</button>
                     </span>`}
             ${editing ? this._renderForm(this._draft!) : nothing}
+            ${here.length > 1
+              ? html`<span class="error">Several thermostats in this area: ${here.map((z) => this._label(z.climate_entity)).join(", ")}. Move all but one to another area in Home Assistant (Settings → Entities).</span>`
+              : nothing}
           </div>`;
         })}
-        ${orphans.map((zone) => html`<div class="row"><span class="name">${zone.name}</span>${this._renderZone(zone)}</div>`)}
+        ${orphans.map(
+          (zone) =>
+            html`<div class="row">
+              <span class="name">${zone.name}</span>${this._renderZone(zone)}
+              <span class="error">No area: assign ${this._label(zone.climate_entity)} to an area in Home Assistant (Settings → Entities) so rules can run.</span>
+            </div>`,
+        )}
       </div>
       ${areas.length ? nothing : html`<p class="muted">No areas yet: the Technical Admin creates them in Home Assistant.</p>`}
       ${this._error ? html`<p class="error">${this._error}</p>` : nothing}

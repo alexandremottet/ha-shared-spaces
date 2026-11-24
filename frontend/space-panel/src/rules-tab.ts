@@ -3,13 +3,13 @@ import type { PropertyValues, TemplateResult } from "lit";
 import { customElement, property, state } from "lit/decorators.js";
 import "ha-share-space-ui";
 import { haCardSurface, isDirty, validateStrategy } from "ha-share-space-ui";
-import type { ManagedState, SensorReadings, PresetTemps, RuleStrategy, SavedRules, ScheduleRanges } from "ha-share-space-ui";
+import type { EntityStates, ManagedState, SensorReadings, PresetTemps, RuleStrategy, SavedRules, ScheduleRanges } from "ha-share-space-ui";
 import { nameTaken } from "ha-share-space-ui/ha";
 import type { AreaInfo, HeatingZone, SharedStrategy } from "ha-share-space-ui/ha";
 
 const NEW_SHARED = "__new__";
 
-// Rules page, props in / events out: zone-select, area-change, draft-change, save, undo, discard, take-back, detach,
+// Rules page, props in / events out: zone-select, draft-change, save, undo, discard, take-back, detach,
 // start-new, open-automation, strategy-choose, strategy-share, strategy-rename, strategy-delete, make-copy.
 @customElement("share-space-rules-tab")
 export class ShareSpaceRulesTab extends LitElement {
@@ -17,12 +17,12 @@ export class ShareSpaceRulesTab extends LitElement {
   @property() zone = "";
   @property({ attribute: false }) areas: AreaInfo[] = [];
   @property() area = "";
-  @property({ type: Boolean }) areaLocked = false;
   @property({ attribute: false }) draft: RuleStrategy | null = null;
   @property({ attribute: false }) saved: SavedRules | null = null;
   @property({ attribute: false }) schedule: ScheduleRanges | null = null;
   @property({ attribute: false }) temps?: PresetTemps;
   @property({ attribute: false }) readings?: SensorReadings;
+  @property({ attribute: false }) states?: EntityStates;
   @property({ type: Number }) now = Date.now();
   @property() tz = "UTC";
   @property({ type: Boolean }) loading = false;
@@ -292,26 +292,30 @@ export class ShareSpaceRulesTab extends LitElement {
     return !!this.draft && validateStrategy(this.draft).ok && this.area !== "";
   }
 
+  private _areaName(z: HeatingZone): string {
+    return (z.area_id && this.areas.find((a) => a.area_id === z.area_id)?.name) || z.name;
+  }
+
+  // One entry per area with heating; the value stays the zone entity behind it.
   private _zoneSelect(): TemplateResult {
+    const zones = [...(this.zones ?? [])].sort((a, b) => this._areaName(a).localeCompare(this._areaName(b)));
     return html`<label
-      ><span class="sep">Zone</span>
-      <select aria-label="Heating zone" .value=${this.zone} ?disabled=${this.busy} @change=${(e: Event) => this._emit("zone-select", (e.target as HTMLSelectElement).value)}>
-        <option value="" ?selected=${this.zone === ""}>Choose a zone</option>
-        ${(this.zones ?? []).map((z) => html`<option value=${z.entity_id} ?selected=${z.entity_id === this.zone}>${z.name}</option>`)}
+      ><span class="sep">Area</span>
+      <select aria-label="Area" .value=${this.zone} ?disabled=${this.busy} @change=${(e: Event) => this._emit("zone-select", (e.target as HTMLSelectElement).value)}>
+        <option value="" ?selected=${this.zone === ""}>Choose an area</option>
+        ${zones.map((z) => html`<option value=${z.entity_id} ?selected=${z.entity_id === this.zone}>${this._areaName(z)}</option>`)}
       </select></label
     >`;
   }
 
-  private _areaField(): TemplateResult {
-    const name = this.areas.find((a) => a.area_id === this.area)?.name ?? this.area;
-    if (this.areaLocked) return html`<span class="field"><span class="sep">Area</span> <strong>${name}</strong></span>`;
-    return html`<label
-      ><span class="sep">Area</span>
-      <select aria-label="Area" .value=${this.area} ?disabled=${this.busy} @change=${(e: Event) => this._emit("area-change", (e.target as HTMLSelectElement).value)}>
-        <option value="" ?selected=${this.area === ""}>Choose an area</option>
-        ${this.areas.map((a) => html`<option value=${a.area_id} ?selected=${a.area_id === this.area}>${a.name}</option>`)}
-      </select></label
-    >`;
+  // Why the selected heating cannot take rules: HA gives its thermostat no area, or the area has several.
+  private _areaProblem(): TemplateResult | typeof nothing {
+    const z = this.zones?.find((x) => x.entity_id === this.zone);
+    if (!z || this.area) return nothing;
+    const text = z.area_conflict
+      ? `Several heating zones are in ${this._areaName(z)}. Keep one thermostat per area in Home Assistant (Settings → Entities).`
+      : `${z.climate_entity} has no area. Assign it to an area in Home Assistant (Settings → Entities).`;
+    return html`<div class="banner" role="status">${text}</div>`;
   }
 
   private _sharedName(id: string | null): string {
@@ -359,7 +363,6 @@ export class ShareSpaceRulesTab extends LitElement {
       <button class="primary" ?disabled=${this.busy || !name || taken || same} @click=${submit}>${rename ? "Rename" : "Share"}</button>
       <button @click=${() => (this._naming = null)}>Cancel</button>
       ${taken ? html`<span class="error">Name already used.</span>` : nothing}
-      ${!rename && !this.area ? html`<span class="muted">Choose an area to use it on this zone.</span>` : nothing}
     </div>`;
   }
 
@@ -368,7 +371,7 @@ export class ShareSpaceRulesTab extends LitElement {
     return html`<span class="sep">uses</span>
       <label
         ><select aria-label="Strategy" .value=${this.choice} ?disabled=${this.busy} @change=${(e: Event) => this._pickerChange(e)}>
-          <option value="" ?selected=${this.choice === ""}>Custom for this zone</option>
+          <option value="" ?selected=${this.choice === ""}>Custom for this area</option>
           ${this.shared.map((x) => html`<option value=${x.id} ?selected=${x.id === this.choice}>${x.name}</option>`)}
           <option value=${NEW_SHARED}>+ New shared strategy…</option>
         </select></label
@@ -380,12 +383,12 @@ export class ShareSpaceRulesTab extends LitElement {
     const users = s ? (this.users[s.id] ?? []) : [];
     const notActive = !this.active || (editor && !this.rulesEnabled);
     return html`${s
-        ? html`<span class="chip shared" title=${users.length ? `Used by ${users.join(", ")}` : "Not used by any zone yet"}
-            >Shared · ${users.length ? `${users.length} zone${users.length > 1 ? "s" : ""}` : "unused"}</span
+        ? html`<span class="chip shared" title=${users.length ? `Used by ${users.join(", ")}` : "Not used by any area yet"}
+            >Shared · ${users.length ? `${users.length} area${users.length > 1 ? "s" : ""}` : "unused"}</span
           >`
         : nothing}
       ${notActive
-        ? html`<span class="chip off" title=${editor && this.active ? "These rules are not the ones running for this zone" : "No strategy automation is running for this zone"}>Not active</span>`
+        ? html`<span class="chip off" title=${editor && this.active ? "These rules are not the ones running for this area" : "No strategy automation is running for this zone"}>Not active</span>`
         : nothing}`;
   }
 
@@ -411,11 +414,11 @@ export class ShareSpaceRulesTab extends LitElement {
     const items = s
       ? [
           this._menuItem("Rename", () => this._startNaming("rename"), { disabled: this.busy }),
-          this.zoneOn === s.id ? this._menuItem("Make a copy for this zone", () => this._emit("make-copy"), { disabled: this.busy }) : nothing,
+          this.zoneOn === s.id ? this._menuItem("Make a copy for this area", () => this._emit("make-copy"), { disabled: this.busy }) : nothing,
           this._menuItem("Delete", () => (this._confirmDelete = true), {
             danger: true,
             disabled: this.busy || users.length > 0,
-            reason: users.length ? `Used by ${users.join(", ")}: delete is disabled while a zone uses it.` : undefined,
+            reason: users.length ? `Used by ${users.join(", ")}: delete is disabled while an area uses it.` : undefined,
           }),
         ]
       : [this._menuItem("Share these rules…", () => this._startNaming("share"), { disabled: this.busy })];
@@ -430,10 +433,10 @@ export class ShareSpaceRulesTab extends LitElement {
     const users = s ? (this.users[s.id] ?? []) : [];
     const onName = this._sharedName(this.zoneOn);
     let text = "";
-    if (this.switching && s) text = `Saving switches this zone to ${s.name}.`;
-    else if (this.switching && onName) text = `Saving gives this zone its own copy; other zones keep ${onName}.`;
+    if (this.switching && s) text = `Saving switches this area to ${s.name}.`;
+    else if (this.switching && onName) text = `Saving gives this area its own copy; other areas keep ${onName}.`;
     else if (this.saved && !this.rulesEnabled && !this.startingNew) text = "These rules are saved but not running. Save to use them.";
-    else if (s && users.length > 1) text = `Changes apply to ${users.length} zones.`;
+    else if (s && users.length > 1) text = `Changes apply to ${users.length} areas.`;
     return text ? html`<div class="banner info" role="status">${text}</div>` : nothing;
   }
 
@@ -450,12 +453,12 @@ export class ShareSpaceRulesTab extends LitElement {
         : nothing}`;
   }
 
-  // One header bar: zone, strategy, area, status chips and the actions menu.
+  // One header bar: area, strategy, status chips and the actions menu.
   private _bar(editor: boolean): TemplateResult {
     return html`<div class="bar">
       ${this._zoneSelect()}
       ${this.zone && !this.loading
-        ? html`${editor ? this._strategySelect() : nothing}<span class="sep">·</span>${this._areaField()}${this._chips(editor)}${editor ? this._menu() : nothing}`
+        ? html`${editor ? this._strategySelect() : nothing}${this._chips(editor)}${editor ? this._menu() : nothing}`
         : nothing}
     </div>`;
   }
@@ -467,8 +470,9 @@ export class ShareSpaceRulesTab extends LitElement {
       ${this.startingNew
         ? html`<div class="banner info">New rules automation. Saving it disables the detached one.</div>`
         : nothing}
+      ${this._areaProblem()}
       ${this.missingShared
-        ? html`<div class="banner" role="status">This zone uses a shared strategy that no longer exists. Pick one, or edit custom rules.</div>`
+        ? html`<div class="banner" role="status">This area uses a shared strategy that no longer exists. Pick one, or edit custom rules.</div>`
         : nothing}
       ${this._forms()} ${this._info()}
       <div class="cols">
@@ -482,6 +486,7 @@ export class ShareSpaceRulesTab extends LitElement {
                 .tz=${this.tz}
                 .temps=${this.temps}
                 .readings=${this.readings}
+                .states=${this.states}
                 .highlight=${this._hl}
                 @segment-hover=${(e: CustomEvent<{ reason: string | null }>) => (this._hl = e.detail.reason)}
               ></share-space-rule-preview>`
@@ -528,7 +533,7 @@ export class ShareSpaceRulesTab extends LitElement {
       </div>
       ${this._confirmNew
         ? html`<div class="row">
-            <span>Create a new rules automation for this zone? The detached one will be disabled.</span>
+            <span>Create a new rules automation for this area? The detached one will be disabled.</span>
             <button class="primary" ?disabled=${this.busy} @click=${() => this._emit("start-new")}>Confirm</button>
             <button @click=${() => (this._confirmNew = false)}>Cancel</button>
           </div>`
@@ -547,7 +552,7 @@ export class ShareSpaceRulesTab extends LitElement {
     return html`
       <h3>Rules</h3>
       ${this._bar(editor)}
-      ${this.zones.length === 0 ? html`<div class="muted">No heating zone yet.</div>` : nothing}
+      ${this.zones.length === 0 ? html`<div class="muted">No heated area yet. Set up heating in Settings.</div>` : nothing}
       ${this.error ? html`<div class="error" role="alert">${this.error}</div>` : nothing}
       ${!this.zone ? nothing : this.loading ? html`<div class="muted">Loading…</div>` : this._body()}
     `;

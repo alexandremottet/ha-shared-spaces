@@ -25,6 +25,7 @@ the same result in TS and in HA.
 | `time` | `start`, `end` "HH:MM" (`end` may be "24:00") | `start <= now < end`; wraps past midnight when `start > end`; `start != end` |
 | `planned` | `windows: [{start, end}]` (`start < end`), `match`: `all`/`any` | `share_space.query_occupancy` for today: an ON slot starts in every / some window |
 | `sensor` | `entity`, `op`: `below`/`above`, `than` | numeric reading `< than` / `> than`; no reading → does not hold (before `negate`) |
+| `state` | `entity` (any HA entity, not `outdoor`), `is`: string | entity state equals `is`; missing entity → does not hold (before `negate`). Use HA helpers for cross-area logic, e.g. a binary_sensor group of other areas' `binary_sensor.share_space_<area>`. The preview uses the current state for the whole week |
 
 | Action | Result (`set_base_target`) |
 |---|---|
@@ -59,7 +60,11 @@ strategy id field is `strategy_id`, since `id` is the message id). `save_strateg
 name (`name_taken`, case-insensitive) and a malformed strategy (`invalid_format`). `run_rules` accepts
 `strategy: <id>` as an alternative to `rules` (exactly one non-empty; empty `{}` / `""`
 count as absent). A missing id raises an error and leaves the zone untouched. The `rules.yaml`
-blueprint (version 3) has a `strategy` input (default empty = use `rules`). Edits apply to every
+blueprint (version 4) has a `strategy` input (default empty = use `rules`). Its `area` input (HA area
+picker) is the only required target: `run_rules` drives the one heating zone whose climate entity HA
+places in that area (entity registry, else its device; the provisioning area only when HA has none),
+and errors when the area has no zone or several. The legacy `zone` input / `entity_id` still wins
+when set, so version 3 automations keep running. Edits apply to every
 zone at its next minute trigger.
 
 ## Fixture format (`rules_cases.json`)
@@ -67,5 +72,5 @@ zone at its next minute trigger.
 ```
 [{ name, tz, schedule: {<weekday>: [["HH:MM","HH:MM"]...]}, strategy: {...},
    temps?: {comfort, eco},                               // zone presets, default {21, 17}
-   checks: [{ now: ISO with offset, readings?: {<entity>: number}, expected: {target, preset?} | {off: true}, reason }] }]
+   checks: [{ now: ISO with offset, readings?: {<entity>: number}, states?: {<entity>: string}, expected: {target, preset?} | {off: true}, reason }] }]
 ```

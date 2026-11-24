@@ -568,7 +568,7 @@ export class MockHassController {
       a.lastTriggered = now;
       try {
         this._callService("share_space_heating", "set_base_target", {
-          entity_id: input.zone,
+          entity_id: this._zoneEntityId(this._rulesZone(input, area).config),
           ...("off" in ev.result ? { off: true } : ev.result.preset ? { preset: ev.result.preset } : { temperature: ev.result.target }),
           reason: ev.reason,
         });
@@ -583,7 +583,7 @@ export class MockHassController {
     const rules = sid ? this._strategies.get(sid)?.rules : (input.rules as RuleStrategy | undefined);
     if (!rules) return null;
     try {
-      const cfg = this._zoneByEntity(input.zone).config;
+      const cfg = this._rulesZone(input, area).config;
       return evaluateRules(rules, this._ranges(area), now, this.tz, { comfort: cfg.comfort_temp, eco: cfg.eco_temp }, sensorReadings(rules, Object.fromEntries(this._entities), this._outdoorEntity));
     } catch {
       return null;
@@ -736,6 +736,14 @@ export class MockHassController {
     return Array.isArray(raw) ? (raw as string[]) : raw ? [String(raw)] : [];
   }
 
+  // Legacy automations name the zone; new ones only the area (the zone whose climate is in it).
+  private _rulesZone(input: Record<string, unknown>, area: string): HeatingZoneSim {
+    if (input.zone) return this._zoneByEntity(input.zone);
+    const found = [...this._zones.values()].filter((z) => z.config.area_id === area);
+    if (found.length !== 1) throw HA_ERROR("service_validation_error", found.length ? `Several heating zones in area ${area}` : `No Share Space Heating zone in area ${area}`);
+    return found[0];
+  }
+
   private _zoneByEntity(entityId: unknown): HeatingZoneSim {
     const zone = [...this._zones.values()].find((z) => this._zoneEntityId(z.config) === entityId);
     if (!zone) throw HA_ERROR("service_validation_error", `${String(entityId)} is not a Share Space Heating zone`);
@@ -815,6 +823,8 @@ export class MockHassController {
         target_template: z.config.target_template ?? null,
         template_result: null,
         template_error: null,
+        area_id: z.config.area_id ?? null,
+        area_conflict: !!z.config.area_id && [...this._zones.values()].filter((o) => o.config.area_id === z.config.area_id).length > 1,
       }))
     );
     ws(
@@ -854,6 +864,7 @@ export class MockHassController {
           target_template: z.config.target_template ?? null,
           template_result: null,
           template_error: null,
+          area_id: zone.config.area_id ?? null,
         };
       },
       true

@@ -12,6 +12,7 @@ from homeassistant.helpers.event import async_track_point_in_utc_time, async_tra
 from homeassistant.util import dt as dt_util
 from homeassistant.util import slugify
 
+from .area import zone_area
 from .climate import BAD_STATES, ClimateDriver, matches_requested
 from .const import (
     CONF_COMFORT_TEMP,
@@ -75,6 +76,10 @@ class Zone:
     @property
     def _conf(self) -> dict:
         return {**self.entry.data, **self.entry.options}
+
+    @property
+    def area(self) -> str:
+        return zone_area(self.entry)
 
     @property
     def comfort_temp(self) -> float:

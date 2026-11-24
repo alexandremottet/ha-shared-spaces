@@ -482,7 +482,6 @@ export class ShareSpaceAreaTriggerPopover extends LitElement {
         : html`<share-space-strategy-editor
             .hass=${this.hass}
             .zone=${z.entity_id}
-            .area=${this.area}
             @strategy-changed=${() => {
               this._exclusiveZone = z.entity_id;
               void this._run(async () => undefined).then(() => this._doneEditing());

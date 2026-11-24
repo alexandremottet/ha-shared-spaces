@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it } from "vitest";
-import { detachAutomation, findZoneStrategies, loadZoneRules, nextRulesId, saveStrategyAutomation, saveZoneRules, strategyAutomationId, useZoneStrategy, zoneRulesIds } from "ha-share-space-ui/ha";
+import { detachAutomation, findZoneStrategies, loadZoneRules, nextRulesId, saveZoneRules, strategyAutomationId, useZoneStrategy, zoneRulesIds } from "ha-share-space-ui/ha";
 import { createMockHass } from "./mock-hass";
 import type { MockHassController } from "./mock-hass";
 import { fromWall } from "./planning";

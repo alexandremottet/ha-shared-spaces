@@ -1,7 +1,7 @@
 import { LitElement, html } from "lit";
 import type { PropertyValues, TemplateResult } from "lit";
 import { customElement, property, state } from "lit/decorators.js";
-import { afterSave, isDirty, sensorReadings, sameRules, undoRules } from "ha-share-space-ui";
+import { afterSave, entityStates, isDirty, sensorReadings, sameRules, undoRules } from "ha-share-space-ui";
 import type { RuleStrategy, RulesSource, SavedRules, ScheduleRanges } from "ha-share-space-ui";
 import {
   deleteStrategy,
@@ -25,14 +25,14 @@ import {
   strategyUsers,
   useZoneStrategy,
   zoneRulesIds,
+  errorMessage,
 } from "ha-share-space-ui/ha";
 import type { AreaInfo, HeatingZone, HomeAssistant, SharedStrategy, StrategyAutomation, StrategyUse, ZoneRules } from "ha-share-space-ui/ha";
 import "./rules-tab";
 
-const PRESENCE_PREFIX = "binary_sensor.share_space_";
 const messageOf = (err: unknown): string => {
   if ((err as { code?: string })?.code === "name_taken") return "Another shared strategy already has this name.";
-  return err instanceof Error ? err.message : String((err as { message?: string })?.message ?? err);
+  return errorMessage(err);
 };
 const emptyRules = (): RuleStrategy => ({ version: 1, rules: [], fallback: { label: "Otherwise", then: { type: "off" } } });
 
@@ -44,8 +44,6 @@ export class ShareSpaceRulesPage extends LitElement {
   @state() private _zones: HeatingZone[] | null = null;
   @state() private _areas: AreaInfo[] = [];
   @state() private _zone = "";
-  @state() private _area = "";
-  @state() private _locked = false;
   @state() private _rules: ZoneRules | null = null;
   @state() private _targetId = "";
   @state() private _startingNew = false;
@@ -122,6 +120,12 @@ export class ShareSpaceRulesPage extends LitElement {
     return this._zones?.find((z) => z.entity_id === this._zone);
   }
 
+  // HA's area of the zone's thermostat; rules for an area with several zones are refused by HA.
+  private get _area(): string {
+    const z = this._zoneInfo;
+    return z?.area_id && !z.area_conflict ? z.area_id : "";
+  }
+
   private _strategies(): StrategyAutomation[] {
     return this.hass && this._zone ? findZoneStrategies(this.hass, this._zone) : [];
   }
@@ -132,8 +136,6 @@ export class ShareSpaceRulesPage extends LitElement {
     this._saved = null;
     this._draft = null;
     this._rules = null;
-    this._area = "";
-    this._locked = false;
     this._startingNew = false;
     this._choice = "";
     if (!this.hass || !entityId) return;
@@ -147,16 +149,12 @@ export class ShareSpaceRulesPage extends LitElement {
     try {
       const rules = await loadZoneRules(hass, entityId);
       if (this._zone !== entityId) return;
-      const zone = this._zoneInfo;
-      const linked = zone?.presence_entity?.startsWith(PRESENCE_PREFIX) ? zone.presence_entity.slice(PRESENCE_PREFIX.length) : "";
       const managed = rules?.state === "managed" && rules.rules ? rules.rules : null;
       const shared = rules?.state === "managed" ? this._sharedById(rules.strategy) : undefined;
       this._sig = this._signature();
       this._rules = rules;
       this._targetId = rules?.id ?? strategyAutomationId(entityId);
       this._startingNew = false;
-      this._locked = !!linked;
-      this._area = rules?.area || linked;
       this._choice = shared?.id ?? "";
       this._saved = shared ? { rules: shared.rules, previous: shared.previous } : managed ? { rules: managed, previous: rules?.previous ?? null } : null;
       this._draft = shared?.rules ?? managed ?? emptyRules();
@@ -299,7 +297,7 @@ export class ShareSpaceRulesPage extends LitElement {
         for (const u of uses) {
           const zone = this._zones?.find((z) => z.entity_id === u.zone);
           const fresh = zone ? await loadRulesAutomation(hass, u.zone, u.automationId) : null;
-          if (zone && fresh?.state === "managed" && fresh.strategy === id) await saveZoneRules(hass, zone, u.area, { strategy: id, name }, u.automationId);
+          if (zone && fresh?.state === "managed" && fresh.strategy === id) await saveZoneRules(hass, zone, zone.area_id || u.area, { strategy: id, name }, u.automationId);
         }
       },
       () => this._choose(choice),
@@ -367,11 +365,11 @@ export class ShareSpaceRulesPage extends LitElement {
       .zone=${this._zone}
       .areas=${this._areas}
       .area=${this._area}
-      .areaLocked=${this._locked}
       .draft=${this._draft}
       .saved=${this._saved}
       .schedule=${schedule}
       .readings=${hass && this._draft ? sensorReadings(this._draft, hass.states, (attrs?.outdoor_entity as string | null | undefined) ?? null) : undefined}
+      .states=${hass && this._draft ? entityStates(this._draft, hass.states) : undefined}
       .temps=${attrs ? { comfort: Number(attrs.comfort_temp ?? 21), eco: Number(attrs.eco_temp ?? 17) } : undefined}
       .now=${hass ? hassNow(hass) : Date.now()}
       .tz=${hass ? hassTimeZone(hass) : "UTC"}
@@ -389,7 +387,6 @@ export class ShareSpaceRulesPage extends LitElement {
       .users=${users}
       .switching=${switching}
       @zone-select=${(e: CustomEvent<string>) => void this._select(e.detail)}
-      @area-change=${(e: CustomEvent<string>) => (this._area = e.detail)}
       @draft-change=${(e: CustomEvent<RuleStrategy>) => (this._draft = e.detail)}
       @save=${() => this._save()}
       @undo=${() => this._undo()}

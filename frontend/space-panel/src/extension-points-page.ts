@@ -4,12 +4,11 @@ import { customElement, property, state } from "lit/decorators.js";
 import "ha-share-space-ui";
 import { ZONE_TARGET_HOOK, debounce, haCardSurface } from "ha-share-space-ui";
 import type { TemplateEntity, TemplateResult as PreviewResult } from "ha-share-space-ui";
-import { isBackendMissing, listZones, subscribeTemplatePreview, updateZone } from "ha-share-space-ui/ha";
+import { isBackendMissing, listZones, subscribeTemplatePreview, updateZone, errorMessage } from "ha-share-space-ui/ha";
 import type { HeatingZone, HeatingZoneAttributes, HomeAssistant } from "ha-share-space-ui/ha";
 
 const PREVIEW_DELAY_MS = 400;
 const ENTITY_DOMAINS = ["sensor.", "binary_sensor.", "input_boolean.", "input_number.", "switch.", "person.", "climate.", "weather."];
-const messageOf = (err: unknown): string => (err instanceof Error ? err.message : String((err as { message?: string })?.message ?? err));
 
 // Container for Settings > Extension points: zone picker, Zone target template editor, live preview.
 @customElement("share-space-extension-points")
@@ -107,7 +106,7 @@ export class ShareSpaceExtensionPoints extends LitElement {
       this._zones = await listZones(hass);
     } catch (err) {
       this._zones = [];
-      if (!isBackendMissing(err)) this._error = messageOf(err);
+      if (!isBackendMissing(err)) this._error = errorMessage(err);
     }
   }
 
@@ -177,7 +176,7 @@ export class ShareSpaceExtensionPoints extends LitElement {
       else unsub();
     } catch (err) {
       if (isBackendMissing(err)) this._live = false;
-      else if (token === this._token) this._result = { error: messageOf(err) };
+      else if (token === this._token) this._result = { error: errorMessage(err) };
     }
   }
 
@@ -197,7 +196,7 @@ export class ShareSpaceExtensionPoints extends LitElement {
         this._result = null;
       }
     } catch (err) {
-      this._error = messageOf(err);
+      this._error = errorMessage(err);
     } finally {
       this._busy = false;
     }
@@ -222,8 +221,8 @@ export class ShareSpaceExtensionPoints extends LitElement {
     return html`
       <h4>Extension points</h4>
       <p class="muted">Hooks where a Jinja template replaces a default behaviour.</p>
-      ${this._zones.length === 0 ? html`<p class="muted">No heating zones.</p>` : nothing}
-      <div class="zones" role="group" aria-label="Heating zones">
+      ${this._zones.length === 0 ? html`<p class="muted">No heated areas.</p>` : nothing}
+      <div class="zones" role="group" aria-label="Heated areas">
         ${this._zones.map(
           (z) => html`<button type="button" aria-pressed=${z.entity_id === this._zone ? "true" : "false"} @click=${() => this._select(z)}>
             ${z.name}
@@ -232,7 +231,7 @@ export class ShareSpaceExtensionPoints extends LitElement {
       </div>
       ${this._info
         ? html`
-            <h4>Zone target: ${this._info.name}</h4>
+            <h4>Heating target: ${this._info.name}</h4>
             ${this._renderStatus()}
             <share-space-template-editor
               .value=${this._draft}

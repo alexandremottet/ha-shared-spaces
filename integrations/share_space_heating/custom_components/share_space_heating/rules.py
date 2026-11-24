@@ -24,6 +24,7 @@ class Facts:
     previous_off: float | None
     schedule: dict
     read: Callable[[str], float | None]
+    state: Callable[[str], str | None] = lambda _entity_id: None
 
 
 @dataclass(frozen=True)
@@ -92,6 +93,8 @@ def _holds(c: dict, f: Facts) -> bool:
         if r is None:
             return False
         return r < float(c["than"]) if c["op"] == "below" else r > float(c["than"])
+    if kind == "state":
+        return f.state(c["entity"]) == str(c["is"])
     day = WEEKDAYS[f.now.weekday()]
     if kind == "weekday":
         return day in c["days"]
@@ -144,6 +147,11 @@ def sensor_reading(hass: HomeAssistant, entity_id: str) -> float | None:
     return _number(state.attributes.get("temperature") if entity_id.startswith("weather.") else state.state)
 
 
+def entity_state(hass: HomeAssistant, entity_id: str) -> str | None:
+    state = hass.states.get(entity_id)
+    return state.state if state else None
+
+
 def _timestamp(hass: HomeAssistant, entity_id: str) -> float | None:
     parsed = dt_util.parse_datetime(hass.states.get(entity_id).state)
     return parsed.timestamp() if parsed else None
@@ -165,4 +173,5 @@ def planning_facts(hass: HomeAssistant, area: str) -> Facts | None:
         previous_off=_timestamp(hass, prev_id),
         schedule=main.attributes.get("schedule") or {},
         read=lambda entity_id: sensor_reading(hass, entity_id),
+        state=lambda entity_id: entity_state(hass, entity_id),
     )

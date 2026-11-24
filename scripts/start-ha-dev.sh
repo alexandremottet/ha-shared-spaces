@@ -23,6 +23,11 @@ if [ ! -d "$HA_CONFIG_DIR/.storage" ]; then
   cp -R "$SCRIPT_DIR/ha-dev/seed/." "$HA_CONFIG_DIR/"
 fi
 mkdir -p "$HA_CONFIG_DIR/themes"
+# Configs seeded before the automation include existed: add it so saved rules survive a refresh.
+[ -f "$HA_CONFIG_DIR/automations.yaml" ] || echo '[]' > "$HA_CONFIG_DIR/automations.yaml"
+if ! grep -qE '^automation:' "$HA_CONFIG_DIR/configuration.yaml"; then
+  printf '\nautomation: !include automations.yaml\n' >> "$HA_CONFIG_DIR/configuration.yaml"
+fi
 
 if [ ! -d "$REPO_ROOT/node_modules" ]; then
   echo "Installing workspace dependencies..."

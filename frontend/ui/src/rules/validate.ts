@@ -35,6 +35,7 @@ const FIELDS: Record<string, string[]> = {
   time: ["start", "end"],
   planned: ["windows", "match"],
   sensor: ["entity", "op", "than"],
+  state: ["entity", "is"],
 };
 
 type Obj = Record<string, unknown>;
@@ -122,6 +123,12 @@ class Checker {
         this.entity(v.entity, `${path}.entity`);
         if (v.op !== "below" && v.op !== "above") this.err(`${path}.op`, "unknown_kind", 'must be "below" or "above"');
         return this.number(v.than, `${path}.than`, -Infinity);
+      case "state":
+        if (v.entity === OUTDOOR) this.err(`${path}.entity`, "type", "must be an entity id");
+        else this.entity(v.entity, `${path}.entity`);
+        if (typeof v.is !== "string") return void this.err(`${path}.is`, "type", "must be a string");
+        if (!v.is.trim()) this.err(`${path}.is`, "empty", "must not be empty");
+        return;
       case "planned":
         if (v.match !== "all" && v.match !== "any") this.err(`${path}.match`, "unknown_kind", 'must be "all" or "any"');
         if (!Array.isArray(v.windows)) return void this.err(`${path}.windows`, "type", "must be a list");

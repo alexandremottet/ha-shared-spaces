@@ -9,7 +9,7 @@ describe("rules automation helpers", () => {
   it("builds the config", () => {
     expect(rulesAutomationConfig({ entity_id: "sensor.z", name: "Z" }, "office", { rules: a, previous: b }).use_blueprint).toEqual({
       path: "share_space/rules.yaml",
-      input: { zone: "sensor.z", area: "office", rules: a, previous_rules: b },
+      input: { area: "office", rules: a, previous_rules: b },
     });
   });
   it("undo swaps rules and previous", () => {
@@ -32,10 +32,10 @@ describe("rules automation helpers", () => {
 describe("rules automation sources", () => {
   const zone = { entity_id: "sensor.z", name: "Z" };
 
-  it("custom config is unchanged: same alias, inputs and fingerprint as before shared strategies", () => {
+  it("custom config: same alias, area-only inputs, managed", () => {
     const legacy = stampManaged({
       alias: "Share Space · Z · Custom rules",
-      use_blueprint: { path: "share_space/rules.yaml", input: { zone: "sensor.z", area: "office", rules: a, previous_rules: b } },
+      use_blueprint: { path: "share_space/rules.yaml", input: { area: "office", rules: a, previous_rules: b } },
     });
     const cfg = rulesAutomationConfig(zone, "office", { rules: a, previous: b });
     expect(cfg).toEqual(legacy);
@@ -44,10 +44,18 @@ describe("rules automation sources", () => {
     expect(managedState(cfg)).toBe("managed");
   });
 
+  it("legacy configs with a zone input stay managed", () => {
+    const legacy = stampManaged({
+      alias: "Share Space · Z · Custom rules",
+      use_blueprint: { path: "share_space/rules.yaml", input: { zone: "sensor.z", area: "office", rules: a, previous_rules: b } },
+    });
+    expect(managedState(legacy)).toBe("managed");
+  });
+
   it("shared config points at the strategy id without inline rules", () => {
     const cfg = rulesAutomationConfig(zone, "office", { strategy: "abc123", name: "Old building" });
     expect(cfg.alias).toBe("Share Space · Z · Old building");
-    expect(cfg.use_blueprint).toEqual({ path: "share_space/rules.yaml", input: { zone: "sensor.z", area: "office", strategy: "abc123" } });
+    expect(cfg.use_blueprint).toEqual({ path: "share_space/rules.yaml", input: { area: "office", strategy: "abc123" } });
     expect(managedState(cfg)).toBe("managed");
     expect(managedState({ ...cfg, use_blueprint: { ...cfg.use_blueprint, input: { ...cfg.use_blueprint.input, strategy: "other" } } })).toBe("edited");
   });

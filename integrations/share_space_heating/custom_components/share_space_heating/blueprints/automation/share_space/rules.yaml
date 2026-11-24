@@ -1,4 +1,4 @@
-# share_space_blueprint_version: 3
+# share_space_blueprint_version: 4
 blueprint:
   name: Share Space - Rules
   description: >
@@ -6,15 +6,18 @@ blueprint:
     conditions all hold sets the zone's base target, otherwise the fallback does.
   domain: automation
   input:
-    zone:
-      name: Heating zone
-      selector:
-        entity:
-          integration: share_space_heating
-          domain: sensor
     area:
-      name: Share Space area id
-      description: Area id used in binary_sensor.share_space_<area> (e.g. open_space).
+      name: Area
+      description: >
+        Home Assistant area whose heating these rules drive. Its planning is
+        binary_sensor.share_space_<area>; its heating is the Share Space Heating zone
+        whose thermostat HA places in this area.
+      selector:
+        area:
+    zone:
+      name: Heating zone (legacy)
+      description: Leave empty; the heating is found from the area.
+      default: ""
       selector:
         text:
     rules:

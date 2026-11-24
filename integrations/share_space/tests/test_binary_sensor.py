@@ -1,5 +1,4 @@
 """Area occupancy binary sensor."""
-from datetime import timedelta
 
 from pytest_homeassistant_custom_component.common import MockConfigEntry, async_fire_time_changed
 

@@ -84,7 +84,7 @@ def _one_rules_source(data: dict) -> dict:
 RUN_RULES_SCHEMA = vol.All(
     vol.Schema(
         {
-            vol.Required(ATTR_ENTITY_ID): cv.entity_id,
+            vol.Optional(ATTR_ENTITY_ID): vol.Any(None, "", cv.entity_id),
             vol.Required("area"): cv.string,
             vol.Optional("rules"): dict,
             vol.Optional("strategy"): cv.string,
@@ -146,6 +146,13 @@ def _zone_for(hass: HomeAssistant, entity_id: str) -> Zone:
     return zone
 
 
+def _zone_for_area(hass: HomeAssistant, area: str) -> Zone:
+    zone = next((z for z in hass.data.get(DOMAIN, {}).get(DATA_ZONES, {}).values() if z.area == area), None)
+    if zone is None:
+        raise ServiceValidationError(f"No Share Space Heating zone in area {area}")
+    return zone
+
+
 def _register_services(hass: HomeAssistant) -> None:
     async def set_override(call: ServiceCall) -> None:
         await _zone_for(hass, call.data[ATTR_ENTITY_ID]).async_set_override(
@@ -168,7 +175,8 @@ def _register_services(hass: HomeAssistant) -> None:
         )
 
     async def run_rules(call: ServiceCall) -> None:
-        zone = _zone_for(hass, call.data[ATTR_ENTITY_ID])
+        entity_id = call.data.get(ATTR_ENTITY_ID)
+        zone = _zone_for(hass, entity_id) if entity_id else _zone_for_area(hass, call.data["area"])
         facts = planning_facts(hass, call.data["area"])
         if facts is None:
             _LOGGER.debug("Planning for area %s not loaded, rules skipped", call.data["area"])

@@ -8,7 +8,7 @@ import { STARTERS, starterRules } from "./seed";
 const TZ = "Europe/Paris";
 const at = (day: number, h: number, m = 0) => fromWall(TZ, 2026, 11, day, h, m);
 const OPEN = "sensor.share_space_heating_open_space";
-const WORKSHOP = "sensor.share_space_heating_workshop";
+const KITCHEN = "sensor.share_space_heating_kitchen";
 let c: MockHassController;
 afterEach(() => c?.dispose());
 
@@ -16,7 +16,7 @@ const make = () => (c = createMockHass({ startTime: at(16, 8, 45), timeZone: TZ,
 const attrs = (id: string) => c.hass.states[id].attributes as Record<string, any>;
 const zones = [
   { entity_id: OPEN, name: "Open space" },
-  { entity_id: WORKSHOP, name: "Workshop" },
+  { entity_id: KITCHEN, name: "Kitchen" },
 ];
 
 describe("shared strategies (mock)", () => {
@@ -66,14 +66,13 @@ describe("shared strategies (mock)", () => {
     make();
     const old = (await listStrategies(c.hass)).find((s) => s.id === "old_building")!;
     c.clock.set(at(16, 9, 0));
-    const before = attrs(WORKSHOP).active_rule;
-    await saveZoneRules(c.hass, zones[1], "open_space", { strategy: "missing", name: "Gone" });
+    const before = attrs(KITCHEN).active_rule;
+    await saveZoneRules(c.hass, zones[1], "kitchen", { strategy: "missing", name: "Gone" });
     c.clock.set(at(16, 9, 5));
-    expect(attrs(WORKSHOP).active_rule).toBe(before);
-    await saveZoneRules(c.hass, zones[1], "open_space", { strategy: old.id, name: old.name });
+    expect(attrs(KITCHEN).active_rule).toBe(before);
+    await saveZoneRules(c.hass, zones[1], "kitchen", { strategy: old.id, name: old.name });
     c.clock.set(at(16, 9, 10));
-    expect(attrs(WORKSHOP).active_rule).toBe(attrs(OPEN).active_rule);
-    expect(attrs(WORKSHOP).active_rule).not.toBe(before);
-    expect(strategyUsers(await loadStrategyUses(c.hass, zones), old.id)).toEqual(["Open space", "Workshop"]);
+    expect(attrs(KITCHEN).active_rule).not.toBe(before);
+    expect(strategyUsers(await loadStrategyUses(c.hass, zones), old.id)).toEqual(["Kitchen", "Open space"]);
   });
 });

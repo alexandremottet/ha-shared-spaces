@@ -1,7 +1,7 @@
 import { LitElement, html, nothing } from "lit";
 import type { TemplateResult } from "lit";
 import { customElement, property, state } from "lit/decorators.js";
-import { ADMIN_GROUP, listUsers, setSpaceAdmin } from "ha-share-space-ui/ha";
+import { ADMIN_GROUP, listUsers, setSpaceAdmin, errorMessage } from "ha-share-space-ui/ha";
 import type { HaUser, HomeAssistant } from "ha-share-space-ui/ha";
 import { settingsStyles } from "./settings-styles";
 
@@ -26,7 +26,7 @@ export class ShareSpaceUsersSettings extends LitElement {
       const users = await listUsers(this.hass);
       this._users = users.filter((u) => !u.system_generated && u.is_active).sort((a, b) => a.name.localeCompare(b.name));
     } catch (err) {
-      this._error = err instanceof Error ? err.message : String((err as { message?: string })?.message ?? err);
+      this._error = errorMessage(err);
     }
   }
 
@@ -37,7 +37,7 @@ export class ShareSpaceUsersSettings extends LitElement {
       await setSpaceAdmin(this.hass!, user.id, admin);
       await this._load();
     } catch (err) {
-      this._error = err instanceof Error ? err.message : String((err as { message?: string })?.message ?? err);
+      this._error = errorMessage(err);
     } finally {
       this._busy = null;
     }

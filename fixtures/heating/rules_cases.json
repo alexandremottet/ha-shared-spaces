@@ -354,5 +354,17 @@
     "checks": [
       {"now": "2026-11-17T13:45:00+01:00", "expected": {"off": true}, "reason": "No lunch today"}
     ]
+  },
+  {
+    "name": "state condition: other areas occupied, house mode",
+    "tz": "Europe/Paris",
+    "schedule": {},
+    "strategy": {"version": 1, "rules": [{"label": "Neighbors in", "when": [{"type": "state", "entity": "binary_sensor.kitchen_neighbors", "is": "on"}], "then": {"type": "comfort"}}, {"label": "Someone home", "when": [{"type": "state", "entity": "input_select.house_mode", "is": "away", "negate": true}], "then": {"type": "eco"}}], "fallback": {"label": "Nobody", "then": {"type": "off"}}},
+    "checks": [
+      {"now": "2026-11-17T10:00:00+01:00", "states": {"binary_sensor.kitchen_neighbors": "on", "input_select.house_mode": "away"}, "expected": {"target": 21, "preset": "comfort"}, "reason": "Neighbors in"},
+      {"now": "2026-11-17T10:00:00+01:00", "states": {"binary_sensor.kitchen_neighbors": "off", "input_select.house_mode": "home"}, "expected": {"target": 17, "preset": "eco"}, "reason": "Someone home"},
+      {"now": "2026-11-17T10:00:00+01:00", "states": {"binary_sensor.kitchen_neighbors": "off", "input_select.house_mode": "away"}, "expected": {"off": true}, "reason": "Nobody"},
+      {"now": "2026-11-17T10:00:00+01:00", "states": {"input_select.house_mode": "away"}, "expected": {"off": true}, "reason": "Nobody"}
+    ]
   }
 ]

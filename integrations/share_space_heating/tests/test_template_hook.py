@@ -6,7 +6,7 @@ from pytest_homeassistant_custom_component.common import async_fire_time_changed
 
 from custom_components.share_space_heating.const import DOMAIN
 
-from .test_zone import CLIMATE, PRESENCE, SENSOR, _climate, _setup, _temps
+from .test_zone import PRESENCE, SENSOR, _climate, _setup, _temps
 
 SOURCE = "input_number.target"
 

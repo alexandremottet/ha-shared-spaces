@@ -36,6 +36,8 @@ describe("validateStrategy", () => {
     expect(codes(rule({ type: "time", start: "7:00", end: "24:00" }))).toEqual(["$.rules[0].when[0].start time_format"]);
     expect(codes(rule({ type: "time", start: "22:00", end: "06:00" }))).toEqual([]);
     expect(codes(rule({ type: "time", start: "06:00", end: "06:00" }))).toEqual(["$.rules[0].when[0].end time_order"]);
+    expect(codes(rule({ type: "state", entity: "binary_sensor.kitchen_neighbors", is: "on" }))).toEqual([]);
+    expect(codes(rule({ type: "state", entity: "outdoor", is: " " }))).toEqual(["$.rules[0].when[0].entity type", "$.rules[0].when[0].is empty"]);
     expect(codes(rule({ type: "weekday", days: ["monday", "monday", "funday"] }))).toEqual([
       "$.rules[0].when[0].days[1] duplicate",
       "$.rules[0].when[0].days[2] unknown_kind",
