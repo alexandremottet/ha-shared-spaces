@@ -563,6 +563,7 @@ private _prefsFor = "";
     share-space-overview,
     share-space-dashboard,
     share-space-rules-page,
+    share-space-people-planning,
     share-space-settings {
       box-sizing: border-box;
       width: 100%;

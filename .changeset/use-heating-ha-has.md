@@ -24,3 +24,4 @@ Share Space now uses the heating Home Assistant already has.
 - Admin pages (Plannings, Areas, Settings) use the theme's admin colour, a soft lavender in Share Space themes (`share-space-admin-color`, falling back to the accent colour), for their tabs and buttons.
 - Settings dropdowns such as Outdoor temperature look like the Show as tabs dropdown.
 - On the Planning card, "No Share Space rules for this area yet" sits over the week on a 60% frosted veil whose edges fade into the card.
+- The tab strip no longer clips the theme's wide card shadow into a dark box behind the tabs; the Plannings page keeps its card inside the page width.

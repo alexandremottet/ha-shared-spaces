@@ -18,14 +18,18 @@ export class ShareSpacePanelTabs extends LitElement {
   @property({ type: Boolean, reflect: true }) inset = false;
 
   static styles = css`
+    /* the strip scrolls, so it clips: tabs keep a short shadow and room around it, never the card's wide one */
     :host {
+      --tab-shadow: 0 1px 4px rgba(0, 0, 0, 0.18);
       display: flex;
       gap: 6px;
-      padding: 8px 0;
+      padding: 8px 6px 10px;
+      margin: 0 -6px;
       overflow-x: auto;
+      scrollbar-width: none;
     }
     :host([inset]) {
-      padding-left: 56px;
+      padding-left: 62px;
     }
     button {
       min-height: 40px;
@@ -37,7 +41,8 @@ export class ShareSpacePanelTabs extends LitElement {
       font-weight: 500;
       background: var(--card-background-color);
       color: var(--primary-text-color);
-      box-shadow: var(--ha-card-box-shadow, 0 1px 4px rgba(0, 0, 0, 0.25));
+      box-shadow: var(--tab-shadow);
+      flex: none;
     }
     button.active {
       background: var(--primary-color);
@@ -47,7 +52,7 @@ export class ShareSpacePanelTabs extends LitElement {
       color: var(--share-space-admin-color, var(--accent-color));
       box-shadow:
         inset 0 0 0 1px var(--share-space-admin-color, var(--accent-color)),
-        var(--ha-card-box-shadow, 0 1px 4px rgba(0, 0, 0, 0.25));
+        var(--tab-shadow);
     }
     button.admin.active {
       background: var(--share-space-admin-color, var(--accent-color));

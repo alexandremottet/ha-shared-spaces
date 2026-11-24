@@ -28,9 +28,15 @@ export class ShareSpacePeoplePlanning extends LitElement {
   static styles = css`
     :host {
       display: block;
+      box-sizing: border-box;
+      padding: 8px 16px 16px;
+      flex: 1;
+      min-height: 0;
+      overflow-y: auto;
+    }
+    .card {
       ${haCardSurface}
       padding: 16px;
-      margin: 8px 16px 16px;
     }
     h3 {
       margin: 0 0 4px;
@@ -105,7 +111,7 @@ export class ShareSpacePeoplePlanning extends LitElement {
     if (!hass) return nothing;
     const now = hassNow(hass);
     const tz = hassTimeZone(hass);
-    return html`<h3>Everyone's planning</h3>
+    return html`<section class="card"><h3>Everyone's planning</h3>
       <div class="muted">Read only, for admins: each person's own planning, which the area plannings merge.</div>
       ${this._error ? html`<div class="muted" role="alert">${this._error}</div>` : nothing}
       ${this._people === null && !this._error ? html`<div class="muted">Loading…</div>` : nothing}
@@ -120,7 +126,7 @@ export class ShareSpacePeoplePlanning extends LitElement {
             <share-space-rule-preview .strategy=${PLANNED_ONLY} .schedule=${p.schedule} .now=${now} .tz=${tz}></share-space-rule-preview>
           </details>`,
         )}
-      </div>`;
+      </div></section>`;
   }
 }
 
