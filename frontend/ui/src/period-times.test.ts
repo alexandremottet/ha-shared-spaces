@@ -32,4 +32,13 @@ describe("layoutTimes", () => {
   it("keeps one centred row when everything fits", () => {
     expect(layoutTimes(day, 1200).every((b) => b.row === undefined)).toBe(true);
   });
+  it("leaves out the times that fit on neither row, never overlapping", () => {
+    const many = ["07", "08", "09", "10", "11"].map((h) => ({ start: `${h}:00`, end: `${h}:30` }));
+    const boxes = layoutTimes(many, 260);
+    expect(boxes.length).toBeLessThan(10);
+    for (const row of [0, 1]) {
+      const r = boxes.filter((b) => b.row === row);
+      for (let i = 1; i < r.length; i++) expect(r[i].left).toBeGreaterThanOrEqual(r[i - 1].left + r[i - 1].width);
+    }
+  });
 });

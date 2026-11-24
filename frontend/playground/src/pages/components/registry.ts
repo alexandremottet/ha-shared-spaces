@@ -28,6 +28,15 @@ export interface ComponentDef {
   actions?: ActionDef[];
   fixed?: Record<string, unknown>;
   stage?: CSSProperties;
+  /** Fixed cases shown side by side under the live element, each with its own props and width. */
+  gallery?: GalleryCase[];
+}
+
+export interface GalleryCase {
+  label: string;
+  props: Record<string, unknown>;
+  width?: number;
+  stage?: CSSProperties;
 }
 
 const range = (start: string, end: string): TimeRange => ({ start, end });
@@ -111,13 +120,32 @@ const sampleOldBuilding: RuleStrategy = {
   fallback: { label: "Away", then: { type: "off" } },
 };
 
+const timesProp: PropDef = { name: "times", kind: "select", value: "bar", options: ["bar", "below"] };
+
+const officeDay = [range("09:00", "12:30"), range("13:30", "18:00")];
+const timesCases: Array<{ label: string; periods: TimeRange[] }> = [
+  { label: "Office day, short lunch break", periods: officeDay },
+  { label: "Whole day", periods: [range("08:00", "18:00")] },
+  { label: "Short block", periods: [range("10:00", "11:00")] },
+  { label: "Back to back", periods: [range("08:00", "10:00"), range("10:30", "12:00"), range("12:15", "13:00")] },
+  { label: "Track edges", periods: [range("00:00", "02:00"), range("22:30", "24:00")] },
+  { label: "Many short blocks", periods: [range("07:00", "07:30"), range("08:00", "08:30"), range("09:00", "09:30"), range("10:00", "10:30"), range("11:00", "11:30")] },
+];
+const WIDTHS = [900, 480, 260];
+const timesGallery = (props: (periods: TimeRange[]) => Record<string, unknown>): GalleryCase[] =>
+  timesCases.flatMap((c) => WIDTHS.map((width) => ({ label: `${c.label} · ${width}px`, width, props: props(c.periods) })));
+
 export const COMPONENTS: ComponentDef[] = [
   {
     id: "week-schedule",
     tag: "week-schedule",
     group: "Schedule",
     description: "Editable week of day-schedule rows with a shared edit dialog. Drag on a track to add, tap to select, drag handles to resize, tap selected to edit.",
-    props: [{ name: "calendar", kind: "json", value: sampleCalendar }],
+    props: [timesProp, { name: "calendar", kind: "json", value: sampleCalendar }],
+    gallery: [
+      ...WIDTHS.map((width) => ({ label: `times="bar" · ${width}px`, width, props: { times: "bar", calendar: workWeek(officeDay) } })),
+      ...WIDTHS.map((width) => ({ label: `times="below" · ${width}px`, width, props: { times: "below", calendar: workWeek(officeDay) } })),
+    ],
     events: ["calendar-changed", "periods-changed", "period-select-request", "period-edit-request", "period-saved", "period-deleted"],
   },
   {
@@ -126,11 +154,16 @@ export const COMPONENTS: ComponentDef[] = [
     group: "Schedule",
     description: "One day's editable 24h presence track.",
     props: [
+      timesProp,
       { name: "day", kind: "select", value: "monday", options: [...WEEK_DAYS] },
-      { name: "periods", kind: "json", value: [range("07:00", "09:00"), range("18:00", "23:00")] },
+      { name: "periods", kind: "json", value: officeDay },
       { name: "selectedIndex", kind: "number", value: null, parse: (v) => (v === "" || v === null ? null : Number(v)) },
     ],
     events: ["periods-changed", "period-select-request", "period-edit-request"],
+    gallery: [
+      ...timesGallery((periods) => ({ day: "monday", periods })),
+      ...WIDTHS.map((width) => ({ label: `times="below" · ${width}px`, width, props: { day: "monday", periods: officeDay, times: "below" } })),
+    ],
   },
   {
     id: "hour-period",
@@ -162,8 +195,13 @@ export const COMPONENTS: ComponentDef[] = [
     tag: "area-roster-view",
     group: "Roster",
     description: "Read-only area presence, one lane per person.",
+    gallery: [
+      ...WIDTHS.map((width) => ({ label: `times="bar" · ${width}px`, width, props: { viewMode: "lanes", totalLabel: "Everyone", people: samplePeople } })),
+      ...WIDTHS.map((width) => ({ label: `times="below" · ${width}px`, width, props: { viewMode: "lanes", totalLabel: "Everyone", times: "below", people: samplePeople } })),
+    ],
     props: [
       { name: "viewMode", kind: "select", value: "lanes", options: ["lanes", "overlap", "merged"] },
+      timesProp,
       { name: "people", kind: "json", value: samplePeople },
     ],
     events: [],
@@ -175,6 +213,7 @@ export const COMPONENTS: ComponentDef[] = [
     description: "Same element, overlap mode: striped bands where several people overlap.",
     props: [
       { name: "viewMode", kind: "select", value: "overlap", options: ["lanes", "overlap", "merged"] },
+      timesProp,
       { name: "people", kind: "json", value: samplePeople },
     ],
     events: [],
@@ -186,6 +225,7 @@ export const COMPONENTS: ComponentDef[] = [
     description: "Same element, merged mode: a single combined lane per day.",
     props: [
       { name: "viewMode", kind: "select", value: "merged", options: ["lanes", "overlap", "merged"] },
+      timesProp,
       { name: "people", kind: "json", value: samplePeople },
     ],
     events: [],
@@ -209,11 +249,26 @@ export const COMPONENTS: ComponentDef[] = [
     group: "Roster",
     description: "One person's read-only 24h presence row.",
     props: [
+      timesProp,
       { name: "label", kind: "text", value: "Alice" },
       { name: "color", kind: "text", value: "#2196f3" },
       { name: "periods", kind: "json", value: [range("06:30", "08:30"), range("18:00", "23:00")] },
     ],
     events: [],
+    gallery: [
+      ...timesGallery((periods) => ({ label: "Alice", color: "#2196f3", periods })),
+      ...WIDTHS.map((width) => ({ label: `times="below" · ${width}px`, width, props: { label: "Alice", color: "#2196f3", periods: officeDay, times: "below" } })),
+    ],
+  },
+  {
+    id: "period-times",
+    tag: "period-times",
+    group: "Roster",
+    description:
+      "Start and end time labels laid over a track (used by day-schedule and person-lane-track with times=\"bar\"). Each time sits against its block's edge; on one row a short block's times go outside it; when labels would touch they alternate top and bottom rows, and join only as a last resort.",
+    props: [{ name: "periods", kind: "json", value: officeDay }],
+    events: [],
+    stage: trackStage,
   },
   {
     id: "time-axis",

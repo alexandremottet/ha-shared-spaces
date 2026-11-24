@@ -29,7 +29,7 @@ interface Label {
 
 /**
  * Start and end times of a day's periods, laid over its track, each against its block's edge. On one
- * row a short block's times sit outside it; when they would touch, they alternate top and bottom rows.
+ * row a short block's times sit outside it; when they would touch, they alternate top and bottom rows, and a time with no room on either is left out.
  */
 export function layoutTimes(periods: TimeRange[], trackWidth: number, charWidth = 6.6, padding = 8): Box[] {
   const w = (text: string) => text.length * charWidth + padding;
@@ -62,25 +62,13 @@ export function layoutTimes(periods: TimeRange[], trackWidth: number, charWidth 
           break;
         }
       }
-      if (!box) return null;
-      out.push(box);
+      if (box) out.push(box);
+      // one row must hold every label; on two rows a time with no room is left out
+      else if (rowsCount === 1) return null;
     }
     return out;
   };
-  const placed = place(1) ?? place(2);
-  if (placed) return placed;
-  // nothing fits even on two rows: one row, touching times joined
-  const out: Box[] = [];
-  for (const label of labels) {
-    const prev = out[out.length - 1];
-    const left = clamp(label.holds ? label.inside : label.outside, label.width);
-    if (prev && left < prev.left + prev.width + 2) {
-      prev.text = `${prev.text} | ${label.text}`;
-      prev.width = w(prev.text);
-      prev.left = clamp(prev.left, prev.width);
-    } else out.push({ left, width: label.width, text: label.text });
-  }
-  return out;
+  return place(1) ?? place(2)!;
 }
 
 @safeCustomElement("period-times")
