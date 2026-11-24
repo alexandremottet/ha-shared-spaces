@@ -1,6 +1,7 @@
 import { LitElement, html } from "lit";
 import { property } from "lit/decorators.js";
 import { safeCustomElement } from "../../define";
+import { t } from "../../i18n";
 import type { ScheduleRanges } from "../../heating/strategy-sim";
 import { strategyTimeline } from "../../heating/strategy-timeline";
 import { fromWall, wallTime } from "../../heating/tz";
@@ -42,7 +43,7 @@ export class ShareSpaceRulePreview extends LitElement {
 
   protected render() {
     const sim = this._compute();
-    if (!sim) return html`<div style="color:var(--secondary-text-color);font-size:0.9em">Fix the errors above to see the preview.</div>`;
+    if (!sim) return html`<div style="color:var(--secondary-text-color);font-size:0.9em">${t("Fix the errors above to see the preview.")}</div>`;
     return html`<share-space-week-preview .segments=${sim.segments} .planned=${sim.planned} .days=${sim.days} .now=${this.now} .tz=${this.tz} .highlight=${this.highlight}></share-space-week-preview>`;
   }
 }

@@ -1,6 +1,7 @@
 import { LitElement, html, css, svg as svgPart } from "lit";
 import type { SVGTemplateResult, TemplateResult } from "lit";
 import { customElement, property } from "lit/decorators.js";
+import { t } from "ha-share-space-ui";
 import type { HomeAssistant } from "ha-share-space-ui/ha";
 
 const svg = (body: SVGTemplateResult) => html`<svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true">${body}</svg>`;
@@ -13,10 +14,10 @@ const MODE_ICONS: Record<string, TemplateResult> = {
   dark: svg(svgPart`<path fill="currentColor" d="M12 3a9 9 0 1 0 9 9c0-.46-.04-.92-.1-1.36a5.39 5.39 0 0 1-4.4 2.26 5.4 5.4 0 0 1-3.14-9.8c-.44-.06-.9-.1-1.36-.1z" />`),
 };
 
-const MODES = [
-  { id: "auto", label: "Auto" },
-  { id: "light", label: "Light" },
-  { id: "dark", label: "Dark" },
+const modes = () => [
+  { id: "auto", label: t("Auto") },
+  { id: "light", label: t("Light") },
+  { id: "dark", label: t("Dark") },
 ];
 
 // Theme + light/dark selects; HA's root applies and stores them (same event as the profile page).
@@ -78,27 +79,29 @@ export class ShareSpaceThemePicker extends LitElement {
     const all = ["default", ...themes];
     const name = (t: string) => (t === "default" ? "Home Assistant" : t);
     const nextTheme = all[(all.indexOf(theme) + 1) % all.length];
+    const MODES = modes();
     const nextMode = MODES[(MODES.findIndex((m) => m.id === mode) + 1) % MODES.length];
+    const curMode = MODES.find((m) => m.id === mode)?.label ?? "";
     const setMode = (m: string) => this._set({ dark: m === "auto" ? undefined : m === "dark" });
     return html`
       <button
-        aria-label="Theme: ${name(theme)}, next: ${name(nextTheme)}"
-        title="Theme: ${name(theme)}"
+        aria-label=${t("Theme: {current}, next: {next}", { current: name(theme), next: name(nextTheme) })}
+        title=${t("Theme: {current}", { current: name(theme) })}
         @click=${() => this._set({ theme: nextTheme })}
       >
         ${ICON_THEME}
       </button>
       <button
-        aria-label="Mode: ${MODES.find((m) => m.id === mode)?.label}, next: ${nextMode.label}"
-        title="Mode: ${MODES.find((m) => m.id === mode)?.label}"
+        aria-label=${t("Mode: {current}, next: {next}", { current: curMode, next: nextMode.label })}
+        title=${t("Mode: {current}", { current: curMode })}
         @click=${() => setMode(nextMode.id)}
       >
         ${MODE_ICONS[mode]}
       </button>
-      <select aria-label="Theme" @change=${(e: Event) => this._set({ theme: (e.target as HTMLSelectElement).value })}>
+      <select aria-label=${t("Theme")} @change=${(e: Event) => this._set({ theme: (e.target as HTMLSelectElement).value })}>
         ${all.map((t) => html`<option value=${t} ?selected=${t === theme}>${name(t)}</option>`)}
       </select>
-      <select aria-label="Mode" @change=${(e: Event) => setMode((e.target as HTMLSelectElement).value)}>
+      <select aria-label=${t("Mode")} @change=${(e: Event) => setMode((e.target as HTMLSelectElement).value)}>
         ${MODES.map((m) => html`<option value=${m.id} ?selected=${m.id === mode}>${m.label}</option>`)}
       </select>
     `;

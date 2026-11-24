@@ -2,7 +2,7 @@ import { LitElement, html, css, nothing } from "lit";
 import type { PropertyValues, TemplateResult } from "lit";
 import { customElement, property, state } from "lit/decorators.js";
 import "ha-share-space-ui";
-import { haCardSurface, isDirty, validateStrategy } from "ha-share-space-ui";
+import { haCardSurface, isDirty, t, validateStrategy } from "ha-share-space-ui";
 import type { EntityStates, ManagedState, SensorReadings, PersonPlannings, PresetTemps, RuleStrategy, SavedRules, ScheduleRanges } from "ha-share-space-ui";
 import { nameTaken } from "ha-share-space-ui/ha";
 import type { AreaInfo, HeatingZone, SharedStrategy } from "ha-share-space-ui/ha";
@@ -306,13 +306,13 @@ export class ShareSpaceRulesTab extends LitElement {
   private _zoneSelect(): TemplateResult {
     const zones = [...(this.zones ?? [])].sort((a, b) => this._areaName(a).localeCompare(this._areaName(b)));
     return html`<label
-      ><span class="sep">Area</span>
-      <select aria-label="Area" .value=${this.zone} ?disabled=${this.busy} @change=${(e: Event) => this._emit("zone-select", (e.target as HTMLSelectElement).value)}>
-        <option value="" ?selected=${this.zone === ""}>Choose an area</option>
+      ><span class="sep">${t("Area")}</span>
+      <select aria-label=${t("Area")} .value=${this.zone} ?disabled=${this.busy} @change=${(e: Event) => this._emit("zone-select", (e.target as HTMLSelectElement).value)}>
+        <option value="" ?selected=${this.zone === ""}>${t("Choose an area")}</option>
         ${zones.map((z) => html`<option value=${z.entity_id} ?selected=${z.entity_id === this.zone}>${this._areaName(z)}</option>`)}
       </select></label
       >${this.zones && !this.zones.length
-        ? html`<div class="banner" role="status">No heating yet: set it up in Settings → Heating.</div>`
+        ? html`<div class="banner" role="status">${t("No heating yet: set it up in Settings → Heating.")}</div>`
         : nothing}`;
   }
 
@@ -321,8 +321,8 @@ export class ShareSpaceRulesTab extends LitElement {
     const z = this.zones?.find((x) => x.entity_id === this.zone);
     if (!z || this.area) return nothing;
     const text = z.area_conflict
-      ? `Several heating zones are in ${this._areaName(z)}. Keep one thermostat per area in Home Assistant (Settings → Entities).`
-      : `${z.climate_entity} has no area. Assign it to an area in Home Assistant (Settings → Entities).`;
+      ? t("Several heating zones are in {area}. Keep one thermostat per area in Home Assistant (Settings → Entities).", { area: this._areaName(z) })
+      : t("{entity} has no area. Assign it to an area in Home Assistant (Settings → Entities).", { entity: z.climate_entity });
     return html`<div class="banner" role="status">${text}</div>`;
   }
 
@@ -357,31 +357,31 @@ export class ShareSpaceRulesTab extends LitElement {
     };
     return html`<div class="row">
       <label
-        >${rename ? "New name" : "Shared strategy name"}
+        >${rename ? t("New name") : t("Shared strategy name")}
         <input
-          aria-label="Shared strategy name"
+          aria-label=${t("Shared strategy name")}
           .value=${this._name}
-          placeholder="e.g. Old building"
+          placeholder=${t("e.g. Old building")}
           @input=${(e: Event) => (this._name = (e.target as HTMLInputElement).value)}
           @keydown=${(e: KeyboardEvent) => {
             if (e.key === "Enter") submit();
             if (e.key === "Escape") this._naming = null;
           }}
       /></label>
-      <button class="primary" ?disabled=${this.busy || !name || taken || same} @click=${submit}>${rename ? "Rename" : "Share"}</button>
-      <button @click=${() => (this._naming = null)}>Cancel</button>
-      ${taken ? html`<span class="error">Name already used.</span>` : nothing}
+      <button class="primary" ?disabled=${this.busy || !name || taken || same} @click=${submit}>${rename ? t("Rename") : t("Share")}</button>
+      <button @click=${() => (this._naming = null)}>${t("Cancel")}</button>
+      ${taken ? html`<span class="error">${t("Name already used.")}</span>` : nothing}
     </div>`;
   }
 
   private _strategySelect(): TemplateResult | typeof nothing {
     if (!this.shared) return nothing;
-    return html`<span class="sep">uses</span>
+    return html`<span class="sep">${t("uses")}</span>
       <label
-        ><select aria-label="Strategy" .value=${this.choice} ?disabled=${this.busy} @change=${(e: Event) => this._pickerChange(e)}>
-          <option value="" ?selected=${this.choice === ""}>Custom for this area</option>
+        ><select aria-label=${t("Strategy")} .value=${this.choice} ?disabled=${this.busy} @change=${(e: Event) => this._pickerChange(e)}>
+          <option value="" ?selected=${this.choice === ""}>${t("Custom for this area")}</option>
           ${this.shared.map((x) => html`<option value=${x.id} ?selected=${x.id === this.choice}>${x.name}</option>`)}
-          <option value=${NEW_SHARED}>+ New shared strategy…</option>
+          <option value=${NEW_SHARED}>${t("+ New shared strategy…")}</option>
         </select></label
       >`;
   }
@@ -391,12 +391,12 @@ export class ShareSpaceRulesTab extends LitElement {
     const users = s ? (this.users[s.id] ?? []) : [];
     const notActive = !this.active || (editor && !this.rulesEnabled);
     return html`${s
-        ? html`<span class="chip shared" title=${users.length ? `Used by ${users.join(", ")}` : "Not used by any area yet"}
-            >Shared · ${users.length ? `${users.length} area${users.length > 1 ? "s" : ""}` : "unused"}</span
+        ? html`<span class="chip shared" title=${users.length ? t("Used by {names}", { names: users.join(", ") }) : t("Not used by any area yet")}
+            >${t("Shared")} · ${users.length ? (users.length > 1 ? t("{n} areas", { n: users.length }) : t("1 area")) : t("unused")}</span
           >`
         : nothing}
       ${notActive
-        ? html`<span class="chip off" title=${editor && this.active ? "These rules are not the ones running for this area" : "No strategy automation is running for this zone"}>Not active</span>`
+        ? html`<span class="chip off" title=${editor && this.active ? t("These rules are not the ones running for this area") : t("No strategy automation is running for this zone")}>${t("Not active")}</span>`
         : nothing}`;
   }
 
@@ -421,17 +421,17 @@ export class ShareSpaceRulesTab extends LitElement {
     const users = s ? (this.users[s.id] ?? []) : [];
     const items = s
       ? [
-          this._menuItem("Rename", () => this._startNaming("rename"), { disabled: this.busy }),
-          this.zoneOn === s.id ? this._menuItem("Make a copy for this area", () => this._emit("make-copy"), { disabled: this.busy }) : nothing,
-          this._menuItem("Delete", () => (this._confirmDelete = true), {
+          this._menuItem(t("Rename"), () => this._startNaming("rename"), { disabled: this.busy }),
+          this.zoneOn === s.id ? this._menuItem(t("Make a copy for this area"), () => this._emit("make-copy"), { disabled: this.busy }) : nothing,
+          this._menuItem(t("Delete"), () => (this._confirmDelete = true), {
             danger: true,
             disabled: this.busy || users.length > 0,
-            reason: users.length ? `Used by ${users.join(", ")}: delete is disabled while an area uses it.` : undefined,
+            reason: users.length ? t("Used by {names}: delete is disabled while an area uses it.", { names: users.join(", ") }) : undefined,
           }),
         ]
-      : [this._menuItem("Share these rules…", () => this._startNaming("share"), { disabled: this.busy })];
+      : [this._menuItem(t("Share these rules…"), () => this._startNaming("share"), { disabled: this.busy })];
     return html`<div class="menu-wrap">
-      <button class="menu-btn" aria-label="More actions" aria-haspopup="menu" aria-expanded=${this._menuOpen} @click=${() => (this._menuOpen = !this._menuOpen)}>⋯</button>
+      <button class="menu-btn" aria-label=${t("More actions")} aria-haspopup="menu" aria-expanded=${this._menuOpen} @click=${() => (this._menuOpen = !this._menuOpen)}>⋯</button>
       ${this._menuOpen ? html`<div class="menu" role="menu">${items}</div>` : nothing}
     </div>`;
   }
@@ -441,10 +441,10 @@ export class ShareSpaceRulesTab extends LitElement {
     const users = s ? (this.users[s.id] ?? []) : [];
     const onName = this._sharedName(this.zoneOn);
     let text = "";
-    if (this.switching && s) text = `Saving switches this area to ${s.name}.`;
-    else if (this.switching && onName) text = `Saving gives this area its own copy; other areas keep ${onName}.`;
-    else if (this.saved && !this.rulesEnabled && !this.startingNew) text = "These rules are saved but not running. Save to use them.";
-    else if (s && users.length > 1) text = `Changes apply to ${users.length} areas.`;
+    if (this.switching && s) text = t("Saving switches this area to {name}.", { name: s.name });
+    else if (this.switching && onName) text = t("Saving gives this area its own copy; other areas keep {name}.", { name: onName });
+    else if (this.saved && !this.rulesEnabled && !this.startingNew) text = t("These rules are saved but not running. Save to use them.");
+    else if (s && users.length > 1) text = t("Changes apply to {n} areas.", { n: users.length });
     return text ? html`<div class="banner info" role="status">${text}</div>` : nothing;
   }
 
@@ -454,9 +454,9 @@ export class ShareSpaceRulesTab extends LitElement {
     return html`${this._naming ? this._nameForm() : nothing}
       ${s && this._confirmDelete
         ? html`<div class="row">
-            <span>Delete the shared strategy ${s.name}?</span>
-            <button class="primary" ?disabled=${this.busy || users.length > 0} @click=${() => this._emit("strategy-delete", s.id)}>Delete</button>
-            <button @click=${() => (this._confirmDelete = false)}>Cancel</button>
+            <span>${t("Delete the shared strategy {name}?", { name: s.name })}</span>
+            <button class="primary" ?disabled=${this.busy || users.length > 0} @click=${() => this._emit("strategy-delete", s.id)}>${t("Delete")}</button>
+            <button @click=${() => (this._confirmDelete = false)}>${t("Cancel")}</button>
           </div>`
         : nothing}`;
   }
@@ -476,16 +476,16 @@ export class ShareSpaceRulesTab extends LitElement {
     const canSave = this._valid && (dirty || !this.rulesEnabled || this.switching) && !this.busy;
     return html`
       ${this.startingNew
-        ? html`<div class="banner info">New rules automation. Saving it disables the detached one.</div>`
+        ? html`<div class="banner info">${t("New rules automation. Saving it disables the detached one.")}</div>`
         : nothing}
       ${this._areaProblem()}
       ${this.missingShared
-        ? html`<div class="banner" role="status">This area uses a shared strategy that no longer exists. Pick one, or edit custom rules.</div>`
+        ? html`<div class="banner" role="status">${t("This area uses a shared strategy that no longer exists. Pick one, or edit custom rules.")}</div>`
         : nothing}
       ${this._forms()} ${this._info()}
       <div class="cols">
         <div class="preview-col">
-          <h4>Preview</h4>
+          <h4>${t("Preview")}</h4>
           ${this.area
             ? html`<share-space-rule-preview
                 .strategy=${draft}
@@ -499,7 +499,7 @@ export class ShareSpaceRulesTab extends LitElement {
                 .highlight=${this._hl}
                 @segment-hover=${(e: CustomEvent<{ reason: string | null }>) => (this._hl = e.detail.reason)}
               ></share-space-rule-preview>`
-            : html`<div class="muted">Choose an area to see the preview.</div>`}
+            : html`<div class="muted">${t("Choose an area to see the preview.")}</div>`}
         </div>
         <div class="rules-col">
           <share-space-rule-list
@@ -515,59 +515,59 @@ export class ShareSpaceRulesTab extends LitElement {
         </div>
       </div>
       <div class="actions">
-        <button class="primary" ?disabled=${!canSave} @click=${() => this._emit("save")}>${this.busy ? "Saving…" : "Save"}</button>
-        <button ?disabled=${this.busy || !this.saved?.previous} @click=${() => this._emit("undo")}>Undo last change</button>
-        <button ?disabled=${this.busy || (!dirty && !!this.saved && !this.startingNew && !this.switching)} @click=${() => this._emit("discard")}>Discard</button>
-        ${dirty && this.saved ? html`<span class="muted">Unsaved changes</span>` : nothing}
+        <button class="primary" ?disabled=${!canSave} @click=${() => this._emit("save")}>${this.busy ? t("Saving…") : t("Save")}</button>
+        <button ?disabled=${this.busy || !this.saved?.previous} @click=${() => this._emit("undo")}>${t("Undo last change")}</button>
+        <button ?disabled=${this.busy || (!dirty && !!this.saved && !this.startingNew && !this.switching)} @click=${() => this._emit("discard")}>${t("Discard")}</button>
+        ${dirty && this.saved ? html`<span class="muted">${t("Unsaved changes")}</span>` : nothing}
       </div>
       ${canSave && this.turnsOff.length
-        ? html`<p class="muted" role="note">Saving turns off in Home Assistant: ${this.turnsOff.join(", ")}. These rules become the only heating for this area.</p>`
+        ? html`<p class="muted" role="note">${t("Saving turns off in Home Assistant: {names}. These rules become the only heating for this area.", { names: this.turnsOff.join(", ") })}</p>`
         : nothing}
     `;
   }
 
   private _edited(): TemplateResult {
-    const what = this.managed === "edited" ? "Edited outside Share Space" : "Not managed by Share Space";
+    const what = this.managed === "edited" ? t("Edited outside Share Space") : t("Not managed by Share Space");
     return html`<div class="banner" role="status">
         <strong>${what}.</strong>
-        <div class="muted">Take back overwrites it with the last rules Share Space can read. Detach leaves it as a normal Home Assistant automation.</div>
+        <div class="muted">${t("Take back overwrites it with the last rules Share Space can read. Detach leaves it as a normal Home Assistant automation.")}</div>
       </div>
       <div class="row">
-        <button class="primary" ?disabled=${this.busy || !this.area} @click=${() => this._emit("take-back")}>Take back</button>
-        <button ?disabled=${this.busy} @click=${() => this._emit("detach")}>Detach</button>
-        <button class="link" @click=${() => this._emit("open-automation")}>Open in Home Assistant</button>
+        <button class="primary" ?disabled=${this.busy || !this.area} @click=${() => this._emit("take-back")}>${t("Take back")}</button>
+        <button ?disabled=${this.busy} @click=${() => this._emit("detach")}>${t("Detach")}</button>
+        <button class="link" @click=${() => this._emit("open-automation")}>${t("Open in Home Assistant")}</button>
       </div>`;
   }
 
   private _detached(): TemplateResult {
     return html`<div class="banner info" role="status">
-        This automation is detached; edit it in Home Assistant.
-        <button class="link" @click=${() => this._emit("open-automation")}>Open automation</button>
+        ${t("This automation is detached; edit it in Home Assistant.")}
+        <button class="link" @click=${() => this._emit("open-automation")}>${t("Open automation")}</button>
       </div>
       ${this._confirmNew
         ? html`<div class="row">
-            <span>Create a new rules automation for this area? The detached one will be disabled.</span>
-            <button class="primary" ?disabled=${this.busy} @click=${() => this._emit("start-new")}>Confirm</button>
-            <button @click=${() => (this._confirmNew = false)}>Cancel</button>
+            <span>${t("Create a new rules automation for this area? The detached one will be disabled.")}</span>
+            <button class="primary" ?disabled=${this.busy} @click=${() => this._emit("start-new")}>${t("Confirm")}</button>
+            <button @click=${() => (this._confirmNew = false)}>${t("Cancel")}</button>
           </div>`
-        : html`<div class="row"><button ?disabled=${this.busy} @click=${() => (this._confirmNew = true)}>Start new rules</button></div>`}`;
+        : html`<div class="row"><button ?disabled=${this.busy} @click=${() => (this._confirmNew = true)}>${t("Start new rules")}</button></div>`}`;
   }
 
   private _body(): TemplateResult {
     if (this.managed === "detached" && !this.startingNew) return this._detached();
     if (this.managed === "edited" || this.managed === "unmanaged") return this._edited();
-    return this.draft ? this._editor(this.draft) : html`<div class="muted">Loading…</div>`;
+    return this.draft ? this._editor(this.draft) : html`<div class="muted">${t("Loading…")}</div>`;
   }
 
   protected render(): TemplateResult {
-    if (this.zones === null) return html`<div class="muted">Loading…</div>`;
+    if (this.zones === null) return html`<div class="muted">${t("Loading…")}</div>`;
     const editor = !!this.zone && !this.loading && this._isEditor();
     return html`
-      <h3>Rules</h3>
+      <h3>${t("Rules")}</h3>
       ${this._bar(editor)}
-      ${this.zones.length === 0 ? html`<div class="muted">No heated area yet. Set up heating in Settings.</div>` : nothing}
+      ${this.zones.length === 0 ? html`<div class="muted">${t("No heated area yet. Set up heating in Settings.")}</div>` : nothing}
       ${this.error ? html`<div class="error" role="alert">${this.error}</div>` : nothing}
-      ${!this.zone ? nothing : this.loading ? html`<div class="muted">Loading…</div>` : this._body()}
+      ${!this.zone ? nothing : this.loading ? html`<div class="muted">${t("Loading…")}</div>` : this._body()}
     `;
   }
 

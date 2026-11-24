@@ -1,6 +1,7 @@
 import { LitElement, html, css } from "lit";
 import type { TemplateResult } from "lit";
 import { customElement, property, state } from "lit/decorators.js";
+import { t } from "ha-share-space-ui";
 
 export interface PanelTab {
   id: string;
@@ -164,7 +165,7 @@ export class ShareSpacePanelTabs extends LitElement {
           class="trigger active ${current?.admin ? "admin" : ""}"
           aria-haspopup="menu"
           aria-expanded=${this._open ? "true" : "false"}
-          aria-label="Pages"
+          aria-label=${t("Pages")}
           @click=${() => (this._open = !this._open)}
         >
           <span>${current?.label ?? ""}</span>${CHEVRON}

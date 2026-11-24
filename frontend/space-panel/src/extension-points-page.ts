@@ -2,7 +2,7 @@ import { LitElement, html, css, nothing } from "lit";
 import type { PropertyValues, TemplateResult } from "lit";
 import { customElement, property, state } from "lit/decorators.js";
 import "ha-share-space-ui";
-import { ZONE_TARGET_HOOK, debounce, haCardSurface } from "ha-share-space-ui";
+import { ZONE_TARGET_HOOK, debounce, haCardSurface, t } from "ha-share-space-ui";
 import type { TemplateEntity, TemplateResult as PreviewResult } from "ha-share-space-ui";
 import { isBackendMissing, listZones, subscribeTemplatePreview, updateZone, errorMessage } from "ha-share-space-ui/ha";
 import type { HeatingZone, HeatingZoneAttributes, HomeAssistant } from "ha-share-space-ui/ha";
@@ -205,24 +205,24 @@ export class ShareSpaceExtensionPoints extends LitElement {
   private _renderStatus(): TemplateResult {
     const a = this._attrs;
     const driving = a.mode === "template";
-    return html`<dl aria-label="Current state">
-      <dt>Saved template</dt>
-      <dd>${a.target_template ? html`<code>${a.target_template}</code>` : html`<span class="muted">none</span>`}</dd>
-      <dt>Driving the target</dt>
-      <dd>${driving ? "Yes (mode: template)" : "No"}</dd>
-      <dt>Last result</dt>
-      <dd>${a.template_result ?? html`<span class="muted">none</span>`}</dd>
-      ${a.template_error ? html`<dt>Last error</dt><dd class="error">${a.template_error}</dd>` : nothing}
+    return html`<dl aria-label=${t("Current state")}>
+      <dt>${t("Saved template")}</dt>
+      <dd>${a.target_template ? html`<code>${a.target_template}</code>` : html`<span class="muted">${t("none")}</span>`}</dd>
+      <dt>${t("Driving the target")}</dt>
+      <dd>${driving ? t("Yes (mode: template)") : t("No")}</dd>
+      <dt>${t("Last result")}</dt>
+      <dd>${a.template_result ?? html`<span class="muted">${t("none")}</span>`}</dd>
+      ${a.template_error ? html`<dt>${t("Last error")}</dt><dd class="error">${a.template_error}</dd>` : nothing}
     </dl>`;
   }
 
   protected render(): TemplateResult {
-    if (this._zones === null) return html`<p class="muted">Loading...</p>`;
+    if (this._zones === null) return html`<p class="muted">${t("Loading...")}</p>`;
     return html`
-      <h4>Extension points</h4>
-      <p class="muted">Hooks where a Jinja template replaces a default behaviour.</p>
-      ${this._zones.length === 0 ? html`<p class="muted">No heated areas.</p>` : nothing}
-      <div class="zones" role="group" aria-label="Heated areas">
+      <h4>${t("Extension points")}</h4>
+      <p class="muted">${t("Hooks where a Jinja template replaces a default behaviour.")}</p>
+      ${this._zones.length === 0 ? html`<p class="muted">${t("No heated areas.")}</p>` : nothing}
+      <div class="zones" role="group" aria-label=${t("Heated areas")}>
         ${this._zones.map(
           (z) => html`<button type="button" aria-pressed=${z.entity_id === this._zone ? "true" : "false"} @click=${() => this._select(z)}>
             ${z.name}
@@ -231,7 +231,7 @@ export class ShareSpaceExtensionPoints extends LitElement {
       </div>
       ${this._info
         ? html`
-            <h4>Heating target: ${this._info.name}</h4>
+            <h4>${t("Heating target: {name}", { name: this._info.name })}</h4>
             ${this._renderStatus()}
             <share-space-template-editor
               .value=${this._draft}

@@ -1,6 +1,7 @@
 import { LitElement, html, css, nothing } from "lit";
 import type { TemplateResult } from "lit";
 import { customElement, property, state } from "lit/decorators.js";
+import { t } from "ha-share-space-ui";
 import { createAreaZone, deleteZone, entityAreaId, listDetectedAreas, listZones, errorMessage } from "ha-share-space-ui/ha";
 import type { DetectedArea, HeatingZone, HomeAssistant } from "ha-share-space-ui/ha";
 import { settingsStyles } from "./settings-styles";
@@ -113,7 +114,7 @@ export class ShareSpaceZonesSettings extends LitElement {
     return html`<label class="field">
       ${label}
       <select @change=${(e: Event) => onChange((e.target as HTMLSelectElement).value)}>
-        <option value="" ?selected=${!value}>Choose…</option>
+        <option value="" ?selected=${!value}>${t("Choose…")}</option>
         ${options.map((o) => html`<option value=${o.id} ?selected=${o.id === value}>${o.name}</option>`)}
       </select>
     </label>`;
@@ -145,22 +146,22 @@ export class ShareSpaceZonesSettings extends LitElement {
     };
     return html`<form @submit=${submit}>
       <div class="source">
-        <label><input type="radio" name="source" .checked=${d.source === "heaters"} @change=${() => patch({ source: "heaters" })} /> Heaters (smart plugs or switches)</label>
-        <label><input type="radio" name="source" .checked=${d.source === "thermostat"} @change=${() => patch({ source: "thermostat" })} /> Existing thermostat</label>
+        <label><input type="radio" name="source" .checked=${d.source === "heaters"} @change=${() => patch({ source: "heaters" })} /> ${t("Heaters (smart plugs or switches)")}</label>
+        <label><input type="radio" name="source" .checked=${d.source === "thermostat"} @change=${() => patch({ source: "thermostat" })} /> ${t("Existing thermostat")}</label>
       </div>
       ${d.source === "heaters"
         ? html`<div class="chips">
               ${d.heaters.map(
-                (h) => html`<span class="chip">${this._label(h)}<button type="button" aria-label="Remove ${this._label(h)}" @click=${() => patch({ heaters: d.heaters.filter((x) => x !== h) })}>✕</button></span>`,
+                (h) => html`<span class="chip">${this._label(h)}<button type="button" aria-label=${t("Remove {name}", { name: this._label(h) })} @click=${() => patch({ heaters: d.heaters.filter((x) => x !== h) })}>✕</button></span>`,
               )}
             </div>
-            ${this._select(d.heaters.length ? "Add another heater" : "Heater", "", switches, (v) => v && patch({ heaters: [...d.heaters, v] }))}
-            ${this._select("Temperature sensor", d.sensor, sensors, (sensor) => patch({ sensor }))}
-            <p class="muted">Share Space creates the thermostat: heaters turn on below the target, off above it.</p>`
-        : this._select("Thermostat", d.thermostat, thermostats, (thermostat) => patch({ thermostat }))}
+            ${this._select(d.heaters.length ? t("Add another heater") : t("Heater"), "", switches, (v) => v && patch({ heaters: [...d.heaters, v] }))}
+            ${this._select(t("Temperature sensor"), d.sensor, sensors, (sensor) => patch({ sensor }))}
+            <p class="muted">${t("Share Space creates the thermostat: heaters turn on below the target, off above it.")}</p>`
+        : this._select(t("Thermostat"), d.thermostat, thermostats, (thermostat) => patch({ thermostat }))}
       <div class="field">
-        <button class="primary" type="submit" ?disabled=${!ready || this._busy}>Create zone</button>
-        <button type="button" @click=${() => (this._draft = null)}>Cancel</button>
+        <button class="primary" type="submit" ?disabled=${!ready || this._busy}>${t("Create zone")}</button>
+        <button type="button" @click=${() => (this._draft = null)}>${t("Cancel")}</button>
       </div>
     </form>`;
   }
@@ -168,15 +169,18 @@ export class ShareSpaceZonesSettings extends LitElement {
   private _renderZone(zone: HeatingZone): TemplateResult {
     const temp = this.hass?.states[zone.climate_entity]?.attributes.current_temperature;
     const parts = zone.managed
-      ? [`Heaters: ${(zone.heaters ?? []).map((h) => this._label(h)).join(", ")}`, `Sensor: ${this._label(zone.temperature_sensor ?? "")}`]
-      : [`Thermostat: ${this._label(zone.climate_entity)}`];
-    if (typeof temp === "number") parts.push(`${temp} °C now`);
+      ? [
+          t("Heaters: {names}", { names: (zone.heaters ?? []).map((h) => this._label(h)).join(", ") }),
+          t("Sensor: {name}", { name: this._label(zone.temperature_sensor ?? "") }),
+        ]
+      : [t("Thermostat: {name}", { name: this._label(zone.climate_entity) })];
+    if (typeof temp === "number") parts.push(t("{temp} °C now", { temp }));
     return html`<span class="info muted">${parts.join(" · ")}</span>
       <span class="actions">
         ${this._confirm === zone.entry_id
-          ? html`<button class="danger" ?disabled=${this._busy} @click=${() => void this._run(async () => { await deleteZone(this.hass!, zone.entry_id); this._confirm = null; })}>Delete</button>
-              <button @click=${() => (this._confirm = null)}>Keep</button>`
-          : html`<button @click=${() => (this._confirm = zone.entry_id)}>Stop managing</button>`}
+          ? html`<button class="danger" ?disabled=${this._busy} @click=${() => void this._run(async () => { await deleteZone(this.hass!, zone.entry_id); this._confirm = null; })}>${t("Delete")}</button>
+              <button @click=${() => (this._confirm = null)}>${t("Keep")}</button>`
+          : html`<button @click=${() => (this._confirm = zone.entry_id)}>${t("Stop managing")}</button>`}
       </span>`;
   }
 
@@ -187,10 +191,9 @@ export class ShareSpaceZonesSettings extends LitElement {
     const zones = this._zones ?? [];
     const orphans = zones.filter((z) => !z.area_id || !hass.areas?.[z.area_id]);
     return html`<section class="card">
-      <h4>Heating</h4>
+      <h4>${t("Heating")}</h4>
       <p class="muted">
-        Share Space finds each area's thermostat, or heater switches and temperature sensor, in Home Assistant. Nothing is created or
-        changed until you save the area's first rule. Stop managing removes only what Share Space created, never your devices.
+        ${t("Share Space finds each area's thermostat, or heater switches and temperature sensor, in Home Assistant. Nothing is created or changed until you save the area's first rule. Stop managing removes only what Share Space created, never your devices.")}
       </p>
       <div class="rows">
         ${areas.map((area) => {
@@ -206,24 +209,25 @@ export class ShareSpaceZonesSettings extends LitElement {
                 ? nothing
                 : found
                   ? html`<span class="info muted"
-                      >Found in Home Assistant:
-                      ${"climate_entity" in found
-                        ? `thermostat ${this._label(found.climate_entity)}`
-                        : `heaters ${found.heaters.map((h) => this._label(h)).join(", ")}, sensor ${this._label(found.temperature_sensor)}`}.
-                      Used once the area has a rule.</span
+                      >${"climate_entity" in found
+                        ? t("Found in Home Assistant: thermostat {name}. Used once the area has a rule.", { name: this._label(found.climate_entity) })
+                        : t("Found in Home Assistant: heaters {heaters}, sensor {sensor}. Used once the area has a rule.", {
+                            heaters: found.heaters.map((h) => this._label(h)).join(", "),
+                            sensor: this._label(found.temperature_sensor),
+                          })}</span
                     >`
-                  : html`<span class="info muted">No thermostat, or heaters and temperature sensor, in this area in Home Assistant</span>
+                  : html`<span class="info muted">${t("No thermostat, or heaters and temperature sensor, in this area in Home Assistant")}</span>
                       <span class="actions">
                         <button
                           ?disabled=${this._zones === null}
                           @click=${() => (this._draft = { area: area.area_id, source: "heaters", heaters: [], sensor: "", thermostat: "" })}
                         >
-                          Add heating
+                          ${t("Add heating")}
                         </button>
                       </span>`}
             ${editing ? this._renderForm(this._draft!) : nothing}
             ${here.length > 1
-              ? html`<span class="error">Several thermostats in this area: ${here.map((z) => this._label(z.climate_entity)).join(", ")}. Move all but one to another area in Home Assistant (Settings → Entities).</span>`
+              ? html`<span class="error">${t("Several thermostats in this area: {names}. Move all but one to another area in Home Assistant (Settings → Entities).", { names: here.map((z) => this._label(z.climate_entity)).join(", ") })}</span>`
               : nothing}
           </div>`;
         })}
@@ -231,11 +235,11 @@ export class ShareSpaceZonesSettings extends LitElement {
           (zone) =>
             html`<div class="row">
               <span class="name">${zone.name}</span>${this._renderZone(zone)}
-              <span class="error">No area: assign ${this._label(zone.climate_entity)} to an area in Home Assistant (Settings → Entities) so rules can run.</span>
+              <span class="error">${t("No area: assign {name} to an area in Home Assistant (Settings → Entities) so rules can run.", { name: this._label(zone.climate_entity) })}</span>
             </div>`,
         )}
       </div>
-      ${areas.length ? nothing : html`<p class="muted">No areas yet: the Technical Admin creates them in Home Assistant.</p>`}
+      ${areas.length ? nothing : html`<p class="muted">${t("No areas yet: the Technical Admin creates them in Home Assistant.")}</p>`}
       ${this._error ? html`<p class="error">${this._error}</p>` : nothing}
     </section>`;
   }

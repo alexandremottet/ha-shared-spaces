@@ -1,6 +1,7 @@
 import { LitElement, html, nothing } from "lit";
 import type { TemplateResult } from "lit";
 import { customElement, property, state } from "lit/decorators.js";
+import { t } from "ha-share-space-ui";
 import { ADMIN_GROUP, listUsers, setSpaceAdmin, errorMessage } from "ha-share-space-ui/ha";
 import type { HaUser, HomeAssistant } from "ha-share-space-ui/ha";
 import { settingsStyles } from "./settings-styles";
@@ -46,15 +47,15 @@ export class ShareSpaceUsersSettings extends LitElement {
   protected render(): TemplateResult {
     const me = this.hass?.user?.id;
     return html`<section class="card">
-      <h4>People</h4>
-      <p class="muted">Space Admins manage areas, heating, rules and people. They can't remove their own role or the owner's.</p>
+      <h4>${t("People")}</h4>
+      <p class="muted">${t("Space Admins manage areas, heating, rules and people. They can't remove their own role or the owner's.")}</p>
       <div class="rows">
         ${(this._users ?? []).map((u) => {
           const admin = u.group_ids.includes(ADMIN_GROUP);
           const locked = u.is_owner || u.id === me;
           return html`<div class="row">
             <span class="name">${u.name}</span>
-            <span class="info muted">${u.username ?? ""}${u.is_owner ? " · owner" : ""}${u.id === me ? " · you" : ""}</span>
+            <span class="info muted">${u.username ?? ""}${u.is_owner ? ` · ${t("owner")}` : ""}${u.id === me ? ` · ${t("you")}` : ""}</span>
             <label class="actions">
               <input
                 type="checkbox"
@@ -62,7 +63,7 @@ export class ShareSpaceUsersSettings extends LitElement {
                 ?disabled=${locked || this._busy === u.id}
                 @change=${(e: Event) => void this._toggle(u, (e.target as HTMLInputElement).checked)}
               />
-              Space Admin
+              ${t("Space Admin")}
             </label>
           </div>`;
         })}

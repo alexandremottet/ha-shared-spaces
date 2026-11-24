@@ -1,7 +1,7 @@
 import { LitElement, css, html, nothing } from "lit";
 import type { PropertyValues, TemplateResult } from "lit";
 import { customElement, property, state } from "lit/decorators.js";
-import { afterSave, haCardSurface, climateHeated, entityStates, heatedKey, isDirty, sensorReadings, sameRules, strategyHeatedAreas, undoRules } from "ha-share-space-ui";
+import { afterSave, haCardSurface, t, climateHeated, entityStates, heatedKey, isDirty, sensorReadings, sameRules, strategyHeatedAreas, undoRules } from "ha-share-space-ui";
 import type { RuleStrategy, RulesSource, SavedRules, ScheduleRanges } from "ha-share-space-ui";
 import {
   deleteStrategy,
@@ -50,10 +50,10 @@ import { buttonStyles } from "./button-styles";
 import "./existing-heating";
 
 const messageOf = (err: unknown): string => {
-  if ((err as { code?: string })?.code === "name_taken") return "Another shared strategy already has this name.";
+  if ((err as { code?: string })?.code === "name_taken") return t("Another shared strategy already has this name.");
   return errorMessage(err);
 };
-const emptyRules = (): RuleStrategy => ({ version: 1, rules: [], fallback: { label: "Otherwise", then: { type: "off" } } });
+const emptyRules = (): RuleStrategy => ({ version: 1, rules: [], fallback: { label: t("Otherwise"), then: { type: "off" } } });
 
 // Container for the Rules tab: does the WS calls, feeds the presentational tab.
 @customElement("share-space-rules-page")
@@ -175,7 +175,7 @@ export class ShareSpaceRulesPage extends LitElement {
     const { entity_id } = await createAreaZone(hass, zone.pending);
     await this._refreshZones(hass);
     const created = this._zones?.find((z) => z.entity_id === entity_id);
-    if (!created) throw new Error("The heating zone was created but is not listed yet; try again.");
+    if (!created) throw new Error(t("The heating zone was created but is not listed yet; try again."));
     this._zone = entity_id;
     this._targetId = strategyAutomationId(entity_id);
     return created;
@@ -191,18 +191,20 @@ export class ShareSpaceRulesPage extends LitElement {
 
   // First rules of an area HA already heats: migrate them or start empty; after migrating, a reminder to check them.
   private _renderStart(): TemplateResult | typeof nothing {
-    if (this._origin === "migrate") return html`<div class="choice" role="status">Copied from Home Assistant below. Check the rules, then save.</div>`;
+    if (this._origin === "migrate") return html`<div class="choice" role="status">${t("Copied from Home Assistant below. Check the rules, then save.")}</div>`;
     if (!this._choosing) return nothing;
     const running = this._existingOn();
     const lost = running.some((i) => i.unmapped.length);
-    return html`<div class="choice" role="group" aria-label="Start this area's rules">
-      <div>This area has no Share Space rules yet. Home Assistant heats it with ${running.map((i) => i.name).join(", ")}.</div>
+    return html`<div class="choice" role="group" aria-label=${t("Start this area's rules")}>
+      <div>${t("This area has no Share Space rules yet. Home Assistant heats it with {names}.", { names: running.map((i) => i.name).join(", ") })}</div>
       <div class="actions">
-        <button class="primary" @click=${() => this._start("migrate")}>Migrate what is on</button>
-        <button @click=${() => this._start("scratch")}>Start from scratch</button>
+        <button class="primary" @click=${() => this._start("migrate")}>${t("Migrate what is on")}</button>
+        <button @click=${() => this._start("scratch")}>${t("Start from scratch")}</button>
       </div>
       <div class="muted">
-        Migrate copies them into the rules${lost ? ', except the lines marked "Not copied" below' : ""}. Nothing changes in Home Assistant until you save.
+        ${lost
+          ? t('Migrate copies them into the rules, except the lines marked "Not copied" below. Nothing changes in Home Assistant until you save.')
+          : t("Migrate copies them into the rules. Nothing changes in Home Assistant until you save.")}
       </div>
     </div>`;
   }
@@ -335,7 +337,7 @@ export class ShareSpaceRulesPage extends LitElement {
     const fresh = await loadRulesAutomation(hass, zone.entity_id, id);
     if (fresh && fresh.state !== "managed") {
       await this._load(zone.entity_id);
-      throw new Error("This automation was changed outside Share Space; reloaded.");
+      throw new Error(t("This automation was changed outside Share Space; reloaded."));
     }
   }
 
@@ -576,7 +578,7 @@ export class ShareSpaceRulesPage extends LitElement {
         .version=${this._existingVersion}
         @zone-select=${(e: CustomEvent<string>) => void this._select(e.detail)}
       ></share-space-rules-summary>`;
-    const back = html`<button class="back" ?disabled=${this._busy} @click=${() => void this._select("")}>← All areas</button>`;
+    const back = html`<button class="back" ?disabled=${this._busy} @click=${() => void this._select("")}>${t("← All areas")}</button>`;
     return html`${back}
       <section class="panel">${this._renderStart()}${tab}</section>
       ${existing}`;

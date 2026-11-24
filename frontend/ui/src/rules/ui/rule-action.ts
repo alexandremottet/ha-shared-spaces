@@ -3,11 +3,10 @@ import { property } from "lit/decorators.js";
 import { safeCustomElement } from "../../define";
 import type { Action, ActionType, Value } from "../types";
 import type { RuleError } from "../validate";
-import { ACTION_LABELS, changeActionType, scopeErrors } from "./edit";
+import { t } from "../../i18n";
+import { ACTION_TYPES, actionLabel, changeActionType, scopeErrors } from "./edit";
 import "./rule-value";
 import { ruleStyles } from "./styles";
-
-const TYPES = Object.keys(ACTION_LABELS) as ActionType[];
 
 /** What a rule does: comfort, eco, off or a temperature (fixed or following a sensor). */
 @safeCustomElement("share-space-rule-action")
@@ -24,12 +23,12 @@ export class ShareSpaceRuleAction extends LitElement {
   protected render() {
     const a = this.action;
     return html`<div class="row">
-        <select aria-label="Action" @change=${(e: Event) => this._emit(changeActionType(a, (e.target as HTMLSelectElement).value as ActionType))}>
-          ${TYPES.map((t) => html`<option value=${t} ?selected=${t === a.type}>${ACTION_LABELS[t]}</option>`)}
+        <select aria-label=${t("Action")} @change=${(e: Event) => this._emit(changeActionType(a, (e.target as HTMLSelectElement).value as ActionType))}>
+          ${ACTION_TYPES.map((k) => html`<option value=${k} ?selected=${k === a.type}>${actionLabel(k)}</option>`)}
         </select>
       </div>
       ${a.type === "temperature"
-        ? html`<share-space-rule-value .value=${a.value} unit="°C" label="Temperature" .errors=${scopeErrors(this.errors, ".value")} @value-change=${(e: CustomEvent<{ value: Value }>) => {
+        ? html`<share-space-rule-value .value=${a.value} unit="°C" label=${t("Temperature")} .errors=${scopeErrors(this.errors, ".value")} @value-change=${(e: CustomEvent<{ value: Value }>) => {
             e.stopPropagation();
             this._emit({ type: "temperature", value: e.detail.value });
           }}></share-space-rule-value>`

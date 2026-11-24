@@ -6,6 +6,8 @@ import type { HomeAssistant } from "./hass";
 import { getAreaActions, isBackendMissing, listZones, listStrategyAutomations, loadZoneStrategy, setAreaActions, stopZoneStrategies, updateZone } from "./ws";
 import type { AreaActions, HeatingZone, PlanningAction, ZoneStrategy } from "./ws";
 import { haTheme } from "./theme";
+import { syncLanguage } from "./hass";
+import { t } from "../i18n";
 import "../heating/strategy-editor";
 
 type Side = "on" | "off";
@@ -58,10 +60,10 @@ const verbOf = (a: PlanningAction): string => {
   const [domain, name] = service.split(".");
   const data = a.data as { temperature?: number } | undefined;
   if (domain === "climate" && data?.temperature !== undefined) return `${data.temperature}°`;
-  if (domain === "scene" || domain === "script") return "run";
-  if (name === "turn_on") return "on";
-  if (name === "turn_off") return "off";
-  return service || "action";
+  if (domain === "scene" || domain === "script") return t("run");
+  if (name === "turn_on") return t("on");
+  if (name === "turn_off") return t("off");
+  return service || t("action");
 };
 
 /** One item per linked thing: on/off actions on the same entities are grouped, zones are a single link. */
@@ -74,7 +76,7 @@ export function summarizeAreaLinks(
   const items: LinkItem[] = area
     ? zones
         .filter((z) => z.presence_entity === sensorOf(area))
-        .map((z) => ({ key: `zone:${z.entry_id}`, icon: "🔥", label: z.name, detail: "comfort occupied · eco empty", kind: "zone", entryId: z.entry_id, domain: "climate", refs: [] }))
+        .map((z) => ({ key: `zone:${z.entry_id}`, icon: "🔥", label: z.name, detail: t("comfort occupied · eco empty"), kind: "zone", entryId: z.entry_id, domain: "climate", refs: [] }))
     : [];
   const groups = new Map<string, { item: LinkItem; verbs: Partial<Record<Side, string>> }>();
   for (const side of ["on", "off"] as const) {
@@ -85,7 +87,7 @@ export function summarizeAreaLinks(
       const key = ids.length ? `entities:${[...ids].sort().join(",")}` : `${side}:${index}`;
       let g = groups.get(key);
       if (!g) {
-        const first = ids[0] ? nameOf(hass, ids[0]) : service || "action";
+        const first = ids[0] ? nameOf(hass, ids[0]) : service || t("action");
         const label = ids.length > 1 ? `${first} +${ids.length - 1}` : first;
         g = { item: { key, icon: ICONS[domain] ?? "⚙️", label, detail: "", kind: "action", domain, refs: [] }, verbs: {} };
         groups.set(key, g);
@@ -96,13 +98,18 @@ export function summarizeAreaLinks(
   }
   for (const { item, verbs } of groups.values()) {
     item.detail =
-      verbs.on && verbs.off ? `${verbs.on} occupied · ${verbs.off} empty` : verbs.on ? `${verbs.on} when occupied` : `${verbs.off} when empty`;
+      verbs.on && verbs.off
+        ? t("{on} occupied · {off} empty", { on: verbs.on, off: verbs.off })
+        : verbs.on
+          ? t("{verb} when occupied", { verb: verbs.on })
+          : t("{verb} when empty", { verb: verbs.off ?? "" });
     items.push(item);
   }
   return items;
 }
 
-const NOUNS: Record<string, string> = { light: "lights", switch: "switches", fan: "fans", scene: "scenes", script: "scripts", climate: "zones" };
+const nounOf = (domain: string): string =>
+  ({ light: t("lights"), switch: t("switches"), fan: t("fans"), scene: t("scenes"), script: t("scripts"), climate: t("zones") })[domain] ?? t("actions");
 
 export function formatLinkChips(items: LinkItem[]): string {
   const groups = new Map<string, LinkItem[]>();
@@ -113,7 +120,7 @@ export function formatLinkChips(items: LinkItem[]): string {
   const parts: string[] = [];
   for (const list of groups.values()) {
     const [head] = list;
-    parts.push(list.length > 1 ? `${head.icon} ${list.length} ${NOUNS[head.domain ?? ""] ?? "actions"}` : `${head.icon} ${head.label}`);
+    parts.push(list.length > 1 ? `${head.icon} ${list.length} ${nounOf(head.domain ?? "")}` : `${head.icon} ${head.label}`);
   }
   return parts.join(" · ");
 }
@@ -286,6 +293,10 @@ export class ShareSpaceAreaTriggerPopover extends LitElement {
     return !!this.hass?.user?.is_admin;
   }
 
+  protected willUpdate(changed: PropertyValues): void {
+    if (changed.has("hass")) syncLanguage(this.hass);
+  }
+
   protected updated(changed: PropertyValues): void {
     // Strategy links live in automation entities, which reach hass after the save resolves.
     if (this.open && changed.has("hass") && this.hass && this._strategySignature() !== this._strategySig) void this._load();
@@ -431,7 +442,7 @@ export class ShareSpaceAreaTriggerPopover extends LitElement {
       ></ha-entity-picker>`;
     }
     return html`<select .value=${value} @change=${(e: Event) => onChange((e.target as HTMLSelectElement).value)}>
-      <option value="">Choose…</option>
+      <option value="">${t("Choose…")}</option>
       ${this._optionIds(domains).map((id) => html`<option value=${id} ?selected=${id === value}>${nameOf(this.hass, id)}</option>`)}
     </select>`;
   }
@@ -442,14 +453,14 @@ export class ShareSpaceAreaTriggerPopover extends LitElement {
 
   private _thermostatName(z: HeatingZone): string {
     const name = this.hass?.states[z.climate_entity]?.attributes.friendly_name;
-    return typeof name === "string" ? name : `${z.name} thermostat`;
+    return typeof name === "string" ? name : t("{name} thermostat", { name: z.name });
   }
 
   private _zoneLink(z: HeatingZone): ZoneLink | null {
     const strategy = this._zoneStrategies[z.entity_id];
     if (strategy) return { area: strategy.area, mode: "strategy", label: strategy.name };
     const area = z.presence_entity?.startsWith("binary_sensor.share_space_") ? z.presence_entity.slice("binary_sensor.share_space_".length) : null;
-    return area ? { area, mode: "simple", label: "occupied / empty °C" } : null;
+    return area ? { area, mode: "simple", label: t("occupied / empty °C") } : null;
   }
 
   private _toggleEdit(z: HeatingZone, mode: HeatMode): void {
@@ -469,16 +480,16 @@ export class ShareSpaceAreaTriggerPopover extends LitElement {
     const here = link?.area === this.area;
     return html`<div class="form">
       <div class="tabs">
-        <button class=${this._heatMode === "simple" ? "active" : ""} @click=${() => (this._heatMode = "simple")}>Simple</button>
-        <button class=${this._heatMode === "strategy" ? "active" : ""} @click=${() => (this._heatMode = "strategy")}>Strategy</button>
+        <button class=${this._heatMode === "simple" ? "active" : ""} @click=${() => (this._heatMode = "simple")}>${t("Simple")}</button>
+        <button class=${this._heatMode === "strategy" ? "active" : ""} @click=${() => (this._heatMode = "strategy")}>${t("Strategy")}</button>
       </div>
       ${this._heatMode === "simple"
-        ? html`<span class="muted">Comfort while the area is occupied, eco while empty.</span>
+        ? html`<span class="muted">${t("Comfort while the area is occupied, eco while empty.")}</span>
             <div class="row">
-              <span class="muted">Occupied °C</span><input type="number" step="0.5" .value=${this._tempOn} @input=${(e: Event) => (this._tempOn = (e.target as HTMLInputElement).value)} />
-              <span class="muted">Empty °C</span><input type="number" step="0.5" .value=${this._tempOff} @input=${(e: Event) => (this._tempOff = (e.target as HTMLInputElement).value)} />
+              <span class="muted">${t("Occupied °C")}</span><input type="number" step="0.5" .value=${this._tempOn} @input=${(e: Event) => (this._tempOn = (e.target as HTMLInputElement).value)} />
+              <span class="muted">${t("Empty °C")}</span><input type="number" step="0.5" .value=${this._tempOff} @input=${(e: Event) => (this._tempOff = (e.target as HTMLInputElement).value)} />
             </div>
-            <button class="primary" ?disabled=${this._busy} @click=${() => this._link(z, true).then(() => this._doneEditing())}>${here && link?.mode === "simple" ? "Save" : "Link"}</button>`
+            <button class="primary" ?disabled=${this._busy} @click=${() => this._link(z, true).then(() => this._doneEditing())}>${here && link?.mode === "simple" ? t("Save") : t("Link")}</button>`
         : html`<share-space-strategy-editor
             .hass=${this.hass}
             .zone=${z.entity_id}
@@ -500,11 +511,11 @@ export class ShareSpaceAreaTriggerPopover extends LitElement {
     const elsewhere = link && link.area !== this.area;
     return html`<div class="zone">
         <strong>🔥 ${this._thermostatName(z)}</strong>
-        <button aria-label="Close" @click=${() => (this._editZone = "")}>✕</button>
+        <button aria-label=${t("Close")} @click=${() => (this._editZone = "")}>✕</button>
       </div>
-      ${elsewhere ? html`<span class="muted">Now follows ${this._areaName(link.area)}; saving moves it here.</span>` : nothing}
+      ${elsewhere ? html`<span class="muted">${t("Now follows {area}; saving moves it here.", { area: this._areaName(link.area) })}</span>` : nothing}
       ${this._renderZoneEditor(z, link)}
-      <button @click=${() => (this._editZone = "")}>Cancel</button>`;
+      <button @click=${() => (this._editZone = "")}>${t("Cancel")}</button>`;
   }
 
   private _renderHeating() {
@@ -512,7 +523,7 @@ export class ShareSpaceAreaTriggerPopover extends LitElement {
     const focused = zones?.find((z) => z.entity_id === this._editZone);
     if (zones && zones.length > 0) {
       return html`<div class="form">
-        <span class="muted">Thermostats</span>
+        <span class="muted">${t("Thermostats")}</span>
         ${focused
           ? this._renderFocused(focused)
           : zones.map((z) => {
@@ -524,12 +535,12 @@ export class ShareSpaceAreaTriggerPopover extends LitElement {
             ? html`<div class="zone">
                 <span>✓ ${device}<br /><span class="muted">${link!.label}</span></span>
                 <span class="row">
-                  <button class=${editing ? "active" : ""} @click=${() => this._toggleEdit(z, link!.mode)}>Edit</button>
-                  <button ?disabled=${this._busy} @click=${() => this._unlink(z, link!)}>Unlink</button>
+                  <button class=${editing ? "active" : ""} @click=${() => this._toggleEdit(z, link!.mode)}>${t("Edit")}</button>
+                  <button ?disabled=${this._busy} @click=${() => this._unlink(z, link!)}>${t("Unlink")}</button>
                 </span>
               </div>`
             : html`<button class="use ${editing ? "active" : ""}" @click=${() => this._toggleEdit(z, link?.mode ?? "simple")}>
-                🔥 Use ${device}${link ? html`<br /><span class="muted">now follows ${this._areaName(link.area)}</span>` : nothing}
+                🔥 ${t("Use {device}", { device })}${link ? html`<br /><span class="muted">${t("now follows {area}", { area: this._areaName(link.area) })}</span>` : nothing}
               </button>`;
           return html`${row}
 `;
@@ -538,21 +549,21 @@ export class ShareSpaceAreaTriggerPopover extends LitElement {
     }
     const noTemp = this._tempOn === "" || this._tempOff === "" || !this._climate;
     return html`<div class="form">
-      <span class="muted">${zones === null ? "No heating zones available." : "No heating zones yet."} Set a thermostat directly:</span>
+      <span class="muted">${zones === null ? t("No heating zones available. Set a thermostat directly:") : t("No heating zones yet. Set a thermostat directly:")}</span>
       ${this._picker(["climate"], this._climate, (v) => (this._climate = v))}
       <div class="row">
-        <span class="muted">Occupied °C</span><input type="number" step="0.5" .value=${this._tempOn} @input=${(e: Event) => (this._tempOn = (e.target as HTMLInputElement).value)} />
-        <span class="muted">Empty °C</span><input type="number" step="0.5" .value=${this._tempOff} @input=${(e: Event) => (this._tempOff = (e.target as HTMLInputElement).value)} />
+        <span class="muted">${t("Occupied °C")}</span><input type="number" step="0.5" .value=${this._tempOn} @input=${(e: Event) => (this._tempOn = (e.target as HTMLInputElement).value)} />
+        <span class="muted">${t("Empty °C")}</span><input type="number" step="0.5" .value=${this._tempOff} @input=${(e: Event) => (this._tempOff = (e.target as HTMLInputElement).value)} />
       </div>
       <button
         class="primary"
         ?disabled=${this._busy || noTemp}
         @click=${() => {
-          const mk = (t: string): PlanningAction => ({ action: "climate.set_temperature", target: { entity_id: this._climate }, data: { temperature: Number(t) } });
+          const mk = (temp: string): PlanningAction => ({ action: "climate.set_temperature", target: { entity_id: this._climate }, data: { temperature: Number(temp) } });
           void this._addActions({ on: [mk(this._tempOn)], off: [mk(this._tempOff)] });
         }}
       >
-        Add
+        ${t("Add")}
       </button>
     </div>`;
   }
@@ -572,21 +583,21 @@ export class ShareSpaceAreaTriggerPopover extends LitElement {
       html`<label><input type="checkbox" .checked=${value} @change=${(e: Event) => set((e.target as HTMLInputElement).checked)} />${label}</label>`;
     return html`<div class="form">
       ${this._picker(domains, this._entity, (v) => (this._entity = v))}
-      ${check(light ? "Turn on when occupied" : "Run when occupied", this._whenOn, (v) => (this._whenOn = v))}
-      ${check(light ? "Turn off when empty" : "Run when empty", this._whenOff, (v) => (this._whenOff = v))}
-      <button class="primary" ?disabled=${this._busy || !this._entity || (!this._whenOn && !this._whenOff)} @click=${submit}>Add</button>
+      ${check(light ? t("Turn on when occupied") : t("Run when occupied"), this._whenOn, (v) => (this._whenOn = v))}
+      ${check(light ? t("Turn off when empty") : t("Run when empty"), this._whenOff, (v) => (this._whenOff = v))}
+      <button class="primary" ?disabled=${this._busy || !this._entity || (!this._whenOn && !this._whenOff)} @click=${submit}>${t("Add")}</button>
     </div>`;
   }
 
   private _renderItems(items: LinkItem[]) {
     if (items.length === 0) {
-      return html`<div class="muted">Nothing linked yet.</div>`;
+      return html`<div class="muted">${t("Nothing linked yet.")}</div>`;
     }
     return html`<div class="items">
       ${items.map(
         (c) => html`<div class="item">
           <span>${c.icon} ${c.label}<br /><span class="muted">${c.detail}</span></span>
-          <button title="Remove" aria-label="Remove ${c.label}" ?disabled=${this._busy} @click=${() => this._removeItem(c)}>✕</button>
+          <button title=${t("Remove")} aria-label=${t("Remove {label}", { label: c.label })} ?disabled=${this._busy} @click=${() => this._removeItem(c)}>✕</button>
         </div>`,
       )}
     </div>`;
@@ -598,20 +609,20 @@ export class ShareSpaceAreaTriggerPopover extends LitElement {
     }
     const links = summarizeAreaLinks(this._actions, this._zones ?? [], this.hass, this.area);
     const presets: Array<[Preset, string]> = [
-      ["heating", "🔥 Heating"],
-      ["light", "💡 Light / switch"],
-      ["scene", "🎬 Scene"],
-      ["script", "📜 Script"],
+      ["heating", `🔥 ${t("Heating")}`],
+      ["light", `💡 ${t("Light / switch")}`],
+      ["scene", `🎬 ${t("Scene")}`],
+      ["script", `📜 ${t("Script")}`],
     ];
-    return html`<div class="pop" role="region" aria-label="What runs for this area">
-      <div class="head">⚡ What runs<button aria-label="Back to planning" @click=${() => this._close()}>✕</button></div>
-      <span class="muted">Linked to this area's planning</span>
+    return html`<div class="pop" role="region" aria-label=${t("What runs for this area")}>
+      <div class="head">⚡ ${t("What runs")}<button aria-label=${t("Back to planning")} @click=${() => this._close()}>✕</button></div>
+      <span class="muted">${t("Linked to this area's planning")}</span>
       ${this._renderItems(links)}
       <div class="presets">
         ${presets.map(
           ([p, label]) => html`<button class=${this._preset === p ? "active" : ""} @click=${() => { this._preset = this._preset === p ? null : p; this._entity = ""; this._whenOn = true; this._whenOff = p === "light"; }}>${label}</button>`,
         )}
-        <button @click=${() => this.dispatchEvent(new CustomEvent("open-actions-editor", { bubbles: true, composed: true }))}>Custom…</button>
+        <button @click=${() => this.dispatchEvent(new CustomEvent("open-actions-editor", { bubbles: true, composed: true }))}>${t("Custom…")}</button>
       </div>
       ${this._preset === "heating" ? this._renderHeating() : this._preset ? this._renderEntityForm(this._preset) : nothing}
       ${this._error ? html`<div class="err">${this._error}</div>` : nothing}

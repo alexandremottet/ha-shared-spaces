@@ -1,9 +1,12 @@
+import "./i18n-fr";
 import { LitElement, html, css } from "lit";
 import { customElement, property, state } from "lit/decorators.js";
 import type { PropertyValues } from "lit";
 import "ha-share-space-ui";
+import { t } from "ha-share-space-ui";
 import type { RosterPerson, RosterViewMode } from "ha-share-space-ui";
 import {
+  syncLanguage,
   haTheme,
   registerCustomCard,
   renderBackendMissing,
@@ -125,6 +128,7 @@ export class ShareSpaceAreaPlanningCard extends LitElement {
   }
 
   protected willUpdate(changed: PropertyValues): void {
+    syncLanguage(this.hass);
     if (!this.hass || !this._config) {
       return;
     }
@@ -212,15 +216,15 @@ export class ShareSpaceAreaPlanningCard extends LitElement {
     return html`
       <div class="links">
         ${empty
-          ? html`<span class="muted">Nothing linked to this planning yet.</span>`
-          : html`<span><span class="muted">Linked:</span> ${formatLinkChips(links)}</span>`}
+          ? html`<span class="muted">${t("Nothing linked to this planning yet.")}</span>`
+          : html`<span><span class="muted">${t("Linked:")}</span> ${formatLinkChips(links)}</span>`}
         ${this._isAdmin
           ? html`<button
               class=${this._popOpen ? "active" : ""}
               aria-haspopup="dialog"
               @click=${() => this._openPopover()}
             >
-              ⚡ What runs
+              ${t("⚡ What runs")}
             </button>`
           : null}
       </div>
@@ -246,11 +250,11 @@ export class ShareSpaceAreaPlanningCard extends LitElement {
       return null;
     }
     const on = sensor.state === "on";
-    const t = hhmm(sensor.attributes.next_change);
+    const time = hhmm(sensor.attributes.next_change);
     return html`
       <div class="badge ${on ? "on" : ""}">
-        ${on ? "Occupied" : "Empty"}
-        ${t ? html`<small>${on ? "until" : "from"} ${t}</small>` : null}
+        ${on ? t("Occupied") : t("Empty")}
+        ${time ? html`<small>${on ? t("until {time}", { time }) : t("from {time}", { time })}</small>` : null}
       </div>
     `;
   }
@@ -263,7 +267,7 @@ export class ShareSpaceAreaPlanningCard extends LitElement {
       return html``;
     }
     if (!this._area) {
-      return message(this._people ? "Pick an area in the card settings." : "Loading…");
+      return message(this._people ? t("Pick an area in the card settings.") : t("Loading…"));
     }
     return html`
       <ha-card>
@@ -279,10 +283,10 @@ export class ShareSpaceAreaPlanningCard extends LitElement {
             ></share-space-area-trigger-popover>`
           : html`${this._renderLinks()}
               ${this._people === null
-                ? html`<p class="placeholder">Loading…</p>`
+                ? html`<p class="placeholder">${t("Loading…")}</p>`
                 : html`<div
                     class="roster ${this._isAdmin ? "admin" : ""}"
-                    title=${this._isAdmin ? "Click to choose what this planning drives" : ""}
+                    title=${this._isAdmin ? t("Click to choose what this planning drives") : ""}
                     @click=${this._isAdmin ? () => this._openPopover() : null}
                   >
                     <area-roster-view .people=${this._people} .viewMode=${this._config.view_mode ?? "lanes"}></area-roster-view>
@@ -306,9 +310,9 @@ export class ShareSpaceAreaPlanningCard extends LitElement {
             select: {
               mode: "box",
               options: [
-                { value: "lanes", label: "One row per person" },
-                { value: "overlap", label: "Overlap stripes" },
-                { value: "merged", label: "Merged" },
+                { value: "lanes", label: t("One row per person") },
+                { value: "overlap", label: t("Overlap stripes") },
+                { value: "merged", label: t("Merged") },
               ],
             },
           },

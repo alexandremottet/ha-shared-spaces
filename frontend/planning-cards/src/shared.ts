@@ -1,3 +1,4 @@
+import "./i18n-fr";
 import { css, html } from "lit";
 import type { HomeAssistant } from "ha-share-space-ui/ha";
 

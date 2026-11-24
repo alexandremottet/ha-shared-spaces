@@ -1,6 +1,9 @@
 import { LitElement, html } from "lit";
+import type { PropertyValues } from "lit";
 import { property, state } from "lit/decorators.js";
+import { syncLanguage } from "./hass";
 import type { HomeAssistant } from "./hass";
+import { t } from "../i18n";
 import type { LovelaceGridOptions } from "./lovelace-grid-options";
 
 declare global {
@@ -25,6 +28,10 @@ export abstract class ShareSpaceCardBase<C extends { type: string } = { type: st
   @property({ attribute: false }) hass?: HomeAssistant;
   @state() protected _config?: C;
 
+  protected willUpdate(changed: PropertyValues): void {
+    if (changed.has("hass") && syncLanguage(this.hass)) this.requestUpdate();
+  }
+
   setConfig(config: C): void {
     this._config = config;
   }
@@ -39,10 +46,11 @@ export abstract class ShareSpaceCardBase<C extends { type: string } = { type: st
 }
 
 export function renderBackendMissing(name: string) {
+  const [before, after] = t("Install the {name} integration to use this card.", { name: "\u0000" }).split("\u0000");
   return html`
     <ha-card>
       <div style="padding:16px;color:var(--secondary-text-color)">
-        Install the <strong>${name}</strong> integration to use this card.
+        ${before}<strong>${name}</strong>${after}
       </div>
     </ha-card>
   `;
