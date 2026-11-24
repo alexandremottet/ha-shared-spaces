@@ -5,6 +5,8 @@ import { customElement, property } from "lit/decorators.js";
 export interface PanelTab {
   id: string;
   label: string;
+  /** Admin-only page: drawn in the admin colour. */
+  admin?: boolean;
 }
 
 // Tab strip: props in, `tab-change` (detail = id) out.
@@ -41,13 +43,23 @@ export class ShareSpacePanelTabs extends LitElement {
       background: var(--primary-color);
       color: var(--text-primary-color, #fff);
     }
+    button.admin {
+      color: var(--share-space-admin-color, var(--accent-color));
+      box-shadow:
+        inset 0 0 0 1px var(--share-space-admin-color, var(--accent-color)),
+        var(--ha-card-box-shadow, 0 1px 4px rgba(0, 0, 0, 0.25));
+    }
+    button.admin.active {
+      background: var(--share-space-admin-color, var(--accent-color));
+      color: var(--text-primary-color, #fff);
+    }
   `;
 
   protected render(): TemplateResult {
     return html`${this.tabs.map(
       (t) =>
         html`<button
-          class=${t.id === this.active ? "active" : ""}
+          class="${t.id === this.active ? "active" : ""} ${t.admin ? "admin" : ""}"
           @click=${() => this.dispatchEvent(new CustomEvent("tab-change", { detail: t.id }))}
         >
           ${t.label}

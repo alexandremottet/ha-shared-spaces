@@ -20,3 +20,6 @@ Share Space now uses the heating Home Assistant already has.
 - The log out button shows for everyone, admins included.
 - Overview's Planning card lists every heated area, so it shows even before anyone is planned. Admins also get "Everyone's planning": each person's own planning, read only.
 - End-to-end Playwright tests (`pnpm test:e2e`) run against the dev Home Assistant on desktop and phone: landing on Share Space after login, log out, the Planning card, and the admin-only plannings.
+- Overview lists heating before the Planning card. Everyone's planning moves to its own admin page, Plannings.
+- Admin pages (Plannings, Areas, Settings) use the theme's admin colour, a soft lavender in Share Space themes (`share-space-admin-color`, falling back to the accent colour), for their tabs and buttons.
+- Settings dropdowns such as Outdoor temperature look like the Show as tabs dropdown.

@@ -1,8 +1,9 @@
 import { css } from "lit";
 import { haCardSurface } from "ha-share-space-ui";
+import { selectStyles } from "./select-styles";
 
 // Shared look of the Settings sections.
-export const settingsStyles = css`
+const base = css`
   :host {
     display: block;
     color: var(--primary-text-color);
@@ -30,7 +31,6 @@ export const settingsStyles = css`
     align-items: center;
     gap: 8px 12px;
   }
-  select,
   button {
     min-height: 36px;
     padding: 0 10px;
@@ -84,3 +84,5 @@ export const settingsStyles = css`
     margin-left: auto;
   }
 `;
+
+export const settingsStyles = [base, selectStyles];

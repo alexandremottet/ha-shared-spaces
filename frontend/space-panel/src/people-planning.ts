@@ -4,6 +4,7 @@ import { customElement, property, state } from "lit/decorators.js";
 import type { Calendar, ScheduleRanges } from "ha-share-space-ui";
 import { getCalendar, getPersonArea, hassNow, hassTimeZone } from "ha-share-space-ui/ha";
 import type { HomeAssistant } from "ha-share-space-ui/ha";
+import { haCardSurface } from "ha-share-space-ui";
 import { PLANNED_ONLY } from "./overview-planning";
 
 interface PersonPlanning {
@@ -27,6 +28,9 @@ export class ShareSpacePeoplePlanning extends LitElement {
   static styles = css`
     :host {
       display: block;
+      ${haCardSurface}
+      padding: 16px;
+      margin: 8px 16px 16px;
     }
     h3 {
       margin: 0 0 4px;

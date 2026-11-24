@@ -2,6 +2,7 @@ import { LitElement, html, css, nothing } from "lit";
 import type { TemplateResult } from "lit";
 import { customElement, property } from "lit/decorators.js";
 import { haCardSurface } from "ha-share-space-ui";
+import { selectStyles } from "./select-styles";
 import type { SpaceRole } from "ha-share-space-ui/ha";
 
 const ROLE_LABEL: Record<SpaceRole, string> = {
@@ -19,7 +20,9 @@ export class ShareSpaceSettings extends LitElement {
   @property() outdoorEntity: string | null = null;
   @property({ attribute: false }) outdoorOptions: Array<{ id: string; name: string }> = [];
 
-  static styles = css`
+  static styles = [
+    selectStyles,
+    css`
     :host {
       display: block;
       padding: 8px 24px 16px;
@@ -48,22 +51,14 @@ export class ShareSpaceSettings extends LitElement {
       align-items: center;
       gap: 8px 12px;
     }
-    select {
-      min-height: 36px;
-      padding: 0 8px;
-      border-radius: 8px;
-      border: 1px solid var(--divider-color);
-      background: var(--card-background-color);
-      color: var(--primary-text-color);
-      font: inherit;
-    }
     .switch {
       display: flex;
       align-items: center;
       gap: 8px;
       margin: 8px 0 12px;
     }
-  `;
+  `,
+  ];
 
   private _renderHeating(): TemplateResult {
     const current = this.outdoorEntity ?? "";

@@ -5,6 +5,7 @@ import { entityStates, sensorReadings } from "ha-share-space-ui";
 import type { RuleStrategy } from "ha-share-space-ui";
 import { hassNow, hassTimeZone, listStrategies, listZones, loadZoneRules, planningSchedule } from "ha-share-space-ui/ha";
 import type { HeatingZone, HomeAssistant } from "ha-share-space-ui/ha";
+import { selectStyles } from "./select-styles";
 
 const OCCUPANCY_PREFIX = "binary_sensor.share_space_";
 
@@ -29,7 +30,9 @@ export class ShareSpaceOverviewPlanning extends LitElement {
   private _zonesAsked = false;
   private _loadedFor = "";
 
-  static styles = css`
+  static styles = [
+    selectStyles,
+    css`
     :host {
       display: block;
     }
@@ -47,19 +50,11 @@ export class ShareSpaceOverviewPlanning extends LitElement {
       font-weight: 500;
       flex: 1;
     }
-    select {
-      min-height: 36px;
-      padding: 0 10px;
-      border-radius: 8px;
-      border: 1px solid var(--divider-color);
-      background: var(--card-background-color);
-      color: var(--primary-text-color);
-      font: inherit;
-    }
     .muted {
       color: var(--secondary-text-color);
     }
-  `;
+  `,
+  ];
 
   // Every area with heating or someone planned in it: the card never depends on one of them alone.
   private _areas(hass: HomeAssistant): { id: string; name: string }[] {

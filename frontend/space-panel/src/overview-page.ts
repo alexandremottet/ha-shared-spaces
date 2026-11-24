@@ -11,7 +11,6 @@ import "ha-share-space-planning-cards/my-planning-card";
 import "ha-share-space-planning-cards/work-area-card";
 import { HEATING_SENSOR_PREFIX, renderHeatingControl } from "./heating";
 import "./overview-planning";
-import "./people-planning";
 
 type CardEl = HTMLElement & { hass?: HomeAssistant; setConfig(config: Record<string, unknown>): void };
 
@@ -183,18 +182,15 @@ export class ShareSpaceOverview extends LitElement {
           ${this._planning}
         </section>
       </div>
-      <section class="panel">
-        <share-space-overview-planning .hass=${hass} .initial=${area} .detected=${this._detected.map((d) => d.area_id)}></share-space-overview-planning>
-      </section>
-      ${hass.user?.is_admin
-        ? html`<section class="panel"><share-space-people-planning .hass=${hass}></share-space-people-planning></section>`
-        : nothing}
       ${others.length
         ? html`<section class="panel">
             <h3>${mine.length ? "Other areas" : "Heating"}</h3>
             <div class="zones">${others.map((vm) => this._zone(hass, vm))}</div>
           </section>`
         : nothing}
+      <section class="panel">
+        <share-space-overview-planning .hass=${hass} .initial=${area} .detected=${this._detected.map((d) => d.area_id)}></share-space-overview-planning>
+      </section>
       ${zones.length ? nothing : html`<div class="muted">No heated area yet.</div>`}
       ${this._error ? html`<div class="error">${this._error}</div>` : nothing}
     `;

@@ -31,6 +31,7 @@ for (const [who, account] of [
 test("Space Admin sees everyone's planning, read only", async ({ page }) => {
   await logIn(page, SPACE_ADMIN);
   await page.goto("/share-space");
+  await page.getByRole("button", { name: "Plannings" }).click();
   const people = page.locator("share-space-people-planning");
   await expect(people.getByRole("heading", { name: "Everyone's planning" })).toBeVisible();
   const user1 = people.locator("details", { hasText: "User 1" });
@@ -43,5 +44,16 @@ test("a user does not see other people's planning", async ({ page }) => {
   await logIn(page, USER);
   await page.goto("/share-space");
   await expect(page.locator("share-space-overview-planning").getByRole("heading", { name: "Planning" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Plannings" })).toHaveCount(0);
   await expect(page.getByRole("heading", { name: "Everyone's planning" })).toHaveCount(0);
+});
+
+test("Overview shows heating before the Planning card", async ({ page }) => {
+  await logIn(page, SPACE_ADMIN);
+  await page.goto("/share-space");
+  const heating = page.locator("share-space-overview section.panel", { has: page.getByRole("heading", { name: /^(Heating|Other areas)$/ }) });
+  const planning = page.locator("share-space-overview section.panel", { has: page.locator("share-space-overview-planning") });
+  await expect(planning).toBeVisible();
+  const [h, p] = [await heating.boundingBox(), await planning.boundingBox()];
+  expect(h!.y).toBeLessThan(p!.y);
 });

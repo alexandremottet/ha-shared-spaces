@@ -13,6 +13,7 @@ Share Space Frosted:
   modes:
     light:
       primary-color: "#0288d1"
+      share-space-admin-color: "#7e57c2"
       primary-text-color: "#1d2433"
       secondary-text-color: "rgba(29, 36, 51, 0.68)"
       disabled-text-color: "rgba(29, 36, 51, 0.38)"
@@ -28,6 +29,7 @@ Share Space Frosted:
       lovelace-background: "linear-gradient(135deg, #b9d3f0 0%, #d9c6ea 50%, #f6cdb8 100%) fixed"
     dark:
       primary-color: "#4fc3f7"
+      share-space-admin-color: "#b39ddb"
       primary-text-color: "#ffffff"
       secondary-text-color: "rgba(255, 255, 255, 0.72)"
       disabled-text-color: "rgba(255, 255, 255, 0.4)"
@@ -59,6 +61,9 @@ Le Portemine:
       dark-primary-color: "#3a5aa8"
       light-primary-color: "#d3def3"
       accent-color: "#7fa8e0"
+      # admin pages (Plannings, Areas, Settings): soft lavender instead of blue
+      share-space-admin-color: "#8a76c8"
+      share-space-admin-light-color: "#e4dcf5"
       primary-text-color: "#14224a"
       secondary-text-color: "rgba(20, 34, 74, 0.68)"
       disabled-text-color: "rgba(20, 34, 74, 0.38)"
@@ -85,6 +90,8 @@ Le Portemine:
       dark-primary-color: "#4a6fc9"
       light-primary-color: "#2a3f73"
       accent-color: "#a6c6ef"
+      share-space-admin-color: "#b4a3ea"
+      share-space-admin-light-color: "#3a3170"
       primary-text-color: "#f4f6fc"
       secondary-text-color: "rgba(244, 246, 252, 0.7)"
       disabled-text-color: "rgba(244, 246, 252, 0.4)"

@@ -30,6 +30,7 @@ import "./rules-page";
 import "./extension-points-page";
 import "./overview-page";
 import "./theme-picker";
+import "./people-planning";
 
 const DEFAULT_THEME = "Le Portemine";
 import "./zones-settings";
@@ -222,7 +223,14 @@ private _prefsFor = "";
     if (this._role === "user") {
       return [overview, ...(this._plans?.length ? [{ id: "space", label: "Space" }] : []), ...dashboards];
     }
-    return [overview, { id: "space", label: "Space" }, ...dashboards, { id: "rules", label: "Areas" }, { id: "settings", label: "Settings" }];
+    return [
+      overview,
+      { id: "space", label: "Space" },
+      ...dashboards,
+      { id: "plannings", label: "Plannings", admin: true },
+      { id: "rules", label: "Areas", admin: true },
+      { id: "settings", label: "Settings", admin: true },
+    ];
   }
 
   private get _activeTab(): string {
@@ -521,6 +529,13 @@ private _prefsFor = "";
       justify-content: flex-end;
       gap: 8px;
       padding: 8px 0;
+    }
+    /* admin pages: same layout, the theme's admin colour in place of the primary one */
+    .admin-page {
+      display: contents;
+      --primary-color: var(--share-space-admin-color, var(--accent-color));
+      --dark-primary-color: var(--share-space-admin-color, var(--accent-color));
+      --light-primary-color: var(--share-space-admin-light-color, var(--light-primary-color));
     }
     .fab.logout {
       position: static;
@@ -846,9 +861,10 @@ private _prefsFor = "";
           ? html`<share-space-dashboard .hass=${this.hass} .urlPath=${d.url_path}></share-space-dashboard>`
           : nothing,
       )}
-      ${tab === "rules" ? html`<share-space-rules-page .hass=${this.hass}></share-space-rules-page>` : nothing}
+      ${tab === "plannings" ? html`<div class="admin-page"><share-space-people-planning .hass=${this.hass}></share-space-people-planning></div>` : nothing}
+      ${tab === "rules" ? html`<div class="admin-page"><share-space-rules-page .hass=${this.hass}></share-space-rules-page></div>` : nothing}
       ${tab === "settings"
-        ? html`<share-space-settings
+        ? html`<div class="admin-page"><share-space-settings
             .role=${this._role}
             .fullHa=${!!this._fullHa}
             .everyone=${this._everyone}
@@ -873,7 +889,7 @@ private _prefsFor = "";
             ${this._role === "technical_admin"
               ? html`<share-space-extension-points slot="extension-points" .hass=${this.hass}></share-space-extension-points>`
               : nothing}
-          </share-space-settings>`
+          </share-space-settings></div>`
         : nothing}
     `;
   }
