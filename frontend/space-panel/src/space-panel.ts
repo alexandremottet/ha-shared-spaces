@@ -494,6 +494,10 @@ private _prefsFor = "";
       position: fixed;
       inset: 0;
       z-index: 10;
+      box-sizing: border-box;
+      /* companion app draws under the notch / home indicator */
+      padding: var(--safe-area-inset-top, env(safe-area-inset-top, 0px)) var(--safe-area-inset-right, env(safe-area-inset-right, 0px))
+        var(--safe-area-inset-bottom, env(safe-area-inset-bottom, 0px)) var(--safe-area-inset-left, env(safe-area-inset-left, 0px));
       display: flex;
       flex-direction: column;
       background: var(--lovelace-background, var(--primary-background-color));
@@ -581,6 +585,12 @@ private _prefsFor = "";
       width: 100%;
       padding-left: max(16px, calc((100% - 1500px) / 2));
       padding-right: max(16px, calc((100% - 1500px) / 2));
+    }
+    @media (max-width: 720px) {
+      share-space-overview {
+        padding-left: 0;
+        padding-right: 0;
+      }
     }
     .space {
       width: 100%;

@@ -57,6 +57,7 @@ export class DaySchedule extends LitElement {
   static styles = css`
     :host {
       display: block;
+      container-type: inline-size;
     }
     .row {
       display: flex;
@@ -89,7 +90,8 @@ export class DaySchedule extends LitElement {
       height: var(--day-schedule-track-height, 32px);
       border-radius: var(--day-schedule-track-radius, 4px);
       overflow: hidden;
-      touch-action: none;
+      /* vertical swipes scroll the page; only horizontal drags draw a period */
+      touch-action: pan-y;
       cursor: crosshair;
       background: var(--hour-period-absent-color, #b0bec5);
     }
@@ -99,6 +101,19 @@ export class DaySchedule extends LitElement {
       }
       .label {
         line-height: var(--day-schedule-track-height, 40px);
+      }
+    }
+    /* narrow (phones): day name above its track, so the track gets the full width */
+    @container (max-width: 480px) {
+      .row {
+        flex-direction: column;
+        align-items: stretch;
+        gap: 4px;
+      }
+      .label {
+        width: auto;
+        align-self: auto;
+        line-height: 1.4;
       }
     }
   `;
@@ -113,7 +128,6 @@ export class DaySchedule extends LitElement {
     if ((event.target as HTMLElement).closest("hour-period")) {
       return;
     }
-    this._requestSelect(null);
 
     const track = event.currentTarget as HTMLElement;
     track.setPointerCapture(event.pointerId);
@@ -139,11 +153,17 @@ export class DaySchedule extends LitElement {
     this._draftEnd = null;
 
     if (end - start < SLOT_MINUTES) {
+      this._requestSelect(null);
       return;
     }
 
     const period: TimeRange = { start: toTimeOfDay(start), end: toTimeOfDay(end) };
     this._emitChange([...this.periods, period], period);
+  }
+
+  private _onTrackPointerCancel() {
+    this._draftStart = null;
+    this._draftEnd = null;
   }
 
   private _onPeriodSelect(index: number, event: Event) {
@@ -211,6 +231,7 @@ export class DaySchedule extends LitElement {
           @pointerdown=${this._onTrackPointerDown}
           @pointermove=${this._onTrackPointerMove}
           @pointerup=${this._onTrackPointerUp}
+          @pointercancel=${this._onTrackPointerCancel}
         >
           ${this.periods.map(
             (period, index) => html`

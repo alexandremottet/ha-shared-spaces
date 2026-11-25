@@ -42,7 +42,7 @@ describe("planning entities", () => {
     expect(main.schedule.sunday).toEqual([]);
     expect(c.hass.states["sensor.share_space_open_space_next_on"].state).toBe(new Date(at(16, 9)).toISOString());
     expect(c.hass.states["sensor.share_space_open_space_next_off"].state).toBe(new Date(at(16, 12, 30)).toISOString());
-    expect(c.hass.states["sensor.share_space_open_space_previous_off"].state).toBe(new Date(at(14, 13)).toISOString());
+    expect(c.hass.states["sensor.share_space_open_space_previous_off"].state).toBe(new Date(at(15, 0)).toISOString());
     expect(c.hass.states["binary_sensor.share_space_open_space_occupied_today"].state).toBe("on");
     expect(c.hass.states["binary_sensor.share_space_kitchen_occupied_tomorrow"].state).toBe("on");
   });

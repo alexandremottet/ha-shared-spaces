@@ -99,6 +99,16 @@ export class ShareSpaceOverview extends LitElement {
       .top {
         grid-template-columns: minmax(0, 1fr);
       }
+      /* phones: row containers run edge to edge, only inner cards keep side margins */
+      :host {
+        padding-left: 0;
+        padding-right: 0;
+      }
+      .panel {
+        border-left: none;
+        border-right: none;
+        border-radius: 0;
+      }
     }
     /* My place is set once: it sits on the title line instead of taking a column */
     .head {

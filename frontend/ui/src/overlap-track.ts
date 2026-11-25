@@ -42,6 +42,7 @@ export class OverlapTrack extends LitElement {
   static styles = css`
     :host {
       display: block;
+      container-type: inline-size;
     }
     .row {
       display: flex;
@@ -62,6 +63,19 @@ export class OverlapTrack extends LitElement {
       border-radius: var(--day-schedule-track-radius, 4px);
       overflow: hidden;
       background: var(--hour-period-absent-color, #b0bec5);
+    }
+    @container (max-width: 480px) {
+      .row {
+        flex-direction: column;
+        align-items: stretch;
+        gap: 4px;
+      }
+      .label {
+        width: auto;
+      }
+      .track {
+        flex: none;
+      }
     }
     .segment {
       position: absolute;
