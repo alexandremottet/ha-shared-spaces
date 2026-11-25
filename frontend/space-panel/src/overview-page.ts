@@ -148,6 +148,22 @@ export class ShareSpaceOverview extends LitElement {
       ${haCardSurface}
       width: 340px;
       max-width: 100%;
+      transition: box-shadow 0.6s;
+    }
+    /* same glow as the heating card while the radiator heats */
+    .zone.heating {
+      box-shadow: 0 0 18px -2px color-mix(in srgb, var(--state-climate-heat-color, #ff8100) 55%, transparent);
+      animation: glow 3s ease-in-out infinite;
+    }
+    @keyframes glow {
+      50% {
+        box-shadow: 0 0 26px 0 color-mix(in srgb, var(--state-climate-heat-color, #ff8100) 70%, transparent);
+      }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      .zone.heating {
+        animation: none;
+      }
     }
     .top .zone {
       width: auto;
@@ -209,7 +225,7 @@ export class ShareSpaceOverview extends LitElement {
     const found = this._detected.find((d) => d.area_id === area);
     const own = zone?.temperature_sensor ?? (found && "temperature_sensor" in found ? found.temperature_sensor : null);
     const sensor = areaTemperatureSensor(hass, area, own);
-    return html`<div class="zone">
+    return html`<div class="zone ${vm.hvacAction === "heating" ? "heating" : ""}">
       ${renderHeatingControl(hass, vm, (fn) => void this._run(fn))}
       ${sensor
         ? html`<share-space-ha-card

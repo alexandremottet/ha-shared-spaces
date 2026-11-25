@@ -8,6 +8,7 @@ import type { PeriodChangedDetail } from "./hour-period";
 import "./time-axis";
 import "./period-times";
 import { dayName, periodsText } from "./period-text";
+import { t } from "./i18n";
 import type { TimesPlacement } from "./period-text";
 import { mergeAdjacentPeriods } from "./merge-periods";
 
@@ -66,12 +67,44 @@ export class DaySchedule extends LitElement {
       padding: var(--day-schedule-row-padding, 6px 0);
     }
     .label {
-      width: var(--day-schedule-label-width, 96px);
+      /* room for the clear button beside the day name */
+      width: calc(var(--day-schedule-label-width, 96px) + 28px);
+      box-sizing: border-box;
+      padding-right: 6px;
       flex: none;
       font-weight: var(--day-schedule-label-font-weight, 600);
       text-transform: capitalize;
       align-self: flex-start;
       line-height: var(--day-schedule-track-height, 32px);
+    }
+    .label {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 4px;
+    }
+    .clear {
+      flex: none;
+      width: 32px;
+      height: 32px;
+      margin: -4px -6px -4px 0;
+      padding: 0;
+      border: none;
+      border-radius: 50%;
+      display: grid;
+      place-items: center;
+      background: none;
+      color: var(--secondary-text-color, inherit);
+      cursor: pointer;
+    }
+    .clear:hover,
+    .clear:focus-visible {
+      background: color-mix(in srgb, currentColor 12%, transparent);
+    }
+    .clear svg {
+      width: 18px;
+      height: 18px;
+      fill: currentColor;
     }
     .lane {
       flex: 1;
@@ -166,6 +199,17 @@ export class DaySchedule extends LitElement {
     this._draftEnd = null;
   }
 
+  private _onClear() {
+    this._requestSelect(null);
+    this.dispatchEvent(
+      new CustomEvent<PeriodsChangedDetail>("periods-changed", {
+        detail: { day: this.day, periods: [] },
+        bubbles: true,
+        composed: true,
+      })
+    );
+  }
+
   private _onPeriodSelect(index: number, event: Event) {
     event.stopPropagation();
     this._requestSelect(index);
@@ -224,7 +268,13 @@ export class DaySchedule extends LitElement {
 
     return html`
       <div class="row">
-        <span class="label">${dayName(this.day)}</span>
+        <span class="label"
+          >${dayName(this.day)}${this.periods.length
+            ? html`<button class="clear" type="button" title=${t("Clear")} aria-label=${`${t("Clear")} ${dayName(this.day)}`} @click=${this._onClear}>
+                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M19 4h-3.5l-1-1h-5l-1 1H5v2h14M6 19a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2V7H6v12z" /></svg>
+              </button>`
+            : null}</span
+        >
         <div class="lane">
         <div
           class="track"

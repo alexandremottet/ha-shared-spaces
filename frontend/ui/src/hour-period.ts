@@ -106,6 +106,14 @@ export class HourPeriod extends LitElement {
     }
     /* fingers need a bigger target than the grip shows */
     @media (pointer: coarse) {
+      .segment::before {
+        content: "";
+        position: absolute;
+        inset-block: 0;
+        left: 50%;
+        width: max(100%, 32px);
+        transform: translateX(-50%);
+      }
       .handle {
         width: var(--hour-period-handle-width, 28px);
       }
@@ -234,6 +242,11 @@ export class HourPeriod extends LitElement {
 
     if (moved && this._previewStart !== null && this._previewEnd !== null) {
       const period: TimeRange = { start: toTimeOfDay(this._previewStart), end: toTimeOfDay(this._previewEnd) };
+      // dropped where it started: no property change will clear the preview
+      if (period.start === this.start && period.end === this.end) {
+        this._onPointerCancel();
+        return;
+      }
       this.dispatchEvent(
         new CustomEvent<PeriodChangedDetail>("period-changed", { detail: { period }, bubbles: true, composed: true })
       );
@@ -242,7 +255,8 @@ export class HourPeriod extends LitElement {
 
     if (!wasSelected) {
       this.dispatchEvent(new CustomEvent("period-select", { bubbles: true, composed: true }));
-    } else if (mode === "move") {
+    } else if (mode !== null) {
+      // a tap on a selected block, handles included: a tiny block is all handles
       this.dispatchEvent(new CustomEvent("period-edit-request", { bubbles: true, composed: true }));
     }
   }
