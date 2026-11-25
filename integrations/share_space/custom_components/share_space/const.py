@@ -5,6 +5,9 @@ DOMAIN = "share_space"
 # Pseudo-area merging everyone's planning: areas nobody works in (a kitchen, a meeting room) follow it.
 EVERYONE = "everyone"
 
+# url_path of the Space panel that share_space_space registers.
+SPACE_PANEL = "share-space"
+
 SERVICE_SET_CALENDAR = "set_calendar"
 SERVICE_ASSIGN_PERSON_AREA = "assign_person_area"
 SERVICE_QUERY_OCCUPANCY = "query_occupancy"

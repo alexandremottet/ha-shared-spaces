@@ -9,5 +9,12 @@
     "abort": {
       "single_instance_allowed": "Déjà configuré. Une seule instance est autorisée."
     }
+  },
+  "entity": {
+    "button": {
+      "logout_all_users": {
+        "name": "Déconnecter tous les utilisateurs"
+      }
+    }
   }
 }
