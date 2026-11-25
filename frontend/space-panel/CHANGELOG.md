@@ -1,5 +1,15 @@
 # ha-share-space-space-panel
 
+## 1.5.2
+
+### Patch Changes
+
+- b59558a: Fix theme mobile dropdown
+- Updated dependencies [b59558a]
+  - ha-share-space-ui@1.4.2
+  - ha-share-space-heating-card@1.1.2
+  - ha-share-space-planning-cards@0.5.2
+
 ## 1.5.1
 
 ### Patch Changes

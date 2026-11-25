@@ -1,5 +1,12 @@
 # ha-share-space-dashboard
 
+## 0.1.7
+
+### Patch Changes
+
+- Updated dependencies [b59558a]
+  - ha-share-space-ui@1.4.2
+
 ## 0.1.6
 
 ### Patch Changes

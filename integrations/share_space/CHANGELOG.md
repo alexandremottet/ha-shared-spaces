@@ -1,5 +1,11 @@
 # share-space-integration
 
+## 0.5.0
+
+### Minor Changes
+
+- 8338e6b: Add a "Sign out all users" button on the Share Space device (Settings > Devices & services > Share Space). An admin presses it after a release: Share Space becomes Home Assistant's default dashboard for everyone (each person's own default is cleared), then every login session is revoked, phones included, so everyone signs back in on the Space panel. Long-lived access tokens keep working.
+
 ## 0.4.0
 
 ### Minor Changes

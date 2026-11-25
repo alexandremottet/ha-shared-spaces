@@ -1,5 +1,11 @@
 # ha-share-space-ui
 
+## 1.4.2
+
+### Patch Changes
+
+- b59558a: Fix theme mobile dropdown
+
 ## 1.4.1
 
 ### Patch Changes
