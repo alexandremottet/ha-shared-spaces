@@ -2,7 +2,7 @@ import { LitElement, css, html, nothing } from "lit";
 import type { PropertyValues, TemplateResult } from "lit";
 import { customElement, property, state } from "lit/decorators.js";
 import type { Calendar, RosterPerson, ScheduleRanges } from "ha-share-space-ui";
-import { getCalendar, getPersonArea, setCalendar, waitForHaPeriodEditDialog } from "ha-share-space-ui/ha";
+import { assignPersonArea, getCalendar, getPersonArea, setCalendar, waitForHaPeriodEditDialog } from "ha-share-space-ui/ha";
 import type { CalendarChangedDetail } from "ha-share-space-ui";
 import { selectStyles } from "./select-styles";
 import type { HomeAssistant } from "ha-share-space-ui/ha";
@@ -123,10 +123,27 @@ export class ShareSpacePeoplePlanning extends LitElement {
     }
   }
 
+  private async _saveArea(id: string, area: string): Promise<void> {
+    const hass = this.hass;
+    const previous = this._people?.find((p) => p.id === id)?.area ?? null;
+    if (!hass || area === previous) return;
+    const setArea = (value: string | null) =>
+      (this._people = (this._people ?? []).map((p) => (p.id === id ? { ...p, area: value } : p)));
+    setArea(area);
+    try {
+      await assignPersonArea(hass, id, area);
+      this._error = "";
+    } catch (e) {
+      setArea(previous);
+      this._error = e instanceof Error ? e.message : t("Could not save the work area.");
+    }
+  }
+
   private _editor(): TemplateResult {
     const person = this._people?.find((p) => p.id === this._editing);
+    const areas = Object.values(this.hass?.areas ?? {}).sort((a, b) => a.name.localeCompare(b.name));
     return html`<section class="card edit">
-      <h3>${t("Edit someone's planning")}</h3>
+      <h3>${t("Edit someone's work area and planning")}</h3>
       <label
         >${t("Person")}
         <select aria-label=${t("Person")} @change=${(e: Event) => (this._editing = (e.target as HTMLSelectElement).value)}>
@@ -135,10 +152,17 @@ export class ShareSpacePeoplePlanning extends LitElement {
         </select></label
       >
       ${person
-        ? html`<week-schedule .calendar=${person.calendar as Calendar} @calendar-changed=${(e: CustomEvent<CalendarChangedDetail>) => void this._save(person.id, e.detail.calendar)}>
+        ? html`<label
+              >${t("Work area")}
+              <select aria-label=${t("Work area")} @change=${(e: Event) => void this._saveArea(person.id, (e.target as HTMLSelectElement).value)}>
+                <option value="" disabled ?selected=${!person.area}>${t("Choose an area")}</option>
+                ${areas.map((a) => html`<option value=${a.area_id} ?selected=${a.area_id === person.area}>${a.name}</option>`)}
+              </select></label
+            >
+            <week-schedule .calendar=${person.calendar as Calendar} @calendar-changed=${(e: CustomEvent<CalendarChangedDetail>) => void this._save(person.id, e.detail.calendar)}>
             ${this._dialogReady ? html`<ha-period-edit-dialog slot="dialog"></ha-period-edit-dialog>` : nothing}
           </week-schedule>`
-        : html`<div class="muted">${t("Saved as soon as you change it, in that person's own Schedule helper.")}</div>`}
+        : html`<div class="muted">${t("Saved as soon as you change it: the work area in Share Space, the planning in that person's own Schedule helper.")}</div>`}
     </section>`;
   }
 
