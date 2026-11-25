@@ -1,6 +1,6 @@
 {
   "name": "share-space-integration",
-  "version": "0.5.0",
+  "version": "0.6.0",
   "private": true,
   "description": "Changesets-only shim: this package is a Python Home Assistant integration. Version is synced into manifest.json."
 }

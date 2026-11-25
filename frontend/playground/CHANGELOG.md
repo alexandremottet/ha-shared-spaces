@@ -1,5 +1,16 @@
 # ha-share-space-playground
 
+## 1.0.10
+
+### Patch Changes
+
+- Updated dependencies [a8ab965]
+  - ha-share-space-space-panel@1.5.3
+  - ha-share-space-ui@1.4.3
+  - ha-share-space-dashboard@0.1.8
+  - ha-share-space-heating-card@1.1.3
+  - ha-share-space-planning-cards@0.5.3
+
 ## 1.0.9
 
 ### Patch Changes

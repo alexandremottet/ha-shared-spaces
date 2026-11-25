@@ -1,5 +1,12 @@
 # ha-share-space-heating-card
 
+## 1.1.3
+
+### Patch Changes
+
+- Updated dependencies [a8ab965]
+  - ha-share-space-ui@1.4.3
+
 ## 1.1.2
 
 ### Patch Changes
