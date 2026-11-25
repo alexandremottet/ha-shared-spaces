@@ -120,14 +120,18 @@ registerTranslations("fr", {
     "Impossible de charger les plannings.",
   "Could not save the planning.":
     "Impossible d'enregistrer le planning.",
-  "Edit someone's planning":
-    "Modifier le planning de quelqu'un",
+  "Edit someone's work area and planning":
+    "Modifier la zone de travail et le planning de quelqu'un",
+  "Work area":
+    "Zone de travail",
+  "Could not save the work area.":
+    "Impossible d'enregistrer la zone de travail.",
   "Person":
     "Personne",
   "Choose a person":
     "Choisir une personne",
-  "Saved as soon as you change it, in that person's own Schedule helper.":
-    "Enregistré dès que vous le modifiez, dans l'assistant Schedule de cette personne.",
+  "Saved as soon as you change it: the work area in Share Space, the planning in that person's own Schedule helper.":
+    "Enregistré dès que vous le modifiez : la zone de travail dans Share Space, le planning dans l'assistant Schedule de cette personne.",
   "Everyone's planning":
     "Planning de tout le monde",
   "The whole week, then each person's own planning, which the area plannings merge.":
