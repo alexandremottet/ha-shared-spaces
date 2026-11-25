@@ -59,6 +59,10 @@ export class HourPeriod extends LitElement {
       inset-block: 0;
       box-sizing: border-box;
       display: block;
+      touch-action: pan-y;
+    }
+    /* a selected period moves with any drag, so it keeps the gesture from the page */
+    :host([selected]:not([readonly])) {
       touch-action: none;
     }
     .segment {
@@ -243,6 +247,15 @@ export class HourPeriod extends LitElement {
     }
   }
 
+  private _onPointerCancel() {
+    this._dragMode = null;
+    this._dragMoved = false;
+    this._previewStart = null;
+    this._previewEnd = null;
+    this._applyGeometry(toMinutes(this.start), toMinutes(this.end));
+    this.requestUpdate();
+  }
+
   private _times() {
     // while it is being edited, following the drag (the row's period-times shows them otherwise)
     if (this.status !== "present" || !this.selected || this.readonly || this._previewStart === null) return null;
@@ -259,12 +272,13 @@ export class HourPeriod extends LitElement {
         @pointerdown=${this.readonly ? nothing : this._onBodyPointerDown}
         @pointermove=${this.readonly ? nothing : this._onPointerMove}
         @pointerup=${this.readonly ? nothing : this._onPointerUp}
+        @pointercancel=${this.readonly ? nothing : this._onPointerCancel}
       >
         ${this._times()}
         ${this.selected && !this.readonly
           ? html`
-              <span class="handle start" @pointerdown=${this._onStartHandlePointerDown} @pointermove=${this._onPointerMove} @pointerup=${this._onPointerUp}></span>
-              <span class="handle end" @pointerdown=${this._onEndHandlePointerDown} @pointermove=${this._onPointerMove} @pointerup=${this._onPointerUp}></span>
+              <span class="handle start" @pointerdown=${this._onStartHandlePointerDown} @pointermove=${this._onPointerMove} @pointerup=${this._onPointerUp} @pointercancel=${this._onPointerCancel}></span>
+              <span class="handle end" @pointerdown=${this._onEndHandlePointerDown} @pointermove=${this._onPointerMove} @pointerup=${this._onPointerUp} @pointercancel=${this._onPointerCancel}></span>
             `
           : null}
       </div>

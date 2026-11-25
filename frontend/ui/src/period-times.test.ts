@@ -7,10 +7,19 @@ const day = [
 ];
 
 describe("layoutTimes", () => {
-  it("puts each time on its block's edges when the block holds them", () => {
-    expect(layoutTimes(day, 1200).map((b) => b.text)).toEqual(["9:00", "12:30", "13:30", "18:00"]);
-    const [start] = layoutTimes(day, 1200);
-    expect(start.left).toBeCloseTo((9 / 24) * 1200 + 3);
+  it("puts the day's first start and last end outside, the times between blocks inside", () => {
+    const [start, end1, start2, end] = layoutTimes(day, 1200);
+    expect([start, end1, start2, end].map((b) => b.text)).toEqual(["9:00", "12:30", "13:30", "18:00"]);
+    expect(start.left + start.width).toBeCloseTo((9 / 24) * 1200 - 3);
+    expect(end1.left + end1.width).toBeCloseTo((12.5 / 24) * 1200 - 3);
+    expect(start2.left).toBeCloseTo((13.5 / 24) * 1200 + 3);
+    expect(end.left).toBeCloseTo((18 / 24) * 1200 + 3);
+  });
+
+  it("puts a single block's times outside it", () => {
+    const [start, end] = layoutTimes([{ start: "10:00", end: "18:00" }], 1200);
+    expect(start.left + start.width).toBeCloseTo((10 / 24) * 1200 - 3);
+    expect(end.left).toBeCloseTo((18 / 24) * 1200 + 3);
   });
 
   it("puts the times beside a block too short to hold them", () => {

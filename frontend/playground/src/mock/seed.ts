@@ -27,9 +27,10 @@ export function demoSeed(): SeedData {
   const alice: Partial<Calendar> = {
     monday: [r("09:00", "12:30"), r("14:00", "18:00")],
     tuesday: [r("09:00", "12:30"), r("14:00", "18:00")],
-    wednesday: [r("09:00", "12:30")],
-    thursday: [r("09:00", "12:30"), r("14:00", "18:00")],
-    friday: [r("09:00", "12:00")],
+    wednesday: [r("10:00", "18:00")],
+    thursday: [r("07:30", "18:00")],
+    friday: [r("02:30", "06:30"), r("09:30", "16:30")],
+    saturday: [r("23:30", "24:00")],
   };
   const bob: Partial<Calendar> = {
     tuesday: [r("10:00", "16:00")],

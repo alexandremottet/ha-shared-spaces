@@ -23,25 +23,29 @@ interface Label {
   /** Left position against its edge inside the block, then just outside it. */
   inside: number;
   outside: number;
-  /** The block holds both its times. */
-  holds: boolean;
+  /** Day edges (first start, last end) go outside the blocks; edges facing another block go inside. */
+  outer: boolean;
+  /** The block has room for this time inside it. */
+  fits: boolean;
 }
 
 /**
- * Start and end times of a day's periods, laid over its track, each against its block's edge. On one
- * row a short block's times sit outside it; when they would touch, they alternate top and bottom rows, and a time with no room on either is left out.
+ * Start and end times of a day's periods, laid over its track, each against its block's edge: the day's
+ * first start and last end sit outside their block, the times between two blocks inside theirs (outside
+ * when the block is too short). When they would touch, they alternate top and bottom rows, and a time
+ * with no room on either is left out.
  */
 export function layoutTimes(periods: TimeRange[], trackWidth: number, charWidth = 6.6, padding = 8): Box[] {
   const w = (text: string) => text.length * charWidth + padding;
   const labels: Label[] = [];
-  for (const p of [...periods].sort((a, b) => minutes(a.start) - minutes(b.start))) {
+  const sorted = [...periods].sort((a, b) => minutes(a.start) - minutes(b.start));
+  for (const [i, p] of sorted.entries()) {
     const a = (minutes(p.start) / MINUTES_PER_DAY) * trackWidth;
     const b = (minutes(p.end) / MINUTES_PER_DAY) * trackWidth;
     const [s, e] = [short(p.start), short(p.end)];
-    const holds = b - a >= w(s) + w(e) + 2 * GAP + 4;
     labels.push(
-      { text: s, width: w(s), inside: a + GAP, outside: a - GAP - w(s), holds },
-      { text: e, width: w(e), inside: b - GAP - w(e), outside: b + GAP, holds },
+      { text: s, width: w(s), inside: a + GAP, outside: a - GAP - w(s), outer: i === 0, fits: b - a >= w(s) + 2 * GAP },
+      { text: e, width: w(e), inside: b - GAP - w(e), outside: b + GAP, outer: i === sorted.length - 1, fits: b - a >= w(e) + 2 * GAP },
     );
   }
   const clamp = (left: number, width: number) => Math.max(0, Math.min(trackWidth - width, left));
@@ -53,8 +57,7 @@ export function layoutTimes(periods: TimeRange[], trackWidth: number, charWidth 
       let box: Box | null = null;
       for (const row of order) {
         const last = rows[row][rows[row].length - 1];
-        // on one row a short block's times go outside it; alternating rows leave room for them inside
-        const sides = rowsCount === 2 || label.holds ? [label.inside, label.outside] : [label.outside, label.inside];
+        const sides = label.outer || !label.fits ? [label.outside, label.inside] : [label.inside, label.outside];
         const left = sides.map((l) => clamp(l, label.width)).find((l) => !last || l >= last.left + last.width + 2);
         if (left !== undefined) {
           box = { left, width: label.width, text: label.text, row: rowsCount === 1 ? undefined : row };
