@@ -558,10 +558,12 @@ private _prefsFor = "";
     }
     /* phones: the tabs become a menu button, so the header keeps one row */
     @media (max-width: 720px) {
+      /* the tab menu shrinks (its label ellipsizes) so the action buttons never slide under it */
       .top {
-        grid-template-columns: auto minmax(0, 1fr);
+        grid-template-columns: minmax(0, 1fr) auto;
       }
-      .title {
+      .title,
+      .user {
         display: none;
       }
     }
@@ -614,9 +616,10 @@ private _prefsFor = "";
       color: var(--primary-text-color);
       box-shadow: var(--ha-card-box-shadow, 0 2px 6px rgba(0, 0, 0, 0.3));
     }
+    /* absolute boxes ignore the host's safe-area padding, so they add it themselves */
     .exit {
-      top: 12px;
-      left: 12px;
+      top: calc(12px + var(--safe-area-inset-top, env(safe-area-inset-top, 0px)));
+      left: calc(12px + var(--safe-area-inset-left, env(safe-area-inset-left, 0px)));
     }
     .bar {
       position: absolute;
