@@ -19,7 +19,7 @@ _LOGGER = logging.getLogger(__name__)
 
 
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry, async_add_entities: AddEntitiesCallback) -> None:
-    async_add_entities([LogoutAllUsersButton(entry)])
+    async_add_entities([OpenShareSpaceForEveryoneButton(entry), LogoutAllUsersButton(entry)])
 
 
 async def async_open_share_space_for_everyone(hass: HomeAssistant) -> None:
@@ -46,27 +46,42 @@ async def async_logout_all_users(hass: HomeAssistant) -> int:
     return removed
 
 
-class LogoutAllUsersButton(ButtonEntity):
+class _AdminButton(ButtonEntity):
     _attr_has_entity_name = True
-    _attr_translation_key = "logout_all_users"
     _attr_entity_category = EntityCategory.CONFIG
-    _attr_icon = "mdi:logout"
 
     def __init__(self, entry: ConfigEntry) -> None:
-        self._attr_unique_id = f"{entry.entry_id}_logout_all_users"
+        self._attr_unique_id = f"{entry.entry_id}_{self._attr_translation_key}"
         self._attr_device_info = DeviceInfo(
             identifiers={(DOMAIN, entry.entry_id)},
             name="Share Space",
             entry_type=DeviceEntryType.SERVICE,
         )
 
-    async def async_press(self) -> None:
+    async def _async_check_admin(self) -> None:
         # Entity permissions let any non-admin press buttons, so gate on admin here.
         user_id = self._context.user_id if self._context else None
         if user_id is not None:
             user = await self.hass.auth.async_get_user(user_id)
             if user is None or not user.is_admin:
                 raise Unauthorized(context=self._context)
+
+
+class OpenShareSpaceForEveryoneButton(_AdminButton):
+    _attr_translation_key = "open_for_everyone"
+    _attr_icon = "mdi:home-import-outline"
+
+    async def async_press(self) -> None:
+        await self._async_check_admin()
+        await async_open_share_space_for_everyone(self.hass)
+
+
+class LogoutAllUsersButton(_AdminButton):
+    _attr_translation_key = "logout_all_users"
+    _attr_icon = "mdi:logout"
+
+    async def async_press(self) -> None:
+        await self._async_check_admin()
         await async_open_share_space_for_everyone(self.hass)
         removed = await async_logout_all_users(self.hass)
         _LOGGER.warning("Signed out all users: %d sessions revoked", removed)

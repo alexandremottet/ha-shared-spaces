@@ -572,15 +572,28 @@ export async function opensShareSpaceForEveryone(hass: HomeAssistant): Promise<b
   return (await getCoreData(hass, "system")).default_panel === SHARE_SPACE_PANEL;
 }
 
-/** Admin only: sets or clears HA's system default panel; each person's own choice still wins. */
+/** Admin only: sets or clears HA's system default panel; other people's own choice still wins, the admin's own is dropped. */
 export async function setOpensShareSpaceForEveryone(hass: HomeAssistant, on: boolean): Promise<void> {
   const { default_panel: _, ...core } = await getCoreData(hass, "system");
   await hass.callWS<void>({ type: "frontend/set_system_data", key: "core", value: on ? { ...core, default_panel: SHARE_SPACE_PANEL } : core });
+  if (on) await clearMyDefaultPanel(hass);
 }
 
 export async function setMyDefaultPanel(hass: HomeAssistant, panel: string): Promise<void> {
   const core = await getCoreData(hass, "user");
   await hass.callWS<void>({ type: "frontend/set_user_data", key: "core", value: { ...core, default_panel: panel } });
+}
+
+export async function clearMyDefaultPanel(hass: HomeAssistant): Promise<void> {
+  const { default_panel, ...core } = await getCoreData(hass, "user");
+  if (default_panel !== undefined) await hass.callWS<void>({ type: "frontend/set_user_data", key: "core", value: core });
+}
+
+/** Full HA on pins this person to HA's dashboard; off follows the system default when it is Share Space, so later admin changes still reach them. */
+export async function setMyFullHa(hass: HomeAssistant, fullHa: boolean): Promise<void> {
+  if (fullHa) return setMyDefaultPanel(hass, "lovelace");
+  if (await opensShareSpaceForEveryone(hass)) return clearMyDefaultPanel(hass);
+  return setMyDefaultPanel(hass, SHARE_SPACE_PANEL);
 }
 
 export interface SpaceDashboard {

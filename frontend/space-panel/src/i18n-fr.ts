@@ -322,8 +322,8 @@ registerTranslations("fr", {
     "Outils techniques",
   "Full Home Assistant interface":
     "Interface complète de Home Assistant",
-  "Off: Home Assistant opens on Share Space after login. On: its usual interface, with a Back button here.":
-    "Désactivé : Home Assistant s'ouvre sur Share Space après la connexion. Activé : son interface habituelle, avec un bouton Retour ici.",
+  "Only for your account, and it wins over the page set for everyone. Off: Home Assistant opens on Share Space after login. On: its usual interface, with a Back button here.":
+    "Uniquement pour votre compte, et prioritaire sur la page définie pour tout le monde. Désactivé : Home Assistant s'ouvre sur Share Space après la connexion. Activé : son interface habituelle, avec un bouton Retour ici.",
   "Open Share Space after login for everyone":
     "Ouvrir Share Space après la connexion pour tout le monde",
   "Home Assistant's own default page for all users. Someone who picked another page in their Home Assistant profile keeps it.":

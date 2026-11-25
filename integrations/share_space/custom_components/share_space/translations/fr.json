@@ -12,6 +12,9 @@
   },
   "entity": {
     "button": {
+      "open_for_everyone": {
+        "name": "Ouvrir Share Space pour tout le monde"
+      },
       "logout_all_users": {
         "name": "Déconnecter tous les utilisateurs"
       }

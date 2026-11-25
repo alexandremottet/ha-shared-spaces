@@ -17,7 +17,7 @@ import {
   loadCardHelpers,
   getHeatingSettings,
   saveHeatingSettings,
-  setMyDefaultPanel,
+  setMyFullHa,
   opensShareSpaceForEveryone,
   setOpensShareSpaceForEveryone,
   SHARE_SPACE_PANEL,
@@ -187,7 +187,7 @@ private _prefsFor = "";
     const prev = this._fullHa;
     this._fullHa = fullHa;
     try {
-      await setMyDefaultPanel(this.hass, fullHa ? "lovelace" : SHARE_SPACE_PANEL);
+      await setMyFullHa(this.hass, fullHa);
     } catch {
       this._fullHa = prev;
     }
