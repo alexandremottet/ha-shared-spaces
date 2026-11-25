@@ -106,7 +106,7 @@ export class ShareSpaceSettings extends LitElement {
             />
             ${t("Full Home Assistant interface")}
           </label>
-          <p class="muted">${t("Off: Home Assistant opens on Share Space after login. On: its usual interface, with a Back button here.")}</p>
+          <p class="muted">${t("Only for your account, and it wins over the page set for everyone. Off: Home Assistant opens on Share Space after login. On: its usual interface, with a Back button here.")}</p>
           <label class="switch">
             <input
               type="checkbox"

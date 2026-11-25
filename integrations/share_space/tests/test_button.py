@@ -59,3 +59,29 @@ async def test_press_makes_share_space_everyone_s_default_dashboard(hass, entry,
 
     assert system.data["core"] == {"default_panel": "share-space", "other": 1}
     assert own.data["core"] == {"theme": "dark"}
+
+
+OPEN_ID = "button.share_space_open_share_space_for_everyone"
+
+
+async def test_open_for_everyone_sets_default_without_signing_out(hass, entry, hass_admin_user, hass_read_only_user):
+    session = await hass.auth.async_create_refresh_token(hass_read_only_user, "http://example.local/")
+    system = await async_system_store(hass)
+    await system.async_set_item("core", {"other": 1})
+    own = await async_user_store(hass, hass_read_only_user.id)
+    await own.async_set_item("core", {"default_panel": "lovelace", "theme": "dark"})
+
+    await hass.services.async_call(
+        "button", "press", {"entity_id": OPEN_ID}, blocking=True, context=Context(user_id=hass_admin_user.id)
+    )
+
+    assert system.data["core"] == {"other": 1, "default_panel": "share-space"}
+    assert own.data["core"] == {"theme": "dark"}
+    assert hass.auth.async_get_refresh_token(session.id) is not None
+
+
+async def test_non_admin_cannot_open_for_everyone(hass, entry, hass_read_only_user):
+    with pytest.raises(Unauthorized):
+        await hass.services.async_call(
+            "button", "press", {"entity_id": OPEN_ID}, blocking=True, context=Context(user_id=hass_read_only_user.id)
+        )

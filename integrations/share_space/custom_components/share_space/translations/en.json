@@ -12,6 +12,9 @@
   },
   "entity": {
     "button": {
+      "open_for_everyone": {
+        "name": "Open Share Space for everyone"
+      },
       "logout_all_users": {
         "name": "Sign out all users"
       }

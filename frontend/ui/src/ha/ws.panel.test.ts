@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { findCardView, getDefaultPanel, opensShareSpaceForEveryone, setMyDefaultPanel, setOpensShareSpaceForEveryone } from "./ws";
+import { findCardView, getDefaultPanel, opensShareSpaceForEveryone, setMyDefaultPanel, setMyFullHa, setOpensShareSpaceForEveryone } from "./ws";
 import type { HomeAssistant } from "./hass";
 
 function fakeHass(system: Record<string, unknown> | null, user: Record<string, unknown> | null = null) {
@@ -36,12 +36,39 @@ describe("page HA opens after login", () => {
     expect(data.system).toEqual({ other: 1 });
   });
 
-  it("leaves a person's own choice in place", async () => {
-    const { hass } = fakeHass(null, { default_panel: "lovelace" });
+  it("drops the admin's own choice when turned on, so it takes effect for them too", async () => {
+    const { hass, data } = fakeHass(null, { default_panel: "lovelace", theme: "dark" });
     await setOpensShareSpaceForEveryone(hass, true);
+    expect(data.user).toEqual({ theme: "dark" });
+    expect(await getDefaultPanel(hass)).toBe("share-space");
+  });
+
+  it("a person's own choice wins over the system default", async () => {
+    const { hass } = fakeHass({ default_panel: "share-space" }, { default_panel: "lovelace" });
     expect(await getDefaultPanel(hass)).toBe("lovelace");
     await setMyDefaultPanel(hass, "share-space");
     expect(await getDefaultPanel(hass)).toBe("share-space");
+  });
+});
+
+describe("full HA switch", () => {
+  it("on pins this person to HA's dashboard", async () => {
+    const { hass, data } = fakeHass({ default_panel: "share-space" }, { theme: "dark" });
+    await setMyFullHa(hass, true);
+    expect(data.user).toEqual({ theme: "dark", default_panel: "lovelace" });
+  });
+
+  it("off drops the person's choice when everyone already opens Share Space", async () => {
+    const { hass, data } = fakeHass({ default_panel: "share-space" }, { default_panel: "lovelace", theme: "dark" });
+    await setMyFullHa(hass, false);
+    expect(data.user).toEqual({ theme: "dark" });
+    expect(await getDefaultPanel(hass)).toBe("share-space");
+  });
+
+  it("off picks Share Space for this person when the system default is another page", async () => {
+    const { hass, data } = fakeHass({ default_panel: "energy" }, { default_panel: "lovelace" });
+    await setMyFullHa(hass, false);
+    expect(data.user).toEqual({ default_panel: "share-space" });
   });
 });
 
