@@ -1,5 +1,16 @@
 # ha-share-space-ui
 
+## 1.4.1
+
+### Patch Changes
+
+- 067e293: Take into account ios/app specificty
+  
+  - Remove card margin on mobile
+  - Add top gap to take into account mobile notches
+  - Scroll fix
+  - tranche hour
+
 ## 1.4.0
 
 ### Minor Changes

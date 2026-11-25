@@ -1,5 +1,12 @@
 # ha-share-space-planning-cards
 
+## 0.5.1
+
+### Patch Changes
+
+- Updated dependencies [067e293]
+  - ha-share-space-ui@1.4.1
+
 ## 0.5.0
 
 ### Minor Changes

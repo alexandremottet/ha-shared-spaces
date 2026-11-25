@@ -1,5 +1,20 @@
 # ha-share-space-space-panel
 
+## 1.5.1
+
+### Patch Changes
+
+- 067e293: Take into account ios/app specificty
+  
+  - Remove card margin on mobile
+  - Add top gap to take into account mobile notches
+  - Scroll fix
+  - tranche hour
+- Updated dependencies [067e293]
+  - ha-share-space-ui@1.4.1
+  - ha-share-space-heating-card@1.1.1
+  - ha-share-space-planning-cards@0.5.1
+
 ## 1.5.0
 
 ### Minor Changes

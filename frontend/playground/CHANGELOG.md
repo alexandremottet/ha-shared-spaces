@@ -1,5 +1,22 @@
 # ha-share-space-playground
 
+## 1.0.8
+
+### Patch Changes
+
+- 067e293: Take into account ios/app specificty
+  
+  - Remove card margin on mobile
+  - Add top gap to take into account mobile notches
+  - Scroll fix
+  - tranche hour
+- Updated dependencies [067e293]
+  - ha-share-space-space-panel@1.5.1
+  - ha-share-space-ui@1.4.1
+  - ha-share-space-dashboard@0.1.6
+  - ha-share-space-heating-card@1.1.1
+  - ha-share-space-planning-cards@0.5.1
+
 ## 1.0.7
 
 ### Patch Changes
