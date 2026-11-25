@@ -1,5 +1,11 @@
 # ha-share-space-space-panel
 
+## 1.6.0
+
+### Minor Changes
+
+- 3575a30: Plannings page: once a Space Admin or Technical Admin picks a person, the same card also lets them change that person's work area. The card is now called "Edit someone's work area and planning".
+
 ## 1.5.3
 
 ### Patch Changes
